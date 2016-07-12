@@ -95,6 +95,29 @@ typedef void* (*SkalMapF)(void* cookie, void* obj);
 typedef void (*SkalUnmapF)(void* cookie, void* obj);
 
 
+/** The different scopes of a custom memory allocator
+ *
+ * Whenever a blob will move to a wider scope (eg: thread -> process), a new
+ * blob of the larger scope will be allocated, the content of the old blob will
+ * be copied to the new blob, and the old blob will be deleted and replaced by
+ * the new blob.
+ */
+typedef enum
+{
+    /** The scope is limited to the current thread */
+    SKAL_ALLOCATOR_SCOPE_THREAD,
+
+    /** The scope is limited to the current process; eg: "malloc" allocator */
+    SKAL_ALLOCATOR_SCOPE_PROCESS,
+
+    /** The scope is the current machine; eg: "shm" allocator */
+    SKAL_ALLOCATOR_SCOPE_COMPUTER,
+
+    /** The scope is the current system; eg: a NAS-backed object */
+    SKAL_ALLOCATOR_SCOPE_SYSTEM
+} SkalAllocatorScope;
+
+
 /** Structure representing a custom memory allocator
  *
  * This could be used, for example, to allocate frame buffers on a video card,
@@ -119,13 +142,11 @@ typedef struct
      */
     const char name[SKAL_NAME_MAX];
 
-    /** Does the allocator manage blobs for the whole computer?
+    /** Allocator scope
      *
-     * If your allocator can allocate a blob in one process and free it in
-     * another, set this flag to `true`. If your allocator works only within the
-     * limits of the current process, set this flag to `false`.
+     * Please refer to `SkalAllocatorScope` for more details.
      */
-    bool interProcess;
+    SkalAllocatorScope scope;
 
     /** Allocate a memory area; NULL not allowed */
     SkalAllocateF allocate;
@@ -231,6 +252,12 @@ typedef struct
  * used to override the pre-defined "malloc" and "shm" allocators, although this
  * is discouraged.
  *
+ * Please note that if an allocator has a scope of
+ * `SKAL_ALLOCATOR_SCOPE_COMPUTER` or `SKAL_ALLOCATOR_SCOPE_SYSTEM`, you will
+ * have to ensure that this allocator is also registered with any process that
+ * might free blobs created by this allocator. Failure to do so will result in
+ * asserts.
+ *
  * \return `true` if OK, `false` if can't connect to skald
  */
 bool SkalInit(const char* skaldUrl, const SkalAllocator* allocators);
@@ -299,11 +326,6 @@ void SkalLoop(void) __attribute__((noreturn));
  * "malloc" blob will be automatically changed into a "shm" blob. This also
  * applies to a blob created with a custom allocator with the
  * `SkalAllocator.interProcess` flag set to `false`.
- *
- * Please note that if the blob is allocated from an "inter-process" allocator
- * (i.e. with the `SkalAllocator.interProcess` false set to `true`), you will
- * have to ensure that allocator is also registered with any process that might
- * free such blobs. Failure to do so will result in asserts.
  *
  * **VERY IMPORTANT** SKAL does not provide any mechanism to allow exclusive
  * access to a blob (no mutex, no semaphore, etc.) as this would go against SKAL

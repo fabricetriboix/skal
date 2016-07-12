@@ -155,24 +155,24 @@ void SkalBlobInit(const SkalAllocator* allocators, int size)
             skalAllocatorMapCompare, NULL, NULL, skalAllocatorMapUnref);
 
     SkalAllocator mallocAllocator = {
-        "malloc",           // name
-        false,              // interProcess
-        skalMallocAllocate, // allocator
-        skalMallocFree,     // free
-        skalMallocMap,      // map
-        skalMallocUnmap,    // unmap
-        NULL                // cookie
+        "malloc",                     // name
+        SKAL_ALLOCATOR_SCOPE_PROCESS, // scope
+        skalMallocAllocate,           // allocator
+        skalMallocFree,               // free
+        skalMallocMap,                // map
+        skalMallocUnmap,              // unmap
+        NULL                          // cookie
     };
     skalRegisterAllocator(&mallocAllocator);
 
     SkalAllocator shmAllocator = {
-        "shm",              // name
-        true,               // interProcess
-        skalShmAllocate,    // allocator
-        skalShmFree,        // free
-        skalShmMap,         // map
-        skalShmUnmap,       // unmap
-        NULL                // cookie
+        "shm",                         // name
+        SKAL_ALLOCATOR_SCOPE_COMPUTER, // scope
+        skalShmAllocate,               // allocator
+        skalShmFree,                   // free
+        skalShmMap,                    // map
+        skalShmUnmap,                  // unmap
+        NULL                           // cookie
     };
     skalRegisterAllocator(&shmAllocator);
 
