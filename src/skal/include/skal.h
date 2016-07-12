@@ -300,6 +300,11 @@ void SkalLoop(void) __attribute__((noreturn));
  * applies to a blob created with a custom allocator with the
  * `SkalAllocator.interProcess` flag set to `false`.
  *
+ * Please note that if the blob is allocated from an "inter-process" allocator
+ * (i.e. with the `SkalAllocator.interProcess` false set to `true`), you will
+ * have to ensure that allocator is also registered with any process that might
+ * free such blobs. Failure to do so will result in asserts.
+ *
  * **VERY IMPORTANT** SKAL does not provide any mechanism to allow exclusive
  * access to a blob (no mutex, no semaphore, etc.) as this would go against SKAL
  * philosophy. It is expected that the application designer will be sensible in

@@ -35,11 +35,11 @@ typedef struct {
 
 struct SkalBlob
 {
-    const SkalAllocator* allocator;
-    int                  ref;
-    char                 id[SKAL_NAME_MAX];
-    int64_t              size_B;
-    void*                obj;
+    char    allocator[SKAL_NAME_MAX];
+    int     ref;
+    char    id[SKAL_NAME_MAX];
+    int64_t size_B;
+    void*   obj;
 };
 
 
@@ -49,28 +49,72 @@ struct SkalBlob
  +-------------------------------*/
 
 
+/** Allocator map: compare 2 keys
+ *
+ * The keys are actually the allocator names.
+ *
+ * \param leftkey  [in] Name of the left-hand side allocator
+ * \param rightkey [in] Name of the right-hand side allocator
+ * \param cookie   [in] Unused
+ *
+ * \return <0, 0 or >0 if `leftkey` is respectively <, = or > to `rightkey`
+ */
 static int skalAllocatorMapCompare(void* leftkey, void* rightkey, void* cookie);
 
+
+/** Allocator map: unreference an item
+ *
+ * \param litem [in,out] Allocator item to unreference
+ */
 static void skalAllocatorMapUnref(CdsMapItem* litem);
 
-/** Register an allocator
+
+/** Register an allocator into the allocator map
  *
  * \param allocator [in] Description of allocator to register
  */
 static void skalRegisterAllocator(const SkalAllocator* allocator);
 
 
-/** Allocate a blob for the "malloc" allocator
+/** "malloc" allocator: allocate a memory area
+ *
+ * \param cookie [in] Unused
+ * \param id     [in] Unused
+ * \param size_B [in] Number of bytes to allocate, must be >0
+ *
+ * \return The allocated memory area; this function never returns NULL
  */
 static void* skalMallocAllocate(void* cookie, const char* id, int64_t size_B);
 
+
+/** "malloc" allocator: free a memory area
+ *
+ * \param cookie [in]     Unused
+ * \param obj    [in,out] Memory area to de-allocate
+ */
 static void skalMallocFree(void* cookie, void* obj);
 
+
+/** "malloc" allocator: map a memory area into process memory space
+ *
+ * \param cookie [in]     Unused
+ * \param obj    [in,out] Memory area to map
+ *
+ * \return Mapped memory area (same as `obj` actually)
+ */
 static void* skalMallocMap(void* cookie, void* obj);
 
+
+/** "malloc" allocator: unmap from process memory space
+ *
+ * \param cookie [in]     Unused
+ * \param obj    [in,out] Memory area to unmap
+ */
 static void skalMallocUnmap(void* cookie, void* obj);
 
 
+/** "shm" allocator: allocate a memory area
+ */
 static void* skalShmAllocate(void* cookie, const char* id, int64_t size_B);
 
 static void skalShmFree(void* cookie, void* obj);
@@ -86,6 +130,11 @@ static void skalShmUnmap(void* cookie, void* obj);
  +------------------*/
 
 
+/** Map of allocators
+ *
+ * NB: We don't bother protecting it, because we assume it will not be modified
+ * after initialisation.
+ */
 static CdsMap* gAllocatorMap = NULL;
 
 
@@ -157,7 +206,7 @@ SkalBlob* SkalBlobCreate(const char* allocator, const char* id, int64_t size_B)
                 id, size_B);
         if (obj != NULL) {
             blob = SkalMallocZ(sizeof(*blob));
-            blob->allocator = &(item->allocator);
+            strcpy(blob->allocator, allocator);
             blob->ref = 1;
             if (id != NULL) {
                 snprintf(blob->id, sizeof(blob->id), "%s", id);
@@ -182,9 +231,12 @@ void SkalBlobUnref(SkalBlob* blob)
     SKALASSERT(blob != NULL);
     blob->ref--;
     if (blob->ref <= 0) {
-        const SkalAllocator* allocator = blob->allocator;
-        SKALASSERT(allocator->free != NULL);
-        allocator->free(allocator->cookie, blob->obj);
+        skalAllocatorItem* item = (skalAllocatorItem*)CdsMapSearch(
+                gAllocatorMap, blob->allocator);
+        SKALASSERT(item != NULL);
+        SKALASSERT(item->allocator.free != NULL);
+        item->allocator.free(item->allocator.cookie, blob->obj);
+        free(blob);
     }
 }
 
@@ -192,18 +244,22 @@ void SkalBlobUnref(SkalBlob* blob)
 void* SkalBlobMap(SkalBlob* blob)
 {
     SKALASSERT(blob != NULL);
-    const SkalAllocator* allocator = blob->allocator;
-    SKALASSERT(allocator->map != NULL);
-    return allocator->map(allocator->cookie, blob->obj);
+    skalAllocatorItem* item = (skalAllocatorItem*)CdsMapSearch(gAllocatorMap,
+            blob->allocator);
+    SKALASSERT(item != NULL);
+    SKALASSERT(item->allocator.map != NULL);
+    return item->allocator.map(item->allocator.cookie, blob->obj);
 }
 
 
 void SkalBlobUnmap(SkalBlob* blob)
 {
     SKALASSERT(blob != NULL);
-    const SkalAllocator* allocator = blob->allocator;
-    SKALASSERT(allocator->unmap != NULL);
-    return allocator->unmap(allocator->cookie, blob->obj);
+    skalAllocatorItem* item = (skalAllocatorItem*)CdsMapSearch(gAllocatorMap,
+            blob->allocator);
+    SKALASSERT(item != NULL);
+    SKALASSERT(item->allocator.unmap != NULL);
+    return item->allocator.unmap(item->allocator.cookie, blob->obj);
 }
 
 
@@ -247,7 +303,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 {
     SKALASSERT(gAllocatorMap != NULL);
     SKALASSERT(allocator != NULL);
-    SKALASSERT(SkalIsAsciiString(allocator->name, sizeof(allocator->name)));
+    SKALASSERT(SkalIsAsciiString(allocator->name, SKAL_NAME_MAX));
     SKALASSERT(allocator->allocate != NULL);
     SKALASSERT(allocator->free != NULL);
     SKALASSERT(allocator->map != NULL);
