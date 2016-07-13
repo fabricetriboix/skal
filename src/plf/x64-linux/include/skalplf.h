@@ -108,6 +108,32 @@ typedef void (*SkalPlfThreadFunction)(void* arg);
  +------------------------------*/
 
 
+/** Generate a random string
+ *
+ * \param buffer [out] Where to write the random string
+ * \param size_B [in]  Number of bytes to generate
+ */
+void SkalPlfRandom(uint8_t* buffer, int size_B);
+
+
+/** Generate a random 32-bit number */
+static inline uint32_t SkalPlfRandomU32(void)
+{
+    uint32_t x;
+    SkalPlfRandom((uint8_t*)&x, sizeof(x));
+    return x;
+}
+
+
+/** Generate a random 64-bit number */
+static inline uint64_t SkalPlfRandomU64(void)
+{
+    uint64_t x;
+    SkalPlfRandom((uint8_t*)&x, sizeof(x));
+    return x;
+}
+
+
 /** Create a mutex
  *
  * \return A newly created mutex; this function never returns NULL

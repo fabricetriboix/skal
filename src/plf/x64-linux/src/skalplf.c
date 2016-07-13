@@ -20,6 +20,10 @@
 #endif
 
 #include "skalplf.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <pthread.h>
 
 
@@ -52,9 +56,35 @@ struct SkalPlfThread
 
 
 
+/*------------------+
+ | Global variables |
+ +------------------*/
+
+
+/** Access to "/dev/urandom" */
+static int gRandomFd = -1;
+
+
+
 /*---------------------------------+
  | Public function implementations |
  +---------------------------------*/
+
+
+void SkalPlfRandom(uint8_t* buffer, int size_B)
+{
+    if (gRandomFd < 0) {
+        gRandomFd = open("/dev/urandom", O_RDONLY);
+        SKALASSERT(gRandomFd >= 0);
+    }
+
+    while (size_B > 0) {
+        int ret = read(gRandomFd, buffer, size_B);
+        SKALASSERT(ret > 0);
+        size_B -= ret;
+        buffer += ret;
+    }
+}
 
 
 SkalPlfMutex* SkalPlfMutexCreate(void)

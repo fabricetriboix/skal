@@ -108,6 +108,12 @@ RTT_TEST_START(skal_plf_should_free_up_resources)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_plf_should_generate_a_random_number)
+{
+    (void)SkalPlfRandomU64();
+}
+RTT_TEST_END
+
 RTT_GROUP_END(TestSkalPlf,
         skal_plf_should_create_mutex,
         skal_plf_should_create_condvar,
@@ -116,4 +122,5 @@ RTT_GROUP_END(TestSkalPlf,
         skal_plf_thread_name_should_be_unchanged_before_signal,
         skal_plf_thread_arg_should_be_changed_after_signal,
         skal_plf_thread_name_should_be_changed_after_signal,
-        skal_plf_should_free_up_resources)
+        skal_plf_should_free_up_resources,
+        skal_plf_should_generate_a_random_number)
