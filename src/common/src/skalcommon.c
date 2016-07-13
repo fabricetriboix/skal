@@ -109,16 +109,42 @@ bool SkalIsAsciiString(const char* str, int maxlen)
 
     for (int i = 0; i < maxlen; i++) {
         char c = str[i];
-        if (c == '\0') {
+        if ('\0' == c) {
             return true; // Null char found => `str` is a valid ASCII string
         }
-        if ((c < SKAL_ASCII_MIN) || (c > SKAL_ASCII_MAX)) {
-            // Non-ASCII char found => `str` is not a valid ASCII string
+        if ((c < 0x20) || (0x7f == c)) {
+            // Control character found => `str` is not a valid ASCII string
+            return false;
+        }
+        if (c & 0x80) {
+            // Extended ASCII char found => `str` is not a valid ASCII string
             return false;
         }
     }
 
-    // No null character found within `maxlen` chars
+    // No null character found within `maxlen` bytes
     //  => `str` is not a valid ASCII string
+    return false;
+}
+
+
+bool SkalIsUtf8String(const char* str, int maxlen)
+{
+    SKALASSERT(str != NULL);
+    SKALASSERT(maxlen > 0);
+
+    for (int i = 0; i < maxlen; i++) {
+        char c = str[i];
+        if ('\0' == c) {
+            return true; // Null char found => `str` is a valid UTF-8 string
+        }
+        if ((c < 0x20) || (0x7f == c)) {
+            // Control character found => `str` is not a valid UTF-8 string
+            return false;
+        }
+    }
+
+    // No null character found within `maxlen` bytes
+    //  => `str` is not a valid UTF-8 string
     return false;
 }

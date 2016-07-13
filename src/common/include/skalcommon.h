@@ -37,14 +37,6 @@
 #define SKAL_NAME_MAX 128
 
 
-/** Minimum ASCII character */
-#define SKAL_ASCII_MIN ((char)0x20)
-
-
-/** Maximum ASCII character */
-#define SKAL_ASCII_MAX ((char)0x7e)
-
-
 
 /*------------------------------+
  | Public function declarations |
@@ -117,15 +109,26 @@ char* SkalSPrintf(const char* format, ...)
     __attribute__(( format(printf, 1, 2) ));
 
 
-/** Check that the given string is a pure ASCII string with a null char
+/** Check the given string is pure ASCII with a terminating null char
  *
  * \param str    [in] String to check; must not be NULL
- * \param maxlen [in] Maximum string length, in characters; must be > 0
+ * \param maxlen [in] Maximum string length, in bytes; must be > 0
  *
  * \return `true` if the string contains only printable ASCII characters and has
- *         a terminated null characters within the first `maxlen` characters
+ *         a terminating null character within the first `maxlen` bytes
  */
 bool SkalIsAsciiString(const char* str, int maxlen);
+
+
+/** Check the given string is UTF-8 with a terminating null char
+ *
+ * \param str    [in] String to check; must not be NULL
+ * \param maxlen [in] Maximum string length, in bytes; must be > 0
+ *
+ * \return `true` if the string contains valid UTF-8 characters and has a
+ *         terminating null character within the first `maxlen` bytes
+ */
+bool SkalIsUtf8String(const char* str, int maxlen);
 
 
 

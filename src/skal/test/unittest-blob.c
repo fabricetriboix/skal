@@ -78,7 +78,7 @@ RTT_GROUP_START(TestSkalBlob, 0x00030001u,
 
 RTT_TEST_START(skal_should_allocate_a_blob)
 {
-    gBlob = SkalBlobCreate("test", "dummy", 1000);
+    gBlob = SkalBlobCreate("test", "dummy", "TestName", 1000);
     RTT_ASSERT(gBlob != NULL);
     RTT_ASSERT(gBlobCount == 1);
 }
@@ -87,8 +87,16 @@ RTT_TEST_END
 RTT_TEST_START(skal_blob_id_should_be_correct)
 {
     const char* id = SkalBlobId(gBlob);
-    RTT_EXPECT(id != NULL);
+    RTT_ASSERT(id != NULL);
     RTT_EXPECT(strcmp(id, "dummy") == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_blob_name_should_be_correct)
+{
+    const char* name = SkalBlobName(gBlob);
+    RTT_ASSERT(name != NULL);
+    RTT_EXPECT(strcmp(name, "TestName") == 0);
 }
 RTT_TEST_END
 
@@ -108,5 +116,6 @@ RTT_TEST_END
 RTT_GROUP_END(TestSkalBlob,
         skal_should_allocate_a_blob,
         skal_blob_id_should_be_correct,
+        skal_blob_name_should_be_correct,
         skal_blob_size_should_be_correct,
         skal_should_free_blob)

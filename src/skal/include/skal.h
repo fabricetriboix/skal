@@ -138,7 +138,7 @@ typedef struct
 {
     /** Allocator name
      *
-     * This must be unique within this process.
+     * This must be a valid UTF-8 string and be unique within its scope.
      */
     const char name[SKAL_NAME_MAX];
 
@@ -201,7 +201,7 @@ typedef struct
 {
     /** Thread name
      *
-     * This must be unique within this process.
+     * This must be valid ASCII string and be unique within this process.
      */
     char name[SKAL_NAME_MAX];
 
@@ -254,7 +254,7 @@ typedef struct
  *
  * Please note that if an allocator has a scope of
  * `SKAL_ALLOCATOR_SCOPE_COMPUTER` or `SKAL_ALLOCATOR_SCOPE_SYSTEM`, you will
- * have to ensure that this allocator is also registered with any process that
+ * have to ensure that this allocator is also registered by any process that
  * might free blobs created by this allocator. Failure to do so will result in
  * asserts.
  *
@@ -307,6 +307,9 @@ void SkalLoop(void) __attribute__((noreturn));
  *                       allocator is used.
  * \param id        [in] Identifier for the allocator. NULL may or may not be a
  *                       valid value depending on the allocator.
+ * \param name      [in] A name for this blob; may be NULL, but if not NULL it
+ *                       must be a valid UTF-8 string at most `SKAL_NAME_MAX` in
+ *                       size, including the terminating null character
  * \param size_B    [in] Minimum number of bytes to allocate. <= 0 may or
  *                       may not be allowed, depending on the allocator.
  *
@@ -361,7 +364,8 @@ void SkalLoop(void) __attribute__((noreturn));
  *         case of error (`allocator` does not exist, invalid `id` or `size_B`
  *         for the chosen allocator, or failed to allocate)
  */
-SkalBlob* SkalBlobCreate(const char* allocator, const char* id, int64_t size_B);
+SkalBlob* SkalBlobCreate(const char* allocator, const char* id,
+        const char* name, int64_t size_B);
 
 
 /** Add a reference to a blob
@@ -413,11 +417,20 @@ void SkalBlobUnmap(SkalBlob* blob);
 
 /** Get the blob's id
  *
- * \param blob [in] The blob to query; must not be NULL
+ * \param blob [in] Blob to query; must not be NULL
  *
  * \return The blob id, which may be NULL
  */
 const char* SkalBlobId(const SkalBlob* blob);
+
+
+/** Get the blob's name
+ *
+ * \param blob [in] Blob to query; must not be NULL
+ *
+ * \return The blob name, which may be NULL
+ */
+const char* SkalBlobName(const SkalBlob* blob);
 
 
 /** Get the blob's size, in bytes

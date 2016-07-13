@@ -38,6 +38,7 @@ struct SkalBlob
     char    allocator[SKAL_NAME_MAX];
     int     ref;
     char    id[SKAL_NAME_MAX];
+    char    name[SKAL_NAME_MAX];
     int64_t size_B;
     void*   obj;
 };
@@ -189,12 +190,16 @@ void SkalBlobExit(void)
 }
 
 
-SkalBlob* SkalBlobCreate(const char* allocator, const char* id, int64_t size_B)
+SkalBlob* SkalBlobCreate(const char* allocator, const char* id,
+        const char* name, int64_t size_B)
 {
+    if (name != NULL) {
+        SKALASSERT(SkalIsUtf8String(name, SKAL_NAME_MAX));
+    }
     if ((allocator == NULL) || (strlen(allocator) == 0)) {
         allocator = "malloc";
     }
-    SKALASSERT(SkalIsAsciiString(allocator, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsUtf8String(allocator, SKAL_NAME_MAX));
     SKALASSERT(gAllocatorMap != NULL);
 
     SkalBlob* blob = NULL;
@@ -206,10 +211,13 @@ SkalBlob* SkalBlobCreate(const char* allocator, const char* id, int64_t size_B)
                 id, size_B);
         if (obj != NULL) {
             blob = SkalMallocZ(sizeof(*blob));
-            strcpy(blob->allocator, allocator);
+            snprintf(blob->allocator, sizeof(blob->allocator), "%s", allocator);
             blob->ref = 1;
             if (id != NULL) {
                 snprintf(blob->id, sizeof(blob->id), "%s", id);
+            }
+            if (name != NULL) {
+                snprintf(blob->name, sizeof(blob->name), "%s", name);
             }
             blob->size_B = size_B;
             blob->obj = obj;
@@ -270,6 +278,13 @@ const char* SkalBlobId(const SkalBlob* blob)
 }
 
 
+const char* SkalBlobName(const SkalBlob* blob)
+{
+    SKALASSERT(blob != NULL);
+    return blob->name;
+}
+
+
 int64_t SkalBlobSize_B(const SkalBlob* blob)
 {
     SKALASSERT(blob != NULL);
@@ -303,7 +318,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 {
     SKALASSERT(gAllocatorMap != NULL);
     SKALASSERT(allocator != NULL);
-    SKALASSERT(SkalIsAsciiString(allocator->name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsUtf8String(allocator->name, SKAL_NAME_MAX));
     SKALASSERT(allocator->allocate != NULL);
     SKALASSERT(allocator->free != NULL);
     SKALASSERT(allocator->map != NULL);

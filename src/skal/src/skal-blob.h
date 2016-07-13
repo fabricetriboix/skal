@@ -41,5 +41,4 @@ void SkalBlobInit(const SkalAllocator* allocators, int size);
 void SkalBlobExit(void);
 
 
-/* @} */
 #endif /* SKAL_BLOB_h_ */
