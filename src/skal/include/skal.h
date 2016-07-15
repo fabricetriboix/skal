@@ -33,10 +33,6 @@
  +----------------*/
 
 
-/** Maximum number of custom allocators */
-#define SKAL_MAX_ALLOCATORS 500
-
-
 /** Prototype for a custom allocator
  *
  * Such a function will be called to allocate a custom memory area.

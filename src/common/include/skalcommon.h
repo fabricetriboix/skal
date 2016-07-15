@@ -28,16 +28,6 @@
 
 
 
-/*----------------+
- | Macros & Types |
- +----------------*/
-
-
-/** Maximum length of any name, including the terminating null char, in chars */
-#define SKAL_NAME_MAX 128
-
-
-
 /*------------------------------+
  | Public function declarations |
  +------------------------------*/

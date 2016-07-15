@@ -142,6 +142,7 @@ bool SkalIsUtf8String(const char* str, int maxlen)
             // Control character found => `str` is not a valid UTF-8 string
             return false;
         }
+        // TODO: there is a lot more to check for a UTF-8 string...
     }
 
     // No null character found within `maxlen` bytes
