@@ -79,6 +79,16 @@
 #define SKAL_MSG_FLAG_NTF_DROP 0x04
 
 
+/** Message flag: this message is urgent
+ *
+ * This message will jump in front of non-urgent messages in most queues.
+ *
+ * **WARNING**: Use this flag sparringly; it should normally never be used on
+ * regular data (especially high throughput data).
+ */
+#define SKAL_MSG_FLAG_URGENT 0x08
+
+
 /** Prototype for a custom allocator
  *
  * Such a function will be called to allocate a custom memory area.
@@ -226,7 +236,7 @@ typedef struct SkalMsg SkalMsg;
 /** Prototype of a function that processes a message
  *
  * The arguments are:
- *  - `cookie`: Same as `SkalThread.cookie`
+ *  - `cookie`: Same as `SkalThreadCfg.cookie`
  *  - `msg`: Message that triggered this call; ownership of `msg` is transferred
  *    to you, it is up to you to free when you're finished with it, or send it
  *    to another thread.
@@ -268,7 +278,7 @@ typedef struct
 
     /** TODO */
     int statsCount;
-} SkalThread;
+} SkalThreadCfg;
 
 
 
@@ -307,9 +317,12 @@ bool SkalInit(const char* skaldUrl, const SkalAllocator* allocators);
 
 /** Create a thread
  *
+ * NB: The only way to terminate a thread is for its `processMsg` callback to
+ * return `false`.
+ *
  * \param thread [in] Description of the thread to create
  */
-void SkalThreadCreate(const SkalThread* thread);
+void SkalThreadCreate(const SkalThreadCfg* cfg);
 
 
 /** Subscribe the current thread to the given group

@@ -21,6 +21,16 @@
 
 
 
+/*----------------+
+ | Macros & Types |
+ +----------------*/
+
+
+/** Message flag: super-urgent message; reserved for SKAL internal use */
+#define SKAL_MSG_FLAG_SUPER_URGENT 0x80
+
+
+
 /*------------------------------+
  | Public function declarations |
  +------------------------------*/
