@@ -211,13 +211,13 @@ SkalBlob* SkalBlobCreate(const char* allocator, const char* id,
                 id, size_B);
         if (obj != NULL) {
             blob = SkalMallocZ(sizeof(*blob));
-            snprintf(blob->allocator, sizeof(blob->allocator), "%s", allocator);
+            strncpy(blob->allocator, allocator, sizeof(blob->allocator) - 1);
             blob->ref = 1;
             if (id != NULL) {
-                snprintf(blob->id, sizeof(blob->id), "%s", id);
+                strncpy(blob->id, id, sizeof(blob->id) - 1);
             }
             if (name != NULL) {
-                snprintf(blob->name, sizeof(blob->name), "%s", name);
+                strncpy(blob->name, name, sizeof(blob->name) - 1);
             }
             blob->size_B = size_B;
             blob->obj = obj;
@@ -331,7 +331,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
     // NB: If 2 allocators with the same names are inserted, the last one will
     // "overwrite" the previous one. This is intended.
     SKALASSERT(CdsMapInsert(gAllocatorMap,
-                (void*)(item->allocator.name), (CdsMapItem*)item));
+                (void*)(item->allocator.name), &item->item));
 }
 
 
