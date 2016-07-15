@@ -22,6 +22,7 @@
 #include "skalplf.h"
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -124,7 +125,6 @@ void SkalPlfMutexUnlock(SkalPlfMutex* mutex)
 
 SkalPlfCondVar* SkalPlfCondVarCreate(void)
 {
-    // XXX SkalPlfCondVar* condvar = malloc(sizeof(*condvar));
     SkalPlfCondVar* condvar = malloc(sizeof(SkalPlfCondVar));
     SKALASSERT(condvar != NULL);
     int ret = pthread_cond_init(&condvar->cv, NULL);
@@ -208,5 +208,7 @@ void SkalPlfGetCurrentThreadName(char* buffer, int size)
     SKALASSERT(buffer != NULL);
     SKALASSERT(size > 0);
     int ret = pthread_getname_np(pthread_self(), buffer, size);
-    SKALASSERT(ret == 0);
+    if (ret != 0) {
+        snprintf(buffer, size, "%d", (int)syscall(SYS_gettid));
+    }
 }
