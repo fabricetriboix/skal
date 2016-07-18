@@ -343,10 +343,6 @@ void SkalThreadSubscribe(const char* group);
 void SkalThreadUnsubscribe(const char* group);
 
 
-/** TODO */
-void SkalTimerCreate(/* TODO */);
-
-
 /** SKAL main loop
  *
  * This should be your last call in your `main()` function. This function does
@@ -706,10 +702,8 @@ SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs);
  * this function.
  *
  * The message might hop through various message queues en route (including the
- * destination message queue). If one of these queues is full, the sender will
- * be throtlled (i.e. will stop processing messages) until that queue has some
- * space again.
- * TODO: from here: clarify that behaviour
+ * destination message queue). If one of these queues is full, what happens next
+ * is described in TODO.
  *
  * \param msg [in] Message to send
  * \param to  [in] Name of the recipient (can be a thread or a group)

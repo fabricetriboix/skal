@@ -16,6 +16,7 @@
 
 #include "skal-msg.h"
 #include "skal-blob.h"
+#include "cdslist.h"
 #include "cdsmap.h"
 #include <stdlib.h>
 #include <string.h>
@@ -55,11 +56,24 @@ typedef struct {
 
 struct SkalMsg
 {
-    int8_t  ref;
-    uint8_t flags;
-    char    type[SKAL_NAME_MAX];
-    char    marker[SKAL_NAME_MAX];
-    CdsMap* fields;
+    CdsListItem item; // SKAL messages can be enqueued and dequeued
+    int8_t      ref;
+    uint8_t     flags;
+    char        type[SKAL_NAME_MAX];
+    char        marker[SKAL_NAME_MAX];
+    CdsMap*     fields;
+};
+
+
+struct SkalQueue
+{
+    SkalPlfMutex*   mutex;
+    SkalPlfCondVar* condvar;
+    bool            shutdown;
+    int64_t         threshold;
+    int64_t         assertThreshold;
+    CdsList*        urgent;
+    CdsList*        regular;
 };
 
 
@@ -285,6 +299,101 @@ SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs)
 {
 }
 #endif
+
+
+SkalQueue* SkalQueueCreate(int64_t threshold)
+{
+    SKALASSERT(threshold > 0);
+    SkalQueue* queue = SkalMalloc(sizeof(*queue));
+    queue->mutex = SkalPlfMutexCreate();
+    queue->condvar = SkalPlfCondVarCreate();
+    queue->shutdown = false;
+    queue->threshold = threshold;
+    if (threshold < 100) {
+        queue->assertThreshold = 1000;
+    } else {
+        queue->assertThreshold = threshold * 10;
+    }
+    queue->urgent = CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
+    queue->regular= CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
+    return queue;
+}
+
+
+void SkalQueueShutdown(SkalQueue* queue)
+{
+    SKALASSERT(queue != NULL);
+    SkalPlfMutexLock(queue->mutex);
+    queue->shutdown = true;
+    SkalPlfMutexUnlock(queue->mutex);
+}
+
+
+void SkalQueueDestroy(SkalQueue* queue)
+{
+    SKALASSERT(queue != NULL);
+    SKALASSERT(queue->shutdown);
+    SkalPlfMutexLock(queue->mutex);
+    CdsListDestroy(queue->urgent);
+    CdsListDestroy(queue->regular);
+    SkalPlfMutexUnlock(queue->mutex);
+    SkalPlfCondVarDestroy(queue->condvar);
+    SkalPlfMutexDestroy(queue->mutex);
+    free(queue);
+}
+
+
+int SkalQueuePush(SkalQueue* queue, SkalMsg* msg)
+{
+    SKALASSERT(queue != NULL);
+    SKALASSERT(msg != NULL);
+
+    int ret = 0;
+    SkalPlfMutexLock(queue->mutex);
+    if (queue->shutdown) {
+        ret = -1;
+    } else {
+        if (msg->flags & SKAL_MSG_FLAG_SUPER_URGENT) {
+            (void)CdsListPushFront(queue->urgent, &msg->item);
+        } else if (msg->flags & SKAL_MSG_FLAG_URGENT) {
+            (void)CdsListPushBack(queue->urgent, &msg->item);
+        } else {
+            (void)CdsListPushBack(queue->regular, &msg->item);
+        }
+        SkalPlfCondVarSignal(queue->condvar);
+        int64_t size = CdsListSize(queue->urgent) + CdsListSize(queue->regular);
+        SKALASSERT(size < queue->assertThreshold);
+        if (size >= queue->threshold) {
+            ret = 1;
+        }
+    }
+    SkalPlfMutexUnlock(queue->mutex);
+
+    return ret;
+}
+
+
+SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue)
+{
+    SKALASSERT(queue != NULL);
+
+    SkalPlfMutexLock(queue->mutex);
+    while (CdsListIsEmpty(queue->urgent) && CdsListIsEmpty(queue->regular)) {
+        SkalPlfCondVarWait(queue->condvar, queue->mutex);
+    }
+
+    SkalMsg* msg = NULL;
+    if (!CdsListIsEmpty(queue->urgent)) {
+        msg = (SkalMsg*)CdsListPopFront(queue->urgent);
+    } else {
+        SKALASSERT(!CdsListIsEmpty(queue->regular));
+        msg = (SkalMsg*)CdsListPopFront(queue->regular);
+    }
+    SKALASSERT(msg != NULL);
+
+    SkalPlfMutexUnlock(queue->mutex);
+    return msg;
+}
 
 
 

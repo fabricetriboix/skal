@@ -107,3 +107,83 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_should_have_correct_double,
         skal_msg_should_have_correct_string,
         skal_should_free_msg)
+
+
+static SkalQueue* gQueue = NULL;
+
+RTT_GROUP_START(TestSkalQueue, 0x00040002u, NULL, NULL)
+
+RTT_TEST_START(skal_should_create_queue)
+{
+    gQueue = SkalQueueCreate(2);
+    RTT_ASSERT(gQueue != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_push_a_msg)
+{
+    SkalMsg* msg = SkalMsgCreate("TestMsg", 0, NULL);
+    RTT_ASSERT(msg != NULL);
+    RTT_EXPECT(SkalQueuePush(gQueue, msg) == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_push_an_urgent_msg_and_signal_full)
+{
+    SkalMsg* msg = SkalMsgCreate("UrgentMsg", SKAL_MSG_FLAG_URGENT, NULL);
+    RTT_ASSERT(msg != NULL);
+    RTT_EXPECT(SkalQueuePush(gQueue, msg) == 1);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_pop_urgent_msg)
+{
+    SkalMsg* msg = SkalQueuePop_BLOCKING(gQueue);
+    RTT_ASSERT(msg != NULL);
+    const char* type = SkalMsgType(msg);
+    RTT_ASSERT(type != NULL);
+    RTT_EXPECT(strcmp(type, "UrgentMsg") == 0);
+    SkalMsgUnref(msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_shutdown_queue)
+{
+    SkalQueueShutdown(gQueue);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_not_push_msg)
+{
+    SkalMsg* msg = SkalMsgCreate("Bla", 0, NULL);
+    RTT_ASSERT(msg != NULL);
+    RTT_EXPECT(SkalQueuePush(gQueue, msg) == -1);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_pop_regular_msg)
+{
+    SkalMsg* msg = SkalQueuePop_BLOCKING(gQueue);
+    RTT_ASSERT(msg != NULL);
+    const char* type = SkalMsgType(msg);
+    RTT_ASSERT(type != NULL);
+    RTT_EXPECT(strcmp(type, "TestMsg") == 0);
+    SkalMsgUnref(msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_destroy_queue)
+{
+    SkalQueueDestroy(gQueue);
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestSkalQueue,
+        skal_should_create_queue,
+        skal_should_push_a_msg,
+        skal_should_push_an_urgent_msg_and_signal_full,
+        skal_should_pop_urgent_msg,
+        skal_should_shutdown_queue,
+        skal_should_not_push_msg,
+        skal_should_pop_regular_msg,
+        skal_should_destroy_queue)

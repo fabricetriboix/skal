@@ -30,6 +30,10 @@
 #define SKAL_MSG_FLAG_SUPER_URGENT 0x80
 
 
+/** Opaque type to a message queue */
+typedef struct SkalQueue SkalQueue;
+
+
 
 /*------------------------------+
  | Public function declarations |
@@ -58,6 +62,76 @@
  *         or NULL if the JSON string is not valid.
  */
 SkalMsg* SkalMsgCreateFromJson(const char* json);
+
+
+/** Create a message queue
+ *
+ * \param threshold [in] When to return `false` when enqueuing a message;
+ *                       must be > 0
+ *
+ * \return The created message queue; this function never returns NULL
+ */
+SkalQueue* SkalQueueCreate(int64_t threshold);
+
+
+/** Set the queue in shutdown mode
+ *
+ * Once in shutdown mode, the queue will not accept any more item being pushed
+ * into it. This is used when the thread owning the message queue has to be
+ * terminated.
+ */
+void SkalQueueShutdown(SkalQueue* queue);
+
+
+/** Destroy a message queue
+ *
+ * You *MUST* have called `SkalQueueShutdown()` first.
+ *
+ * All pending messages will be silently dropped.
+ *
+ * \param queue [in] Message queue to destroy; must not be NULL
+ */
+void SkalQueueDestroy(SkalQueue* queue);
+
+
+/** Push a message into the queue
+ *
+ * If the queue is in shutdown mode, no action is taken and this function
+ * returns -1.
+ *
+ * Otherwise, the following happens. You will lose ownership of the `msg`.
+ * Please note this function always succeeds in inserting the message into the
+ * queue. It may return 1 is the number of messages it holds (after pushing this
+ * one), is greater or equal to its threshold, as set by the `SkalQueueCreate()`
+ * function.
+ *
+ * The message will be pushed into the queue thus:
+ *  - If the `SKAL_MSG_FLAG_SUPER_URGENT` is set, the message will be pushed at
+ *    the front of the queue
+ *  - If the `SKAL_MSG_FLAG_URGENT` is set, the message will be pushed after all
+ *    urgent messages, but before all regular messages
+ *  - Otherwise, the message will be pushed at the back of the queue
+ *
+ * \param queue [in,out] Where to push the message; must not be NULL
+ * \param msg   [in,out] Message to push; must not be NULL
+ *
+ * \return 0 if queue is not full, 1 if it's full, -1 if it's in shutdown mode
+ */
+int SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
+
+
+/** Pop a message from the queue
+ *
+ * This is a blocking function! Actually, this is the only blocking function in
+ * the whole SKAL framework! If the queue is not empty, this function will pop
+ * the message currently at the front of the queue. If the queue is empty, this
+ * function will block until a message is pushed into it.
+ *
+ * \param SkalQueue [in,out] From where to pop a message
+ *
+ * \return The popped message; this function never returns NULL
+ */
+SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue);
 
 
 
