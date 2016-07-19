@@ -233,6 +233,10 @@ typedef struct SkalBlob SkalBlob;
 typedef struct SkalMsg SkalMsg;
 
 
+/** Opaque type to a list of SKAL messages */
+typedef struct SkalMsgList SkalMsgList;
+
+
 /** Prototype of a function that processes a message
  *
  * The arguments are:
@@ -240,12 +244,17 @@ typedef struct SkalMsg SkalMsg;
  *  - `msg`: Message that triggered this call; ownership of `msg` is transferred
  *    to you, it is up to you to free when you're finished with it, or send it
  *    to another thread.
+ *  - `outgoing`: List of messages you want to send once this function returns;
+ *    populating this list is the only way you can send messages. This argument
+ *    is never NULL. You can add an outgoing message by creating it, add some
+ *    optional fields and blobs, and calling `SkalMsgListAdd()`.
  *
  * If you want to terminate the thread, this function should return `false` and
  * you wish will be executed with immediate effect. Otherwise, just return
  * `true`.
  */
-typedef bool (*SkalProcessMsgF)(void* cookie, SkalMsg* msg);
+typedef bool (*SkalProcessMsgF)(void* cookie, SkalMsg* msg,
+        SkalMsgList* outgoing);
 
 
 /** Structure representing a thread */
@@ -253,7 +262,8 @@ typedef struct
 {
     /** Thread name
      *
-     * This must be unique within this process.
+     * This must be unique within this process. This must not be an empty
+     * string.
      */
     char name[SKAL_NAME_MAX];
 
@@ -263,18 +273,16 @@ typedef struct
     /** Cookie for the previous function */
     void* cookie;
 
-    /** Message queue capacity for this thread; must be > 0
+    /** Message queue threshold for this thread; use 0 for default
      *
      * Messages will be processed as fast as possible, but if some backing up
-     * occurs, they will be queued there.
+     * occurs, they will be queued there. If the number of queued messages
+     * reached this threshold, throttling or message drops will occur.
      */
-    int queueCapacity;
+    int64_t queueThreshold;
 
     /** Size of the stack for this thread; if <= 0, use OS default */
-    int stackSize_B;
-
-    /** NULL-terminated list of groups to subscribe this thread to initially */
-    char** groups;
+    int32_t stackSize_B;
 
     /** TODO */
     int statsCount;
@@ -316,6 +324,8 @@ bool SkalInit(const char* skaldUrl, const SkalAllocator* allocators);
 
 
 /** Create a thread
+ *
+ * This thread will receive a "skal-init" message once it's created.
  *
  * NB: The only way to terminate a thread is for its `processMsg` callback to
  * return `false`.
@@ -692,23 +702,18 @@ SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name);
 SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs);
 
 
-/** Send a message
+/** Insert a message into an outgoing list
  *
- * You will lose the ownership of the message, the `msg` reference counter will
- * be decremented by 1. You must assume `msg` does not exist anymore when this
- * function returns. Alternatively, if you do need to access the message after
- * this function returns (for example you want to send it to multiple
- * destinations), you will need to take a reference from it prior to calling
- * this function.
+ * You will lose the ownership of the message. You must assume `msg` does not
+ * exist anymore when this function returns. Alternatively, if you do need to
+ * access the message after this function returns (for example you want to send
+ * it to multiple destinations), you will need to take a reference from it prior
+ * to calling this function.
  *
- * The message might hop through various message queues en route (including the
- * destination message queue). If one of these queues is full, what happens next
- * is described in TODO.
- *
- * \param msg [in] Message to send
- * \param to  [in] Name of the recipient (can be a thread or a group)
+ * \param msgList [in,out] Message list to add to
+ * \param msg     [in,out] Message to add to the list
  */
-void SkalMsgSend(SkalMsg* msg, const char* to);
+void SkalMsgListAdd(SkalMsgList* msgList, SkalMsg* msg);
 
 
 

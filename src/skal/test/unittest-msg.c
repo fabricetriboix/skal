@@ -96,6 +96,12 @@ RTT_TEST_START(skal_should_free_msg)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_should_have_no_more_msg_ref_1)
+{
+    RTT_EXPECT(SkalMsgRefCount_DEBUG() == 0);
+}
+RTT_TEST_END
+
 RTT_GROUP_END(TestSkalMsg,
         skal_should_create_msg,
         skal_msg_should_have_correct_type,
@@ -106,7 +112,8 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_should_have_correct_int,
         skal_msg_should_have_correct_double,
         skal_msg_should_have_correct_string,
-        skal_should_free_msg)
+        skal_should_free_msg,
+        skal_should_have_no_more_msg_ref_1)
 
 
 static SkalQueue* gQueue = NULL;
@@ -115,7 +122,7 @@ RTT_GROUP_START(TestSkalQueue, 0x00040002u, NULL, NULL)
 
 RTT_TEST_START(skal_should_create_queue)
 {
-    gQueue = SkalQueueCreate(2);
+    gQueue = SkalQueueCreate("testq", 2);
     RTT_ASSERT(gQueue != NULL);
 }
 RTT_TEST_END
@@ -158,6 +165,7 @@ RTT_TEST_START(skal_should_not_push_msg)
     SkalMsg* msg = SkalMsgCreate("Bla", 0, NULL);
     RTT_ASSERT(msg != NULL);
     RTT_EXPECT(SkalQueuePush(gQueue, msg) == -1);
+    SkalMsgUnref(msg);
 }
 RTT_TEST_END
 
@@ -178,6 +186,12 @@ RTT_TEST_START(skal_should_destroy_queue)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_should_have_no_more_msg_ref_2)
+{
+    RTT_EXPECT(SkalMsgRefCount_DEBUG() == 0);
+}
+RTT_TEST_END
+
 RTT_GROUP_END(TestSkalQueue,
         skal_should_create_queue,
         skal_should_push_a_msg,
@@ -186,4 +200,55 @@ RTT_GROUP_END(TestSkalQueue,
         skal_should_shutdown_queue,
         skal_should_not_push_msg,
         skal_should_pop_regular_msg,
-        skal_should_destroy_queue)
+        skal_should_destroy_queue,
+        skal_should_have_no_more_msg_ref_2)
+
+
+static SkalMsgList* gMsgList = NULL;
+
+RTT_GROUP_START(TestSkalMsgList, 0x00040003u, NULL, NULL)
+
+RTT_TEST_START(skal_should_create_msg_list)
+{
+    gMsgList = SkalMsgListCreate();
+    RTT_ASSERT(gMsgList != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_add_a_msg_to_list)
+{
+    SkalMsg* msg = SkalMsgCreate("TestMsg", 0, NULL);
+    RTT_ASSERT(msg != NULL);
+    SkalMsgListAdd(gMsgList, msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_pop_a_message_from_list)
+{
+    SkalMsg* msg = SkalMsgListPop(gMsgList);
+    RTT_ASSERT(msg != NULL);
+    const char* type = SkalMsgType(msg);
+    RTT_ASSERT(type != NULL);
+    RTT_EXPECT(strcmp(type, "TestMsg") == 0);
+    SkalMsgUnref(msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_destroy_msg_list)
+{
+    SkalMsgListDestroy(gMsgList);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_have_no_more_msg_ref_3)
+{
+    RTT_EXPECT(SkalMsgRefCount_DEBUG() == 0);
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestSkalMsgList,
+        skal_should_create_msg_list,
+        skal_should_add_a_msg_to_list,
+        skal_should_pop_a_message_from_list,
+        skal_should_destroy_msg_list,
+        skal_should_have_no_more_msg_ref_3)

@@ -67,6 +67,7 @@ struct SkalMsg
 
 struct SkalQueue
 {
+    char            name[SKAL_NAME_MAX];
     SkalPlfMutex*   mutex;
     SkalPlfCondVar* condvar;
     bool            shutdown;
@@ -77,18 +78,36 @@ struct SkalQueue
 };
 
 
+struct SkalMsgList
+{
+    CdsList* list; // list of outgoing messages
+};
+
+
 
 /*-------------------------------+
  | Private function declarations |
  +-------------------------------*/
 
 
+/** Allocate a message data item (aka a field)
+ *
+ * \param msg  [in,out] Message the field will be added to
+ * \param name [in]     Field name
+ * \param type [in]     Field type
+ *
+ * \return The newly created datum; this function never returns NULL
+ */
 static skalMsgData* skalAllocMsgData(SkalMsg* msg,
         const char* name, skalMsgDataType type);
 
+
+/** Comparison function for a message field map */
 static int skalFieldMapCompare(void* leftkey, void* rightkey, void* cookie);
 
-static void skalFieldMapUnref(CdsMapItem* litem);
+
+/** Function to unreference a field in a message field map */
+static void skalFieldMapUnref(CdsMapItem* item);
 
 
 
@@ -97,7 +116,12 @@ static void skalFieldMapUnref(CdsMapItem* litem);
  +------------------*/
 
 
+/** Message counter; use to make unique message markers */
 static uint64_t gMsgCounter = 0;
+
+
+/** Number of message references in this process */
+static int64_t gMsgRefCount_DEBUG = 0;
 
 
 
@@ -116,6 +140,7 @@ SkalMsg* SkalMsgCreate(const char* type, uint8_t flags, const char* marker)
     unsigned long long n = ++gMsgCounter;
     SkalMsg* msg = SkalMallocZ(sizeof(*msg));
     msg->ref = 1;
+    gMsgRefCount_DEBUG++;
     msg->flags = flags;
     strncpy(msg->type, type, sizeof(msg->type) - 1);
     if (marker != NULL) {
@@ -134,6 +159,7 @@ void SkalMsgRef(SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
     msg->ref++;
+    gMsgRefCount_DEBUG++;
 }
 
 
@@ -141,6 +167,7 @@ void SkalMsgUnref(SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
     msg->ref--;
+    gMsgRefCount_DEBUG--;
     if (msg->ref <= 0) {
         CdsMapDestroy(msg->fields);
         free(msg);
@@ -301,10 +328,13 @@ SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs)
 #endif
 
 
-SkalQueue* SkalQueueCreate(int64_t threshold)
+SkalQueue* SkalQueueCreate(const char* name, int64_t threshold)
 {
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
     SKALASSERT(threshold > 0);
-    SkalQueue* queue = SkalMalloc(sizeof(*queue));
+
+    SkalQueue* queue = SkalMallocZ(sizeof(*queue));
+    strncpy(queue->name, name, SKAL_NAME_MAX - 1);
     queue->mutex = SkalPlfMutexCreate();
     queue->condvar = SkalPlfCondVarCreate();
     queue->shutdown = false;
@@ -316,16 +346,22 @@ SkalQueue* SkalQueueCreate(int64_t threshold)
     }
     queue->urgent = CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
     queue->regular= CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
+
     return queue;
+}
+
+
+const char* SkalQueueName(const SkalQueue* queue)
+{
+    SKALASSERT(queue != NULL);
+    return queue->name;
 }
 
 
 void SkalQueueShutdown(SkalQueue* queue)
 {
     SKALASSERT(queue != NULL);
-    SkalPlfMutexLock(queue->mutex);
     queue->shutdown = true;
-    SkalPlfMutexUnlock(queue->mutex);
 }
 
 
@@ -393,6 +429,51 @@ SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue)
 
     SkalPlfMutexUnlock(queue->mutex);
     return msg;
+}
+
+
+SkalMsgList* SkalMsgListCreate(void)
+{
+    SkalMsgList* msgList = SkalMallocZ(sizeof(*msgList));
+    msgList->list = CdsListCreate(NULL, SKAL_MSG_LIST_MAX,
+            (void(*)(CdsListItem*))SkalMsgUnref);
+    return msgList;
+}
+
+
+void SkalMsgListDestroy(SkalMsgList* msgList)
+{
+    SKALASSERT(msgList != NULL);
+    CdsListDestroy(msgList->list);
+    free(msgList);
+}
+
+
+void SkalMsgListAdd(SkalMsgList* msgList, SkalMsg* msg)
+{
+    SKALASSERT(msgList != NULL);
+    SKALASSERT(msg != NULL);
+    bool pushed = false;
+    if (    (msg->flags & SKAL_MSG_FLAG_URGENT)
+         || (msg->flags & SKAL_MSG_FLAG_SUPER_URGENT) ) {
+        pushed = CdsListPushFront(msgList->list, &msg->item);
+    } else {
+        pushed = CdsListPushBack(msgList->list, &msg->item);
+    }
+    SKALASSERT(pushed);
+}
+
+
+SkalMsg* SkalMsgListPop(SkalMsgList* msgList)
+{
+    SKALASSERT(msgList != NULL);
+    return (SkalMsg*)CdsListPopFront(msgList->list);
+}
+
+
+int64_t SkalMsgRefCount_DEBUG(void)
+{
+    return gMsgRefCount_DEBUG;
 }
 
 

@@ -44,6 +44,14 @@
 #define SKAL_MAX_FIELDS 1000
 
 
+/** Maximum number of threads per process */
+#define SKAL_MAX_THREADS 10000
+
+
+/** Maximum number of messages that can be queued in a message list */
+#define SKAL_MSG_LIST_MAX 1000
+
+
 
 /* @} */
 #endif /* SKAL_CFG_h_ */

@@ -66,12 +66,22 @@ SkalMsg* SkalMsgCreateFromJson(const char* json);
 
 /** Create a message queue
  *
+ * \param name      [in] Queue name; must not be NULL
  * \param threshold [in] When to return `false` when enqueuing a message;
  *                       must be > 0
  *
  * \return The created message queue; this function never returns NULL
  */
-SkalQueue* SkalQueueCreate(int64_t threshold);
+SkalQueue* SkalQueueCreate(const char* name, int64_t threshold);
+
+
+/** Get the queue name
+ *
+ * \param queue [in] Queue to query
+ *
+ * \return The queue name as set in `SkalQueueCreate()`
+ */
+const char* SkalQueueName(const SkalQueue* queue);
 
 
 /** Set the queue in shutdown mode
@@ -132,6 +142,40 @@ int SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
  * \return The popped message; this function never returns NULL
  */
 SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue);
+
+
+/** Create a message list
+ *
+ * \return The newly created message list; this function never returns NULL
+ */
+SkalMsgList* SkalMsgListCreate(void);
+
+
+/** Destroy a message list
+ *
+ * All messages still enqueued in the list will be unreferenced.
+ *
+ * \param msgList [in,out] Message list to destroy
+ */
+void SkalMsgListDestroy(SkalMsgList* msgList);
+
+
+/** Pop out the message at the front of the message list
+ *
+ * The ownership of the message is transfered to you.
+ *
+ * \param msgList [in,out] Message list to pop from
+ *
+ * \return The message at the front of the list, or NULL if list is empty
+ */
+SkalMsg* SkalMsgListPop(SkalMsgList* msgList);
+
+
+/** DEBUG: Get the number of message references in this process
+ *
+ * This is a debug/testing function.
+ */
+int64_t SkalMsgRefCount_DEBUG(void);
 
 
 
