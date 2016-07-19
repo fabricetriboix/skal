@@ -203,6 +203,14 @@ void SkalPlfThreadJoin(SkalPlfThread* thread)
 }
 
 
+void SkalPlfSetCurrentThreadName(const char* name)
+{
+    SKALASSERT(name != NULL);
+    int ret = pthread_setname_np(pthread_self(), name);
+    SKALASSERT(ret == 0);
+}
+
+
 void SkalPlfGetCurrentThreadName(char* buffer, int size)
 {
     SKALASSERT(buffer != NULL);

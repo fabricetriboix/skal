@@ -234,6 +234,13 @@ void SkalPlfThreadCancel(SkalPlfThread* thread);
 void SkalPlfThreadJoin(SkalPlfThread* thread);
 
 
+/** Set the current thread name
+ *
+ * \param name [in] New name for current thread
+ */
+void SkalPlfSetCurrentThreadName(const char* name);
+
+
 /** Get the name of the current thread
  *
  * \param buffer [out] Where to write the current thread's name; must not be
