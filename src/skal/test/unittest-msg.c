@@ -215,22 +215,53 @@ RTT_TEST_START(skal_should_create_msg_list)
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_should_add_a_msg_to_list)
+RTT_TEST_START(skal_should_add_a_regular_msg_to_list)
 {
     SkalMsg* msg = SkalMsgCreate("TestMsg", 0, NULL);
     RTT_ASSERT(msg != NULL);
-    SkalMsgListAdd(gMsgList, msg);
+    SkalMsgListAdd(gMsgList, "dst-reg", msg);
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_should_pop_a_message_from_list)
+RTT_TEST_START(skal_should_add_an_urgent_msg_to_list)
 {
-    SkalMsg* msg = SkalMsgListPop(gMsgList);
+    SkalMsg* msg = SkalMsgCreate("TestMsgU", SKAL_MSG_FLAG_URGENT, NULL);
+    RTT_ASSERT(msg != NULL);
+    SkalMsgListAdd(gMsgList, "dst-urg", msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_pop_urgent_message_from_list)
+{
+    char buffer[SKAL_NAME_MAX];
+    SkalMsg* msg = SkalMsgListPop(gMsgList, buffer, sizeof(buffer));
+    RTT_EXPECT(strncmp(buffer, "dst-urg", SKAL_NAME_MAX) == 0);
+    RTT_ASSERT(msg != NULL);
+    const char* type = SkalMsgType(msg);
+    RTT_ASSERT(type != NULL);
+    RTT_EXPECT(strcmp(type, "TestMsgU") == 0);
+    SkalMsgUnref(msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_pop_regular_message_from_list)
+{
+    char buffer[SKAL_NAME_MAX];
+    SkalMsg* msg = SkalMsgListPop(gMsgList, buffer, sizeof(buffer));
+    RTT_EXPECT(strncmp(buffer, "dst-reg", SKAL_NAME_MAX) == 0);
     RTT_ASSERT(msg != NULL);
     const char* type = SkalMsgType(msg);
     RTT_ASSERT(type != NULL);
     RTT_EXPECT(strcmp(type, "TestMsg") == 0);
     SkalMsgUnref(msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_add_a_msg_to_list)
+{
+    SkalMsg* msg = SkalMsgCreate("WillBeDropped", 0, NULL);
+    RTT_ASSERT(msg != NULL);
+    SkalMsgListAdd(gMsgList, "/dev/null", msg);
 }
 RTT_TEST_END
 
@@ -248,7 +279,10 @@ RTT_TEST_END
 
 RTT_GROUP_END(TestSkalMsgList,
         skal_should_create_msg_list,
+        skal_should_add_a_regular_msg_to_list,
+        skal_should_add_an_urgent_msg_to_list,
+        skal_should_pop_urgent_message_from_list,
+        skal_should_pop_regular_message_from_list,
         skal_should_add_a_msg_to_list,
-        skal_should_pop_a_message_from_list,
         skal_should_destroy_msg_list,
         skal_should_have_no_more_msg_ref_3)

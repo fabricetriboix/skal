@@ -711,9 +711,10 @@ SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs);
  * to calling this function.
  *
  * \param msgList [in,out] Message list to add to
+ * \param dst     [in]     Recipient
  * \param msg     [in,out] Message to add to the list
  */
-void SkalMsgListAdd(SkalMsgList* msgList, SkalMsg* msg);
+void SkalMsgListAdd(SkalMsgList* msgList, const char* dst, SkalMsg* msg);
 
 
 

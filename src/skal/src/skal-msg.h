@@ -89,8 +89,17 @@ const char* SkalQueueName(const SkalQueue* queue);
  * Once in shutdown mode, the queue will not accept any more item being pushed
  * into it. This is used when the thread owning the message queue has to be
  * terminated.
+ *
+ * \param queue [in,out] Queue to shut down
  */
 void SkalQueueShutdown(SkalQueue* queue);
+
+
+/** Check if the queue is in shutdown mode
+ *
+ * \param queue [in] Queue to query
+ */
+bool SkalQueueIsInShutdownMode(const SkalQueue* queue);
 
 
 /** Destroy a message queue
@@ -155,20 +164,24 @@ SkalMsgList* SkalMsgListCreate(void);
  *
  * All messages still enqueued in the list will be unreferenced.
  *
- * \param msgList [in,out] Message list to destroy
+ * \param msgList [in,out] Message list to destroy; must not be NULL
  */
 void SkalMsgListDestroy(SkalMsgList* msgList);
 
 
 /** Pop out the message at the front of the message list
  *
- * The ownership of the message is transfered to you.
+ * The ownership of the returned message is transfered to you.
  *
- * \param msgList [in,out] Message list to pop from
+ * \param msgList [in,out] Message list to pop from; must not be NULL
+ * \param dst     [out]    Where to write the destination for this message; must
+ *                         not be NULL
+ * \param size    [in]     Size (in chars) of the `dst`buffer;
+ *                         must be >= `SKAL_NAME_MAX`
  *
  * \return The message at the front of the list, or NULL if list is empty
  */
-SkalMsg* SkalMsgListPop(SkalMsgList* msgList);
+SkalMsg* SkalMsgListPop(SkalMsgList* msgList, char* dst, int size);
 
 
 /** DEBUG: Get the number of message references in this process

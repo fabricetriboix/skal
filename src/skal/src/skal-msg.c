@@ -84,6 +84,15 @@ struct SkalMsgList
 };
 
 
+typedef struct
+{
+    CdsListItem item;
+    int         ref;
+    char        dst[SKAL_NAME_MAX];
+    SkalMsg*    msg;
+} skalMsgListItem;
+
+
 
 /*-------------------------------+
  | Private function declarations |
@@ -108,6 +117,10 @@ static int skalFieldMapCompare(void* leftkey, void* rightkey, void* cookie);
 
 /** Function to unreference a field in a message field map */
 static void skalFieldMapUnref(CdsMapItem* item);
+
+
+/** Remove a reference to a message list item */
+static void skalMsgListItemUnref(CdsListItem* item);
 
 
 
@@ -365,6 +378,13 @@ void SkalQueueShutdown(SkalQueue* queue)
 }
 
 
+bool SkalQueueIsInShutdownMode(const SkalQueue* queue)
+{
+    SKALASSERT(queue != NULL);
+    return queue->shutdown;
+}
+
+
 void SkalQueueDestroy(SkalQueue* queue)
 {
     SKALASSERT(queue != NULL);
@@ -386,7 +406,11 @@ int SkalQueuePush(SkalQueue* queue, SkalMsg* msg)
 
     int ret = 0;
     SkalPlfMutexLock(queue->mutex);
-    if (queue->shutdown) {
+    bool isShutdown = queue->shutdown;
+    if (msg->flags & SKAL_MSG_FLAG_SUPER_URGENT) {
+        isShutdown = false; // Always push super-urgent messages
+    }
+    if (isShutdown) {
         ret = -1;
     } else {
         if (msg->flags & SKAL_MSG_FLAG_SUPER_URGENT) {
@@ -435,8 +459,7 @@ SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue)
 SkalMsgList* SkalMsgListCreate(void)
 {
     SkalMsgList* msgList = SkalMallocZ(sizeof(*msgList));
-    msgList->list = CdsListCreate(NULL, SKAL_MSG_LIST_MAX,
-            (void(*)(CdsListItem*))SkalMsgUnref);
+    msgList->list = CdsListCreate(NULL, SKAL_MSG_LIST_MAX,skalMsgListItemUnref);
     return msgList;
 }
 
@@ -449,25 +472,46 @@ void SkalMsgListDestroy(SkalMsgList* msgList)
 }
 
 
-void SkalMsgListAdd(SkalMsgList* msgList, SkalMsg* msg)
+void SkalMsgListAdd(SkalMsgList* msgList, const char* dst, SkalMsg* msg)
 {
     SKALASSERT(msgList != NULL);
+    SKALASSERT(SkalIsAsciiString(dst, SKAL_NAME_MAX));
+    SKALASSERT(strlen(dst) > 0);
     SKALASSERT(msg != NULL);
+
+    skalMsgListItem* item = SkalMallocZ(sizeof(*item));
+    item->ref = 1;
+    strncpy(item->dst, dst, SKAL_NAME_MAX - 1);
+    item->msg = msg; // NB: ownership is transfered from caller to `item`
+
     bool pushed = false;
     if (    (msg->flags & SKAL_MSG_FLAG_URGENT)
          || (msg->flags & SKAL_MSG_FLAG_SUPER_URGENT) ) {
-        pushed = CdsListPushFront(msgList->list, &msg->item);
+        pushed = CdsListPushFront(msgList->list, &item->item);
     } else {
-        pushed = CdsListPushBack(msgList->list, &msg->item);
+        pushed = CdsListPushBack(msgList->list, &item->item);
     }
     SKALASSERT(pushed);
 }
 
 
-SkalMsg* SkalMsgListPop(SkalMsgList* msgList)
+SkalMsg* SkalMsgListPop(SkalMsgList* msgList, char* dst, int size)
 {
     SKALASSERT(msgList != NULL);
-    return (SkalMsg*)CdsListPopFront(msgList->list);
+    SKALASSERT(dst != NULL);
+    SKALASSERT(size >= SKAL_NAME_MAX);
+
+    SkalMsg* msg = NULL;
+    skalMsgListItem* item = (skalMsgListItem*)CdsListPopFront(msgList->list);
+    if (item != NULL) {
+        strncpy(dst, item->dst, size);
+        dst[size - 1] = '\0'; // ensure string is null-terminated
+        msg = item->msg;
+        SKALASSERT(msg != NULL);
+        SkalMsgRef(msg);
+        skalMsgListItemUnref(&item->item);
+    }
+    return msg;
 }
 
 
@@ -524,5 +568,17 @@ static void skalFieldMapUnref(CdsMapItem* item)
             break; // nothing to do
         }
         free(data);
+    }
+}
+
+
+static void skalMsgListItemUnref(CdsListItem* litem)
+{
+    skalMsgListItem* item = (skalMsgListItem*)litem;
+    SKALASSERT(item != NULL);
+    SkalMsgUnref(item->msg);
+    item->ref--;
+    if (item->ref <= 0) {
+        free(item);
     }
 }
