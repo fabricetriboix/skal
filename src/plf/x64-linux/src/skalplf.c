@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -85,6 +86,15 @@ void SkalPlfRandom(uint8_t* buffer, int size_B)
         size_B -= ret;
         buffer += ret;
     }
+}
+
+
+int64_t SkalNow_ns()
+{
+    struct timespec ts;
+    int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    SKALASSERT(ret == 0);
+    return ((int64_t)ts.tv_sec * 1000000000LL) + (int64_t)ts.tv_nsec;
 }
 
 

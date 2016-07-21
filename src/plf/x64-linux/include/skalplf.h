@@ -135,6 +135,17 @@ static inline uint64_t SkalPlfRandomU64(void)
 }
 
 
+/** Get the current time
+ *
+ * This is a time that increments linearly in reference to an external clock.
+ * Thus it is not influenced by daylight savings time shifts, time zone changes,
+ * date or time changes, etc.
+ *
+ * On Linux, this is the time elapsed since the last boot.
+ */
+int64_t SkalNow_ns();
+
+
 /** Create a mutex
  *
  * \return A newly created mutex; this function never returns NULL
