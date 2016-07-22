@@ -26,7 +26,8 @@ RTT_GROUP_START(TestSkalMsg, 0x00040001u, NULL, NULL)
 
 RTT_TEST_START(skal_should_create_msg)
 {
-    gMsg = SkalMsgCreate("TestType", 0, NULL);
+    SkalPlfSetCurrentThreadName("TestThread");
+    gMsg = SkalMsgCreate("TestType", "dummy-dst", 0, NULL);
     RTT_ASSERT(gMsg != NULL);
 }
 RTT_TEST_END
@@ -36,6 +37,22 @@ RTT_TEST_START(skal_msg_should_have_correct_type)
     const char* type = SkalMsgType(gMsg);
     RTT_ASSERT(type != NULL);
     RTT_EXPECT(strcmp(type, "TestType") == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_msg_should_have_correct_sender)
+{
+    const char* sender = SkalMsgSender(gMsg);
+    RTT_ASSERT(sender != NULL);
+    RTT_EXPECT(strcmp(sender, "TestThread") == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_msg_should_have_correct_recipient)
+{
+    const char* recipient = SkalMsgRecipient(gMsg);
+    RTT_ASSERT(recipient != NULL);
+    RTT_EXPECT(strcmp(recipient, "dummy-dst") == 0);
 }
 RTT_TEST_END
 
@@ -105,6 +122,8 @@ RTT_TEST_END
 RTT_GROUP_END(TestSkalMsg,
         skal_should_create_msg,
         skal_msg_should_have_correct_type,
+        skal_msg_should_have_correct_sender,
+        skal_msg_should_have_correct_recipient,
         skal_msg_should_have_marker,
         skal_msg_add_int,
         skal_msg_add_double,
@@ -129,7 +148,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_should_push_a_msg)
 {
-    SkalMsg* msg = SkalMsgCreate("TestMsg", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("TestMsg", "dst1", 0, NULL);
     RTT_ASSERT(msg != NULL);
     RTT_EXPECT(SkalQueuePush(gQueue, msg) == 0);
 }
@@ -137,7 +156,8 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_should_push_an_urgent_msg_and_signal_full)
 {
-    SkalMsg* msg = SkalMsgCreate("UrgentMsg", SKAL_MSG_FLAG_URGENT, NULL);
+    SkalMsg* msg = SkalMsgCreate("UrgentMsg", "dst2",
+            SKAL_MSG_FLAG_URGENT, NULL);
     RTT_ASSERT(msg != NULL);
     RTT_EXPECT(SkalQueuePush(gQueue, msg) == 1);
 }
@@ -145,7 +165,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_should_pop_urgent_msg)
 {
-    SkalMsg* msg = SkalQueuePop_BLOCKING(gQueue);
+    SkalMsg* msg = SkalQueuePop_BLOCKING(gQueue, false);
     RTT_ASSERT(msg != NULL);
     const char* type = SkalMsgType(msg);
     RTT_ASSERT(type != NULL);
@@ -162,7 +182,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_should_not_push_msg)
 {
-    SkalMsg* msg = SkalMsgCreate("Bla", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("Bla", "/dev/null", 0, NULL);
     RTT_ASSERT(msg != NULL);
     RTT_EXPECT(SkalQueuePush(gQueue, msg) == -1);
     SkalMsgUnref(msg);
@@ -171,7 +191,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_should_pop_regular_msg)
 {
-    SkalMsg* msg = SkalQueuePop_BLOCKING(gQueue);
+    SkalMsg* msg = SkalQueuePop_BLOCKING(gQueue, false);
     RTT_ASSERT(msg != NULL);
     const char* type = SkalMsgType(msg);
     RTT_ASSERT(type != NULL);
@@ -217,25 +237,44 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_should_add_a_regular_msg_to_list)
 {
-    SkalMsg* msg = SkalMsgCreate("TestMsg", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("TestMsg", "dst-reg", 0, NULL);
     RTT_ASSERT(msg != NULL);
-    SkalMsgListAdd(gMsgList, "dst-reg", msg);
+    SkalMsgListAdd(gMsgList, msg);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_should_add_an_urgent_msg_to_list)
 {
-    SkalMsg* msg = SkalMsgCreate("TestMsgU", SKAL_MSG_FLAG_URGENT, NULL);
+    SkalMsg* msg = SkalMsgCreate("TestMsgU", "dst-urg",
+            SKAL_MSG_FLAG_URGENT, NULL);
     RTT_ASSERT(msg != NULL);
-    SkalMsgListAdd(gMsgList, "dst-urg", msg);
+    SkalMsgListAdd(gMsgList, msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_add_an_internal_msg_to_list)
+{
+    SkalMsg* msg = SkalMsgCreate("TestMsgI", "dst-int", 0, NULL);
+    RTT_ASSERT(msg != NULL);
+    SkalMsgSetInternalFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+    SkalMsgListAdd(gMsgList, msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_pop_internal_message_from_list)
+{
+    SkalMsg* msg = SkalMsgListPop(gMsgList);
+    RTT_ASSERT(msg != NULL);
+    const char* type = SkalMsgType(msg);
+    RTT_ASSERT(type != NULL);
+    RTT_EXPECT(strcmp(type, "TestMsgI") == 0);
+    SkalMsgUnref(msg);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_should_pop_urgent_message_from_list)
 {
-    char buffer[SKAL_NAME_MAX];
-    SkalMsg* msg = SkalMsgListPop(gMsgList, buffer, sizeof(buffer));
-    RTT_EXPECT(strncmp(buffer, "dst-urg", SKAL_NAME_MAX) == 0);
+    SkalMsg* msg = SkalMsgListPop(gMsgList);
     RTT_ASSERT(msg != NULL);
     const char* type = SkalMsgType(msg);
     RTT_ASSERT(type != NULL);
@@ -246,9 +285,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_should_pop_regular_message_from_list)
 {
-    char buffer[SKAL_NAME_MAX];
-    SkalMsg* msg = SkalMsgListPop(gMsgList, buffer, sizeof(buffer));
-    RTT_EXPECT(strncmp(buffer, "dst-reg", SKAL_NAME_MAX) == 0);
+    SkalMsg* msg = SkalMsgListPop(gMsgList);
     RTT_ASSERT(msg != NULL);
     const char* type = SkalMsgType(msg);
     RTT_ASSERT(type != NULL);
@@ -259,9 +296,9 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_should_add_a_msg_to_list)
 {
-    SkalMsg* msg = SkalMsgCreate("WillBeDropped", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("WillBeDropped", "dev-null", 0, NULL);
     RTT_ASSERT(msg != NULL);
-    SkalMsgListAdd(gMsgList, "/dev/null", msg);
+    SkalMsgListAdd(gMsgList, msg);
 }
 RTT_TEST_END
 
@@ -281,6 +318,8 @@ RTT_GROUP_END(TestSkalMsgList,
         skal_should_create_msg_list,
         skal_should_add_a_regular_msg_to_list,
         skal_should_add_an_urgent_msg_to_list,
+        skal_should_add_an_internal_msg_to_list,
+        skal_should_pop_internal_message_from_list,
         skal_should_pop_urgent_message_from_list,
         skal_should_pop_regular_message_from_list,
         skal_should_add_a_msg_to_list,

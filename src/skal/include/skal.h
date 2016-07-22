@@ -23,9 +23,10 @@
  * \addtogroup skal
  * @{
  *
- * Please note all strings must ASCII strings of at most `SKAL_NAME_MAX` in size
- * (including the terminating null character), unless otherwise noted. Please
- * note strict checks are perfomed on all strings.
+ * Please note all strings must be ASCII strings of at most `SKAL_NAME_MAX` in
+ * size (including the terminating null character), unless otherwise noted.
+ * Additional constraints may be imposed, in which case they will be clearly
+ * mentioned in comments. Please note strict checks are perfomed on all strings.
  */
 
 #include "skalcommon.h"
@@ -246,8 +247,8 @@ typedef struct SkalMsgList SkalMsgList;
  *    to another thread.
  *  - `outgoing`: List of messages you want to send once this function returns;
  *    populating this list is the only way you can send messages. This argument
- *    is never NULL. You can add an outgoing message by creating it, add some
- *    optional fields and blobs, and calling `SkalMsgListAdd()`.
+ *    is never NULL. You can add an outgoing message by creating it, adding some
+ *    optional fields and blobs as required, and calling `SkalMsgListAdd()`.
  *
  * If you want to terminate the thread, this function should return `false` and
  * you wish will be executed with immediate effect. Otherwise, just return
@@ -507,25 +508,15 @@ int64_t SkalBlobSize_B(const SkalBlob* blob);
  *                    not be an empty string. Please note that message types
  *                    starting with "skal-" are reserved for SKAL's own use, so
  *                    please avoid prefixing your message types with "skal-".
- * \param flags  [in] Message flags; please refer to SKAL_MSG_FLAG_*
+ * \param flags  [in] Message flags; please refer to `SKAL_MSG_FLAG_*`
  * \param marker [in] A marker that helps uniquely identify this message. This
  *                    argument may be NULL, in which case a marker will be
  *                    automatically generated.
  *
- * \return The newly created SKAL message, with its reference counter set to 1.
- *         This function never returns NULL.
+ * \return The newly created SKAL message; this function never returns NULL
  */
-SkalMsg* SkalMsgCreate(const char* type, uint8_t flags, const char* marker);
-
-
-/** Add a reference to a message
- *
- * This will increment the message reference counter by one. If blobs are
- * attached to the message, their reference counters are also incremented.
- *
- * \param msg [in,out] Message to reference; must not be NULL
- */
-void SkalMsgRef(SkalMsg* msg);
+SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
+        uint8_t flags, const char* marker);
 
 
 /** Remove a reference from a message
@@ -548,9 +539,36 @@ void SkalMsgUnref(SkalMsg* msg);
  *
  * \param msg [in] Message to query; must not be NULL
  *
- * \return The message type, never NULL
+ * \return The message type; never NULL
  */
 const char* SkalMsgType(const SkalMsg* msg);
+
+
+/** Get the message sender
+ *
+ * \param msg [in] Message to query; must not be NULL
+ *
+ * \return The message sender; never NULL
+ */
+const char* SkalMsgSender(const SkalMsg* msg);
+
+
+/** Get the message recipient
+ *
+ * \param msg [in] Message to query; must not be NULL
+ *
+ * \return The message recipient; never NULL
+ */
+const char* SkalMsgRecipient(const SkalMsg* msg);
+
+
+/** Get the message flags
+ *
+ * \param msg [in] Message to query; must not be NULL
+ *
+ * \return The message flags
+ */
+uint8_t SkalMsgFlags(const SkalMsg* msg);
 
 
 /** Get the message marker
@@ -692,29 +710,27 @@ SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name);
 
 /** Make a copy of a message
  *
- * \param msg      [in] Message to copy
- * \param refBlobs [in] If set to `false`, the new message will not have any
- *                      blob. If set to `true`, the new message will reference
- *                      all the blobs attached to `msg`
+ * \param msg       [in] Message to copy
+ * \param refBlobs  [in] If set to `false`, the new message will not have any
+ *                       blob. If set to `true`, the new message will reference
+ *                       all the blobs attached to `msg`
+ * \param recipient [in] Recipient for this new message; may be NULL to keep the
+ *                       same recipient as `msg`
  *
- * \return The copied message. This function never returns NULL.
+ * \return The copied message; this function never returns NULL
  */
-SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs);
+SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient);
 
 
 /** Insert a message into an outgoing list
  *
  * You will lose the ownership of the message. You must assume `msg` does not
- * exist anymore when this function returns. Alternatively, if you do need to
- * access the message after this function returns (for example you want to send
- * it to multiple destinations), you will need to take a reference from it prior
- * to calling this function.
+ * exist anymore when this function returns.
  *
- * \param msgList [in,out] Message list to add to
- * \param dst     [in]     Recipient
+ * \param msgList [in,out] List to add to
  * \param msg     [in,out] Message to add to the list
  */
-void SkalMsgListAdd(SkalMsgList* msgList, const char* dst, SkalMsg* msg);
+void SkalMsgListAdd(SkalMsgList* msgList, SkalMsg* msg);
 
 
 

@@ -27,7 +27,7 @@
 
 
 /** Message flag: super-urgent message; reserved for SKAL internal use */
-#define SKAL_MSG_FLAG_SUPER_URGENT 0x80
+#define SKAL_MSG_IFLAG_INTERNAL 0x80
 
 
 /** Opaque type to a message queue */
@@ -38,6 +38,32 @@ typedef struct SkalQueue SkalQueue;
 /*------------------------------+
  | Public function declarations |
  +------------------------------*/
+
+
+/** Add a reference to a message
+ *
+ * This will increment the message reference counter by one. If blobs are
+ * attached to the message, their reference counters are also incremented.
+ *
+ * \param msg [in,out] Message to reference; must not be NULL
+ */
+void SkalMsgRef(SkalMsg* msg);
+
+
+/** Set a message's internal flags
+ *
+ * \param msg [in,out] Message to manipulate; must not be NULL
+ */
+void SkalMsgSetInternalFlags(SkalMsg* msg, uint8_t flags);
+
+
+/** Get a message's internal flags
+ *
+ * \param msg [in] Messaage to query
+ *
+ * \return The message internal flags
+ */
+uint8_t SkalMsgInternalFlags(const SkalMsg* msg);
 
 
 /** Create a JSON string that represents the content of the message
@@ -120,16 +146,9 @@ void SkalQueueDestroy(SkalQueue* queue);
  *
  * Otherwise, the following happens. You will lose ownership of the `msg`.
  * Please note this function always succeeds in inserting the message into the
- * queue. It may return 1 is the number of messages it holds (after pushing this
- * one), is greater or equal to its threshold, as set by the `SkalQueueCreate()`
- * function.
- *
- * The message will be pushed into the queue thus:
- *  - If the `SKAL_MSG_FLAG_SUPER_URGENT` is set, the message will be pushed at
- *    the front of the queue
- *  - If the `SKAL_MSG_FLAG_URGENT` is set, the message will be pushed after all
- *    urgent messages, but before all regular messages
- *  - Otherwise, the message will be pushed at the back of the queue
+ * queue (unless it is in shutdown mode). It will return 1 when the number of
+ * messages it holds (after pushing this one), is greater or equal to its
+ * threshold, as set by the `SkalQueueCreate()` function.
  *
  * \param queue [in,out] Where to push the message; must not be NULL
  * \param msg   [in,out] Message to push; must not be NULL
@@ -146,11 +165,36 @@ int SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
  * the message currently at the front of the queue. If the queue is empty, this
  * function will block until a message is pushed into it.
  *
- * \param SkalQueue [in,out] From where to pop a message
+ * If the `internalOnly` argument is set, urgent and regular messages are
+ * ignored, and only internal messages are popped. If no internal message is
+ * available, the function blocks, regardless of whether urgent or regular
+ * messages are available.
+ *
+ * Messages are popped in the following order:
+ *  - Internal messages first
+ *  - If there are no internal message pending, urgent messages
+ *  - Otherwise, regular messages
+ *
+ * \param queue        [in,out] From where to pop a message
+ * \param internalOnly [in]     Whether to wait for internal messages only
  *
  * \return The popped message; this function never returns NULL
  */
-SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue);
+SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue, bool internalOnly);
+
+
+// XXX
+#if 0
+/** Peek at the message at the front of the queue
+ *
+ * The ownership of the message is not transferred to the caller.
+ *
+ * \param queue [in] Queue to query; must not be NULL
+ *
+ * \return The peeked message, or NULL if the queue is empty
+ */
+SkalMsg* SkalQueuePeek(const SkalQueue* queue);
+#endif
 
 
 /** Create a message list
@@ -174,14 +218,17 @@ void SkalMsgListDestroy(SkalMsgList* msgList);
  * The ownership of the returned message is transfered to you.
  *
  * \param msgList [in,out] Message list to pop from; must not be NULL
- * \param dst     [out]    Where to write the destination for this message; must
- *                         not be NULL
- * \param size    [in]     Size (in chars) of the `dst`buffer;
- *                         must be >= `SKAL_NAME_MAX`
  *
  * \return The message at the front of the list, or NULL if list is empty
  */
-SkalMsg* SkalMsgListPop(SkalMsgList* msgList, char* dst, int size);
+SkalMsg* SkalMsgListPop(SkalMsgList* msgList);
+
+
+/** Check if the given message list is empty
+ *
+ * \param msgList [in] Message list to check; must not be NULL
+ */
+bool SkalMsgListIsEmpty(const SkalMsgList* msgList);
 
 
 /** DEBUG: Get the number of message references in this process
