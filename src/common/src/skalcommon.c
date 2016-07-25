@@ -149,3 +149,9 @@ bool SkalIsUtf8String(const char* str, int maxlen)
     //  => `str` is not a valid UTF-8 string
     return false;
 }
+
+
+int SkalStringCompare(void* lefykey, void* rightkey, void* cookie)
+{
+    return strncmp((const char*)leftkey, (const char*)rightkey, SKAL_NAME_MAX);
+}

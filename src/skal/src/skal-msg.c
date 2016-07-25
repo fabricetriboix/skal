@@ -106,10 +106,6 @@ static skalMsgData* skalAllocMsgData(SkalMsg* msg,
         const char* name, skalMsgDataType type);
 
 
-/** Comparison function for a message field map */
-static int skalFieldMapCompare(void* leftkey, void* rightkey, void* cookie);
-
-
 /** Function to unreference a field in a message field map */
 static void skalFieldMapUnref(CdsMapItem* item);
 
@@ -158,7 +154,7 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
         snprintf(msg->marker, sizeof(msg->marker), "%llu", n);
     }
     msg->fields = CdsMapCreate(NULL, SKAL_MAX_FIELDS,
-            skalFieldMapCompare, msg, NULL, skalFieldMapUnref);
+            SkalStringCompare, msg, NULL, skalFieldMapUnref);
 
     return msg;
 }
@@ -388,9 +384,9 @@ SkalQueue* SkalQueueCreate(const char* name, int64_t threshold)
     } else {
         queue->assertThreshold = threshold * 10;
     }
-    queue->internal = CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
-    queue->urgent   = CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
-    queue->regular  = CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
+    queue->internal=CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
+    queue->urgent  =CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
+    queue->regular =CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
 
     return queue;
 }
@@ -437,17 +433,20 @@ int SkalQueuePush(SkalQueue* queue, SkalMsg* msg)
     SKALASSERT(queue != NULL);
     SKALASSERT(msg != NULL);
 
-    int ret = 0;
     SkalPlfMutexLock(queue->mutex);
+
+    int ret = 0;
+    bool isInternal = msg->internalFlags & SKAL_MSG_IFLAG_INTERNAL;
     bool isShutdown = queue->shutdown;
-    if (msg->internalFlags & SKAL_MSG_IFLAG_INTERNAL) {
+    if (isInternal) {
         isShutdown = false; // Always push internal messages
     }
+
     if (isShutdown) {
         ret = -1;
     } else {
         bool pushed;
-        if (msg->internalFlags & SKAL_MSG_IFLAG_INTERNAL) {
+        if (isInternal) {
             pushed = CdsListPushBack(queue->internal, &msg->item);
         } else if (msg->flags & SKAL_MSG_FLAG_URGENT) {
             pushed = CdsListPushBack(queue->urgent, &msg->item);
@@ -456,12 +455,18 @@ int SkalQueuePush(SkalQueue* queue, SkalMsg* msg)
         }
         SKALASSERT(pushed);
         SkalPlfCondVarSignal(queue->condvar);
-        int64_t size = CdsListSize(queue->urgent) + CdsListSize(queue->regular);
-        SKALASSERT(size < queue->assertThreshold);
-        if (size >= queue->threshold) {
-            ret = 1;
+
+        // Check if the queue is full, but not if we pushed an internal msg
+        if (!isInternal) {
+            int64_t size = CdsListSize(queue->urgent)
+                + CdsListSize(queue->regular);
+            SKALASSERT(size < queue->assertThreshold);
+            if (size >= queue->threshold) {
+                ret = 1;
+            }
         }
     }
+
     SkalPlfMutexUnlock(queue->mutex);
 
     return ret;
@@ -498,6 +503,18 @@ SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue, bool internalOnly)
     SkalPlfMutexUnlock(queue->mutex);
 
     return msg;
+}
+
+
+bool SkalQueueIsHalfFull(const SkalQueue* queue)
+{
+    SKALASSERT(queue != NULL);
+    SKALASSERT(queue->threshold > 0);
+
+    SkalPlfMutexLock(queue->mutex);
+    int64_t size = CdsListSize(queue->urgent) + CdsListSize(queue->regular);
+    bool isHalfFull = (size >= (queue->threshold / 2));
+    SkalPlfMutexUnlock(queue->mutex);
 }
 
 
@@ -593,12 +610,6 @@ static skalMsgData* skalAllocMsgData(SkalMsg* msg,
     strncpy(data->name, name, sizeof(data->name) - 1);
 
     return data;
-}
-
-
-static int skalFieldMapCompare(void* leftkey, void* rightkey, void* cookie)
-{
-    return strcmp((const char*)leftkey, (const char*)rightkey);
 }
 
 

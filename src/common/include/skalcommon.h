@@ -121,6 +121,10 @@ bool SkalIsAsciiString(const char* str, int maxlen);
 bool SkalIsUtf8String(const char* str, int maxlen);
 
 
+/** Standard string comparison function suitable for CdsMap */
+int SkalStringCompare(void* lefykey, void* rightkey, void* cookie);
+
+
 
 /* @} */
 #endif /* SKAL_COMMON_h_ */

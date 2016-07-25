@@ -153,7 +153,7 @@ void SkalQueueDestroy(SkalQueue* queue);
  * \param queue [in,out] Where to push the message; must not be NULL
  * \param msg   [in,out] Message to push; must not be NULL
  *
- * \return 0 if queue is not full, 1 if it's full, -1 if it's in shutdown mode
+ * \return 0 if queue is not full, >0 if it's full, <0 if it's in shutdown mode
  */
 int SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
 
@@ -181,6 +181,10 @@ int SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
  * \return The popped message; this function never returns NULL
  */
 SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue, bool internalOnly);
+
+
+/** Check if the queue is half-full (or more than half-full) */
+bool SkalQueueIsHalfFull(const SkalQueue* queue);
 
 
 // XXX
