@@ -50,19 +50,6 @@ struct SkalBlob
  +-------------------------------*/
 
 
-/** Allocator map: compare 2 keys
- *
- * The keys are actually the allocator names.
- *
- * \param leftkey  [in] Name of the left-hand side allocator
- * \param rightkey [in] Name of the right-hand side allocator
- * \param cookie   [in] Unused
- *
- * \return <0, 0 or >0 if `leftkey` is respectively <, = or > to `rightkey`
- */
-static int skalAllocatorMapCompare(void* leftkey, void* rightkey, void* cookie);
-
-
 /** Allocator map: unreference an item
  *
  * \param litem [in,out] Allocator item to unreference
@@ -153,7 +140,7 @@ void SkalBlobInit(const SkalAllocator* allocators, int size)
 
     SKALASSERT(gAllocatorMap == NULL);
     gAllocatorMap = CdsMapCreate("SkalAllocators", SKAL_MAX_ALLOCATORS,
-            skalAllocatorMapCompare, NULL, NULL, skalAllocatorMapUnref);
+            SkalStringCompare, NULL, NULL, skalAllocatorMapUnref);
 
     SkalAllocator mallocAllocator = {
         "malloc",                     // name
@@ -296,12 +283,6 @@ int64_t SkalBlobSize_B(const SkalBlob* blob)
 /*----------------------------------+
  | Private function implementations |
  +----------------------------------*/
-
-
-static int skalAllocatorMapCompare(void* leftkey, void* rightkey, void* cookie)
-{
-    return strcmp((const char*)leftkey, (const char*)rightkey);
-}
 
 
 static void skalAllocatorMapUnref(CdsMapItem* litem)
