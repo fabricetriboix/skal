@@ -37,19 +37,23 @@
 
 
 /** Maximum number of custom allocators */
-#define SKAL_MAX_ALLOCATORS 500
+#define SKAL_ALLOCATORS_MAX 500
 
 
 /** Maximum number of fields per message */
-#define SKAL_MAX_FIELDS 1000
+#define SKAL_FIELDS_MAX 1000
 
 
 /** Maximum number of threads per process */
-#define SKAL_MAX_THREADS 10000
+#define SKAL_THREADS_MAX 10000
 
 
 /** Maximum number of messages that can be queued in a message list */
 #define SKAL_MSG_LIST_MAX 1000
+
+
+/** Maximum number of xoff states that can be received by a single thread */
+#define SKAL_XOFF_MAX 1000
 
 
 

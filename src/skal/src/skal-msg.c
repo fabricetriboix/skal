@@ -153,7 +153,7 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
     } else {
         snprintf(msg->marker, sizeof(msg->marker), "%llu", n);
     }
-    msg->fields = CdsMapCreate(NULL, SKAL_MAX_FIELDS,
+    msg->fields = CdsMapCreate(NULL, SKAL_FIELDS_MAX,
             SkalStringCompare, msg, NULL, skalFieldMapUnref);
 
     return msg;
@@ -522,6 +522,8 @@ bool SkalQueueIsHalfFull(const SkalQueue* queue)
     int64_t size = CdsListSize(queue->urgent) + CdsListSize(queue->regular);
     bool isHalfFull = (size >= (queue->threshold / 2));
     SkalPlfMutexUnlock(queue->mutex);
+
+    return isHalfFull;
 }
 
 

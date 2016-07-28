@@ -139,7 +139,7 @@ void SkalBlobInit(const SkalAllocator* allocators, int size)
     }
 
     SKALASSERT(gAllocatorMap == NULL);
-    gAllocatorMap = CdsMapCreate("SkalAllocators", SKAL_MAX_ALLOCATORS,
+    gAllocatorMap = CdsMapCreate("SkalAllocators", SKAL_ALLOCATORS_MAX,
             SkalStringCompare, NULL, NULL, skalAllocatorMapUnref);
 
     SkalAllocator mallocAllocator = {
