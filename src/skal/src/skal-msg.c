@@ -171,7 +171,14 @@ void SkalMsgRef(SkalMsg* msg)
 void SkalMsgSetInternalFlags(SkalMsg* msg, uint8_t flags)
 {
     SKALASSERT(msg != NULL);
-    msg->internalFlags = flags;
+    msg->internalFlags |= flags;
+}
+
+
+void SkalMsgResetInternalFlags(SkalMsg* msg, uint8_t flags)
+{
+    SKALASSERT(msg != NULL);
+    msg->internalFlags &= ~flags;
 }
 
 

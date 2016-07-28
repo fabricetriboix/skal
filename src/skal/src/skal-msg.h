@@ -57,6 +57,13 @@ void SkalMsgRef(SkalMsg* msg);
 void SkalMsgSetInternalFlags(SkalMsg* msg, uint8_t flags);
 
 
+/** Reset a message's internal flags
+ *
+ * \param msg [in,out] Message to manipulate; must not be NULL
+ */
+void SkalMsgResetInternalFlags(SkalMsg* msg, uint8_t flags);
+
+
 /** Get a message's internal flags
  *
  * \param msg [in] Messaage to query
