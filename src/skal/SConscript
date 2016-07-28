@@ -5,7 +5,8 @@ import os
 artefacts = {}
 
 artefacts['incs'] = [os.path.join("include", "skal.h")]
-srcs = [os.path.join("src", "skal-blob.c"), os.path.join("src", "skal-msg.c")]
+srcs = [os.path.join("src", "skal-blob.c"), os.path.join("src", "skal-msg.c"),
+        os.path.join("src", "skal-thread.c")]
 artefacts['objs'] = [variant['env'].StaticObject(src) for src in srcs]
 artefacts['testsrcs'] = [os.path.join("test", "unittest-blob.c"),
                          os.path.join("test", "unittest-msg.c")]
