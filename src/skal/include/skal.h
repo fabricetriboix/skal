@@ -102,6 +102,8 @@
  * This function must return an object that will be used later to map and unmap
  * the memory area into the process/thread memory space. It must return NULL in
  * case of error.
+ *
+ * **This function is not allowed to block!**
  */
 typedef void* (*SkalAllocateF)(void* cookie, const char* id, int64_t size_B);
 
@@ -115,6 +117,8 @@ typedef void* (*SkalAllocateF)(void* cookie, const char* id, int64_t size_B);
  *  - `cookie`: Same value as `SkalAllocator.cookie`
  *  - `obj`: Object pointer returned by `SkalAllocateF` which must now be
  *    de-allocated
+ *
+ * **This function is not allowed to block!**
  */
 typedef void (*SkalFreeF)(void* cookie, void* obj);
 
@@ -131,6 +135,8 @@ typedef void (*SkalFreeF)(void* cookie, void* obj);
  *
  * This function must return a pointer to the mapped memory area, accessible
  * from the current process, or NULL in case of error.
+ *
+ * **This function is not allowed to block!**
  */
 typedef void* (*SkalMapF)(void* cookie, void* obj);
 
@@ -144,6 +150,8 @@ typedef void* (*SkalMapF)(void* cookie, void* obj);
  *  - `cookie`: Same value as `SkalAllocator.cookie`
  *  - `obj`: Object pointer returned by `SkalAllocateF` which must now be
  *    unmapped from the process memory space
+ *
+ * **This function is not allowed to block!**
  */
 typedef void (*SkalUnmapF)(void* cookie, void* obj);
 
@@ -243,8 +251,8 @@ typedef struct SkalMsgList SkalMsgList;
  * The arguments are:
  *  - `cookie`: Same as `SkalThreadCfg.cookie`
  *  - `msg`: Message that triggered this call; ownership of `msg` is transferred
- *    to you, it is up to you to free when you're finished with it, or send it
- *    to another thread.
+ *    to you, it is up to you to free it when you're finished with it, or send
+ *    it to another thread.
  *  - `outgoing`: List of messages you want to send once this function returns;
  *    populating this list is the only way you can send messages. This argument
  *    is never NULL. You can add an outgoing message by creating it, adding some
@@ -253,6 +261,8 @@ typedef struct SkalMsgList SkalMsgList;
  * If you want to terminate the thread, this function should return `false` and
  * you wish will be executed with immediate effect. Otherwise, just return
  * `true`.
+ *
+ * **This function is not allowed to block!**
  */
 typedef bool (*SkalProcessMsgF)(void* cookie, SkalMsg* msg,
         SkalMsgList* outgoing);
@@ -324,12 +334,17 @@ typedef struct
 bool SkalInit(const char* skaldUrl, const SkalAllocator* allocators);
 
 
+/** Terminate this process
+ *
+ * This function can typically be called from a signal handler.
+ */
+void SkalExit(void);
+
+
 /** Create a thread
  *
- * This thread will receive a "skal-init" message once it's created.
- *
  * NB: The only way to terminate a thread is for its `processMsg` callback to
- * return `false`.
+ * return `false`, or for the process itself to be terminated.
  *
  * \param thread [in] Description of the thread to create
  */
@@ -661,7 +676,7 @@ double SkalMsgGetDouble(const SkalMsg* msg, const char* name);
  * \param msg  [in] Message to query; must not be NULL
  * \param name [in] Name of the string; must exists in this `msg`
  *
- * \return The value of the string
+ * \return The value of the string; this function never returns NULL
  */
 const char* SkalMsgGetString(const SkalMsg* msg, const char* name);
 
