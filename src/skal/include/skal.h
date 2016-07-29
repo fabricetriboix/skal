@@ -737,6 +737,15 @@ SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name);
 SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient);
 
 
+/** Send a message to its recipient
+ *
+ * You will lose ownership of the message.
+ *
+ * \param msg [in,out] Message to send
+ */
+void SkalMsgSend(SkalMsg* msg);
+
+
 /** Insert a message into an outgoing list
  *
  * You will lose the ownership of the message. You must assume `msg` does not
