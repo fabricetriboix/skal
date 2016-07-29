@@ -223,7 +223,7 @@ void SkalThreadInit(void)
     gMutex = SkalPlfMutexCreate();
 
     char thread_name[SKAL_NAME_MAX];
-    SkalPlfGetCurrentThreadName(thread_name, sizeof(thread_name));
+    SkalPlfThreadGetName(thread_name, sizeof(thread_name));
 
     char name[SKAL_NAME_MAX];
     snprintf(name, sizeof(name), "%s-queue", thread_name);
@@ -362,7 +362,7 @@ static void skalThreadRun(void* arg)
 {
     SKALASSERT(arg != NULL);
     SkalThread* thread = (SkalThread*)arg;
-    SkalPlfSetCurrentThreadName(thread->cfg.name);
+    SkalPlfThreadSetName(thread->cfg.name);
 
     bool stop = false;
     while (!stop) {

@@ -146,7 +146,7 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
     gMsgRefCount_DEBUG++;
     msg->flags = flags;
     strncpy(msg->type, type, sizeof(msg->type) - 1);
-    SkalPlfGetCurrentThreadName(msg->sender, sizeof(msg->sender));
+    SkalPlfThreadGetName(msg->sender, sizeof(msg->sender));
     strncpy(msg->recipient, recipient, sizeof(msg->recipient) - 1);
     if (marker != NULL) {
         strncpy(msg->marker, marker, sizeof(msg->marker) - 1);

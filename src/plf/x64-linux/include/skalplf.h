@@ -249,7 +249,7 @@ void SkalPlfThreadJoin(SkalPlfThread* thread);
  *
  * \param name [in] New name for current thread
  */
-void SkalPlfSetCurrentThreadName(const char* name);
+void SkalPlfThreadSetName(const char* name);
 
 
 /** Get the name of the current thread
@@ -258,7 +258,23 @@ void SkalPlfSetCurrentThreadName(const char* name);
  *                     NULL
  * \param size   [in]  Size of the above buffer, in chars
  */
-void SkalPlfGetCurrentThreadName(char* buffer, int size);
+void SkalPlfThreadGetName(char* buffer, int size);
+
+
+/** Set the thread-specific value
+ *
+ * Please note only one such value can be held for each thread.
+ *
+ * \param value [in] Value to set, specific to the current thread
+ */
+void SkalPlfThreadSetSpecific(void* value);
+
+
+/** Get the thread-specific value
+ *
+ * \return The thread-specific value, or NULL if it was not set
+ */
+void* SkalPlfThreadGetSpecific(void);
 
 
 

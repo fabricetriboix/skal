@@ -63,8 +63,22 @@ struct SkalPlfThread
  +------------------*/
 
 
+/** Key to thread-specific values */
+static pthread_key_t gKey;
+static bool gKeyInitialised = false;
+
+
 /** Access to "/dev/urandom" */
 static int gRandomFd = -1;
+
+
+
+/*-------------------------------+
+ | Private function declarations |
+ +-------------------------------*/
+
+
+static void skalPlfInitPThreadKeyIfNeeded(void);
 
 
 
@@ -213,7 +227,7 @@ void SkalPlfThreadJoin(SkalPlfThread* thread)
 }
 
 
-void SkalPlfSetCurrentThreadName(const char* name)
+void SkalPlfThreadSetName(const char* name)
 {
     SKALASSERT(name != NULL);
     int ret = pthread_setname_np(pthread_self(), name);
@@ -221,12 +235,43 @@ void SkalPlfSetCurrentThreadName(const char* name)
 }
 
 
-void SkalPlfGetCurrentThreadName(char* buffer, int size)
+void SkalPlfThreadGetName(char* buffer, int size)
 {
     SKALASSERT(buffer != NULL);
     SKALASSERT(size > 0);
     int ret = pthread_getname_np(pthread_self(), buffer, size);
     if (ret != 0) {
         snprintf(buffer, size, "%d", (int)syscall(SYS_gettid));
+    }
+}
+
+
+void SkalPlfThreadSetSpecific(void* value)
+{
+    skalPlfInitPThreadKeyIfNeeded();
+    int ret = pthread_setspecific(gKey, value);
+    SKALASSERT(0 == ret);
+}
+
+
+void* SkalPlfThreadGetSpecific(void)
+{
+    skalPlfInitPThreadKeyIfNeeded();
+    return pthread_getspecific(gKey);
+}
+
+
+
+/*----------------------------------+
+ | Private function implementations |
+ +----------------------------------*/
+
+
+static void skalPlfInitPThreadKeyIfNeeded(void)
+{
+    if (!gKeyInitialised) {
+        int ret = pthread_key_create(&gKey, NULL);
+        SKALASSERT(0 == ret);
+        gKeyInitialised = true;
     }
 }
