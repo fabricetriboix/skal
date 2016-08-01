@@ -43,7 +43,7 @@ void SkalThreadInit(void);
 /** Terminate all threads and free up all resources
  *
  * This function will block until all threads have terminated and all resources
- * have been freed.
+ * have been freed. The master thread will also be terminated.
  */
 void SkalThreadExit(void);
 

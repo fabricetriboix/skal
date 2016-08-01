@@ -27,10 +27,6 @@
  +----------------*/
 
 
-/** Default queue threshold */
-#define SKAL_DEFAULT_QUEUE_THRESHOLD 100
-
-
 /** Structure that represents an item of the `SkalThread.xoff` map
  *
  * NB: We do not count references because we know by design it's referenced only
@@ -81,14 +77,26 @@ struct SkalThread
 {
     CdsMapItem item;
 
-    /** Thread configuration - read only*/
+    /** Thread configuration */
     SkalThreadCfg cfg;
 
     /** Message queue for this thread */
     SkalQueue* queue;
 
-    /** Outgoing message list */
-    SkalMsgList* msgList;
+    /** The actual thread */
+    SkalPlfThread* thread;
+};
+
+
+/** Thread private stuff */
+typedef struct
+{
+    /** Back pointer to the thread structure
+     *
+     * This structure is guaranteed to exist and not modified (except for the
+     * `queue`) for the lifetime of the thread.
+     */
+    SkalThread* thread;
 
     /** Map of threads that sent me an xoff msg - made of `skalXoffItem` */
     CdsMap* xoff;
@@ -98,10 +106,7 @@ struct SkalThread
      * This map is made of `skalNtfXonItem`.
      */
     CdsMap* ntfXon;
-
-    /** The actual thread */
-    SkalPlfThread* thread;
-};
+} skalThreadPrivate;
 
 
 
@@ -192,7 +197,10 @@ static SkalPlfMutex* gMutex = NULL;
 static CdsMap* gThreads = NULL;
 
 
-/** Master thread */
+/** Master thread
+ *
+ * This is not in the `gThreads` map because of its special role.
+ */
 static SkalThread* gMaster = NULL;
 
 
@@ -222,15 +230,15 @@ void SkalThreadInit(void)
 
     gMutex = SkalPlfMutexCreate();
 
-    char thread_name[SKAL_NAME_MAX];
-    SkalPlfThreadGetName(thread_name, sizeof(thread_name));
+    char threadName[SKAL_NAME_MAX];
+    SkalPlfThreadGetName(threadName, sizeof(threadName));
 
     char name[SKAL_NAME_MAX];
-    snprintf(name, sizeof(name), "%s-queue", thread_name);
+    snprintf(name, sizeof(name), "%s-queue", threadName);
     gGlobalQueue = SkalQueueCreate(name, SKAL_THREADS_MAX);
 
-    snprintf(name, sizeof(name), "%s-threads", thread_name);
-    gThreads = CdsMapCreate(name,               // name
+    snprintf(name, sizeof(name), "%s-threads", threadName);
+    gThreads = CdsMapCreate(name,              // name
                             SKAL_THREADS_MAX,  // capacity
                             SkalStringCompare, // compare
                             NULL,              // cookie
@@ -258,6 +266,7 @@ void SkalThreadExit(void)
     int ret = SkalQueuePush(gMaster->queue, msg);
     SKALASSERT(0 == ret);
 
+    // TODO: from here
     SkalMsg* resp = SkalQueuePop_BLOCKING(gGlobalQueue, false);
     SKALASSERT(strncmp(SkalMsgSender(resp), "skal-master", SKAL_NAME_MAX) == 0);
     SKALASSERT(strncmp(SkalMsgType(resp), "skal-terminated", SKAL_NAME_MAX)
