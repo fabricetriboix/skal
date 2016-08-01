@@ -79,7 +79,7 @@ uint8_t SkalMsgInternalFlags(const SkalMsg* msg);
  * referenced by their ids in the JSON string. The content of each blob must be
  * passed using a separate mean.
  */
-// TODO: from here
+// TODO
 
 
 /** Create a message from a JSON string
@@ -94,7 +94,7 @@ uint8_t SkalMsgInternalFlags(const SkalMsg* msg);
  * \return The newly created SKAL message, with its reference counter set to 1,
  *         or NULL if the JSON string is not valid.
  */
-SkalMsg* SkalMsgCreateFromJson(const char* json);
+// TODO SkalMsg* SkalMsgCreateFromJson(const char* json);
 
 
 /** Create a message queue
@@ -192,54 +192,6 @@ SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue, bool internalOnly);
 
 /** Check if the queue is half-full (or more than half-full) */
 bool SkalQueueIsHalfFull(const SkalQueue* queue);
-
-
-// XXX
-#if 0
-/** Peek at the message at the front of the queue
- *
- * The ownership of the message is not transferred to the caller.
- *
- * \param queue [in] Queue to query; must not be NULL
- *
- * \return The peeked message, or NULL if the queue is empty
- */
-SkalMsg* SkalQueuePeek(const SkalQueue* queue);
-#endif
-
-
-/** Create a message list
- *
- * \return The newly created message list; this function never returns NULL
- */
-SkalMsgList* SkalMsgListCreate(void);
-
-
-/** Destroy a message list
- *
- * All messages still enqueued in the list will be unreferenced.
- *
- * \param msgList [in,out] Message list to destroy; must not be NULL
- */
-void SkalMsgListDestroy(SkalMsgList* msgList);
-
-
-/** Pop out the message at the front of the message list
- *
- * The ownership of the returned message is transfered to you.
- *
- * \param msgList [in,out] Message list to pop from; must not be NULL
- *
- * \return The message at the front of the list, or NULL if list is empty
- */
-SkalMsg* SkalMsgListPop(SkalMsgList* msgList);
-
-
-/** Check if the given message list is empty
- *
- * \param msgList [in] Message list to check; must not be NULL
- */
-bool SkalMsgListIsEmpty(const SkalMsgList* msgList);
 
 
 /** DEBUG: Get the number of message references in this process

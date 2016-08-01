@@ -64,7 +64,7 @@ struct SkalMsg
     char        sender[SKAL_NAME_MAX];
     char        recipient[SKAL_NAME_MAX];
     char        marker[SKAL_NAME_MAX];
-    CdsMap*     fields;
+    CdsMap*     fields; // Map of `skalMsgData`, indexed by field name
 };
 
 
@@ -79,12 +79,6 @@ struct SkalQueue
     CdsList*        internal;
     CdsList*        urgent;
     CdsList*        regular;
-};
-
-
-struct SkalMsgList
-{
-    CdsList* list; // list of outgoing messages
 };
 
 
@@ -139,14 +133,20 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
         SKALASSERT(SkalIsAsciiString(marker, SKAL_NAME_MAX));
     }
 
-    // TODO: potential race conditon... fix that.
+    // FIXME: potential race condition on gMsgCounter... fix that.
     unsigned long long n = ++gMsgCounter;
     SkalMsg* msg = SkalMallocZ(sizeof(*msg));
     msg->ref = 1;
     gMsgRefCount_DEBUG++;
     msg->flags = flags;
     strncpy(msg->type, type, sizeof(msg->type) - 1);
-    SkalPlfThreadGetName(msg->sender, sizeof(msg->sender));
+    if (SkalPlfThreadGetSpecific() != NULL) {
+        // The current thread is managed by SKAL
+        SkalPlfThreadGetName(msg->sender, sizeof(msg->sender));
+    } else {
+        // The current thread is not managed by SKAL
+        strncpy(msg->sender, "skal-external", sizeof(msg->sender) - 1);
+    }
     strncpy(msg->recipient, recipient, sizeof(msg->recipient) - 1);
     if (marker != NULL) {
         strncpy(msg->marker, marker, sizeof(msg->marker) - 1);
@@ -157,14 +157,6 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
             SkalStringCompare, msg, NULL, skalFieldMapUnref);
 
     return msg;
-}
-
-
-void SkalMsgRef(SkalMsg* msg)
-{
-    SKALASSERT(msg != NULL);
-    msg->ref++;
-    gMsgRefCount_DEBUG++;
 }
 
 
@@ -189,10 +181,44 @@ uint8_t SkalMsgInternalFlags(const SkalMsg* msg)
 }
 
 
+void SkalMsgRef(SkalMsg* msg)
+{
+    SKALASSERT(msg != NULL);
+    msg->ref++;
+
+    // Reference attached blobs, if any
+    CdsMapIterator* iter = CdsMapIteratorCreate(msg->fields, true);
+    for (   CdsMapItem* item = CdsMapIteratorNext(iter);
+            item != NULL;
+            item = CdsMapIteratorNext(iter) ) {
+        skalMsgData* data = (skalMsgData*)item;
+        if (SKAL_MSG_DATA_TYPE_BLOB == data->type) {
+            SkalBlobRef(data->blob);
+        }
+    }
+    CdsMapIteratorDestroy(iter);
+
+    gMsgRefCount_DEBUG++;
+}
+
+
 void SkalMsgUnref(SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
     msg->ref--;
+
+    // Unreference attached blobs, if any
+    CdsMapIterator* iter = CdsMapIteratorCreate(msg->fields, true);
+    for (   CdsMapItem* item = CdsMapIteratorNext(iter);
+            item != NULL;
+            item = CdsMapIteratorNext(iter) ) {
+        skalMsgData* data = (skalMsgData*)item;
+        if (SKAL_MSG_DATA_TYPE_BLOB == data->type) {
+            SkalBlobUnref(data->blob);
+        }
+    }
+    CdsMapIteratorDestroy(iter);
+
     gMsgRefCount_DEBUG--;
     if (msg->ref <= 0) {
         CdsMapDestroy(msg->fields);
@@ -278,6 +304,7 @@ void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
     data->blob = blob;
     SkalBlobRef(blob);
     SKALASSERT(CdsMapInsert(msg->fields, data->name, &data->item));
+    SKALPANIC_MSG("Attaching blobs is not yet supported"); // TODO
 }
 
 
@@ -524,73 +551,6 @@ bool SkalQueueIsHalfFull(const SkalQueue* queue)
     SkalPlfMutexUnlock(queue->mutex);
 
     return isHalfFull;
-}
-
-
-// XXX
-#if 0
-SkalMsg* SkalQueuePeek(const SkalQueue* queue)
-{
-    SKALASSERT(queue);
-
-    SkalPlfMutexLock(queue->mutex);
-    SkalMsg* msg;
-    if (!CdsListIsEmpty(queue->urgent)) {
-        msg = (SkalMsg*)CdsListFront(queue->urgent);
-    } else {
-        msg = (SkalMsg*)CdsListFront(queue->regular);
-    }
-    SkalPlfMutexUnlock(queue->mutex);
-
-    return msg;
-}
-#endif
-
-
-SkalMsgList* SkalMsgListCreate(void)
-{
-    SkalMsgList* msgList = SkalMallocZ(sizeof(*msgList));
-    msgList->list = CdsListCreate(NULL, SKAL_MSG_LIST_MAX,
-            (void(*)(CdsListItem*))SkalMsgUnref);
-    return msgList;
-}
-
-
-void SkalMsgListDestroy(SkalMsgList* msgList)
-{
-    SKALASSERT(msgList != NULL);
-    CdsListDestroy(msgList->list);
-    free(msgList);
-}
-
-
-void SkalMsgListAdd(SkalMsgList* msgList, SkalMsg* msg)
-{
-    SKALASSERT(msgList != NULL);
-    SKALASSERT(msg != NULL);
-
-    bool pushed = false;
-    if (    (msg->internalFlags & SKAL_MSG_IFLAG_INTERNAL)
-         || (msg->flags & SKAL_MSG_FLAG_URGENT) ) {
-        pushed = CdsListPushFront(msgList->list, &msg->item);
-    } else {
-        pushed = CdsListPushBack(msgList->list, &msg->item);
-    }
-    SKALASSERT(pushed);
-}
-
-
-SkalMsg* SkalMsgListPop(SkalMsgList* msgList)
-{
-    SKALASSERT(msgList != NULL);
-    return (SkalMsg*)CdsListPopFront(msgList->list);
-}
-
-
-bool SkalMsgListIsEmpty(const SkalMsgList* msgList)
-{
-    SKALASSERT(msgList != NULL);
-    return CdsListIsEmpty(msgList->list);
 }
 
 

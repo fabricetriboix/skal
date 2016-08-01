@@ -242,10 +242,6 @@ typedef struct SkalBlob SkalBlob;
 typedef struct SkalMsg SkalMsg;
 
 
-/** Opaque type to a list of SKAL messages */
-typedef struct SkalMsgList SkalMsgList;
-
-
 /** Prototype of a function that processes a message
  *
  * The arguments are:
@@ -253,10 +249,6 @@ typedef struct SkalMsgList SkalMsgList;
  *  - `msg`: Message that triggered this call; ownership of `msg` is transferred
  *    to you, it is up to you to free it when you're finished with it, or send
  *    it to another thread.
- *  - `outgoing`: List of messages you want to send once this function returns;
- *    populating this list is the only way you can send messages. This argument
- *    is never NULL. You can add an outgoing message by creating it, adding some
- *    optional fields and blobs as required, and calling `SkalMsgListAdd()`.
  *
  * If you want to terminate the thread, this function should return `false` and
  * you wish will be executed with immediate effect. Otherwise, just return
@@ -264,8 +256,7 @@ typedef struct SkalMsgList SkalMsgList;
  *
  * **This function is not allowed to block!**
  */
-typedef bool (*SkalProcessMsgF)(void* cookie, SkalMsg* msg,
-        SkalMsgList* outgoing);
+typedef bool (*SkalProcessMsgF)(void* cookie, SkalMsg* msg);
 
 
 /** Structure representing a thread */
@@ -744,17 +735,6 @@ SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient);
  * \param msg [in,out] Message to send
  */
 void SkalMsgSend(SkalMsg* msg);
-
-
-/** Insert a message into an outgoing list
- *
- * You will lose the ownership of the message. You must assume `msg` does not
- * exist anymore when this function returns.
- *
- * \param msgList [in,out] List to add to
- * \param msg     [in,out] Message to add to the list
- */
-void SkalMsgListAdd(SkalMsgList* msgList, SkalMsg* msg);
 
 
 

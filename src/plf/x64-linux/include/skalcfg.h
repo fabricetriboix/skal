@@ -56,6 +56,10 @@
 #define SKAL_XOFF_MAX 1000
 
 
+/** Default queue threshold */
+#define SKAL_DEFAULT_QUEUE_THRESHOLD 100
+
+
 
 /* @} */
 #endif /* SKAL_CFG_h_ */

@@ -26,28 +26,28 @@ static void* gBlob = NULL;
 static void* skalTestBlobAllocate(void* cookie, const char* id, int64_t size_B)
 {
     (void)id; // unused argument
-    RTT_ASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(cookie == (void*)0xdeadbeef);
     gBlobCount++;
     return malloc(size_B);
 }
 
 static void skalTestBlobFree(void* cookie, void* obj)
 {
-    RTT_ASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(cookie == (void*)0xdeadbeef);
     gBlobCount--;
     free(obj);
 }
 
 static void* skalTestBlobMap(void* cookie, void* obj)
 {
-    RTT_ASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(cookie == (void*)0xdeadbeef);
     return obj;
 }
 
 static void skalTestBlobUnmap(void* cookie, void* obj)
 {
     (void)obj; // unused argument
-    RTT_ASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(cookie == (void*)0xdeadbeef);
 }
 
 static SkalAllocator gSkalTestBlobAllocator = {
