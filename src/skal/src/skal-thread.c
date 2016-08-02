@@ -306,7 +306,7 @@ void SkalThreadCreate(const SkalThreadCfg* cfg)
 }
 
 
-void SkalSendMsg(SkalMsg* msg)
+void SkalMsgSend(SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(gMaster != NULL);
