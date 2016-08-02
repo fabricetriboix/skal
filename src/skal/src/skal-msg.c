@@ -188,9 +188,9 @@ void SkalMsgRef(SkalMsg* msg)
 
     // Reference attached blobs, if any
     CdsMapIterator* iter = CdsMapIteratorCreate(msg->fields, true);
-    for (   CdsMapItem* item = CdsMapIteratorNext(iter);
+    for (   CdsMapItem* item = CdsMapIteratorNext(iter, NULL);
             item != NULL;
-            item = CdsMapIteratorNext(iter) ) {
+            item = CdsMapIteratorNext(iter, NULL) ) {
         skalMsgData* data = (skalMsgData*)item;
         if (SKAL_MSG_DATA_TYPE_BLOB == data->type) {
             SkalBlobRef(data->blob);
@@ -209,9 +209,9 @@ void SkalMsgUnref(SkalMsg* msg)
 
     // Unreference attached blobs, if any
     CdsMapIterator* iter = CdsMapIteratorCreate(msg->fields, true);
-    for (   CdsMapItem* item = CdsMapIteratorNext(iter);
+    for (   CdsMapItem* item = CdsMapIteratorNext(iter, NULL);
             item != NULL;
-            item = CdsMapIteratorNext(iter) ) {
+            item = CdsMapIteratorNext(iter, NULL) ) {
         skalMsgData* data = (skalMsgData*)item;
         if (SKAL_MSG_DATA_TYPE_BLOB == data->type) {
             SkalBlobUnref(data->blob);

@@ -27,6 +27,10 @@ RTT_GROUP_START(TestSkalMsg, 0x00040001u, NULL, NULL)
 RTT_TEST_START(skal_should_create_msg)
 {
     SkalPlfThreadSetName("TestThread");
+
+    // Fool skal-msg into thinking this thread is managed by SKAL
+    SkalPlfThreadSetSpecific((void*)0xcafedeca);
+
     gMsg = SkalMsgCreate("TestType", "dummy-dst", 0, NULL);
     RTT_ASSERT(gMsg != NULL);
 }
