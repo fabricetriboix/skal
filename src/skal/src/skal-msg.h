@@ -157,6 +157,9 @@ void SkalQueueDestroy(SkalQueue* queue);
  * messages it holds (after pushing this one), is greater or equal to its
  * threshold, as set by the `SkalQueueCreate()` function.
  *
+ * Please note that if `msg` is an internal message, this function always
+ * returns 0, regardless of whether its queue is full or not.
+ *
  * \param queue [in,out] Where to push the message; must not be NULL
  * \param msg   [in,out] Message to push; must not be NULL
  *

@@ -263,7 +263,8 @@ void SkalPlfThreadGetName(char* buffer, int size);
 
 /** Set the thread-specific value
  *
- * Please note only one such value can be held for each thread.
+ * Please note only one such value can be held for each thread. If you call this
+ * function a second time, the new value will silently overwrite the old value.
  *
  * \param value [in] Value to set, specific to the current thread
  */
