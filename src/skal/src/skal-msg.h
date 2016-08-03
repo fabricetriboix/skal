@@ -117,27 +117,7 @@ SkalQueue* SkalQueueCreate(const char* name, int64_t threshold);
 const char* SkalQueueName(const SkalQueue* queue);
 
 
-/** Set the queue in shutdown mode
- *
- * Once in shutdown mode, the queue will not accept any more item being pushed
- * into it. This is used when the thread owning the message queue has to be
- * terminated.
- *
- * \param queue [in,out] Queue to shut down
- */
-void SkalQueueShutdown(SkalQueue* queue);
-
-
-/** Check if the queue is in shutdown mode
- *
- * \param queue [in] Queue to query
- */
-bool SkalQueueIsInShutdownMode(const SkalQueue* queue);
-
-
 /** Destroy a message queue
- *
- * You *MUST* have called `SkalQueueShutdown()` first.
  *
  * All pending messages will be silently dropped.
  *
@@ -148,24 +128,13 @@ void SkalQueueDestroy(SkalQueue* queue);
 
 /** Push a message into the queue
  *
- * If the queue is in shutdown mode, no action is taken and this function
- * returns -1.
- *
- * Otherwise, the following happens. You will lose ownership of the `msg`.
- * Please note this function always succeeds in inserting the message into the
- * queue (unless it is in shutdown mode). It will return 1 when the number of
- * messages it holds (after pushing this one), is greater or equal to its
- * threshold, as set by the `SkalQueueCreate()` function.
- *
- * Please note that if `msg` is an internal message, this function always
- * returns 0, regardless of whether its queue is full or not.
+ * You will lose ownership of the `msg`. This function always succeeds in
+ * inserting the message into the queue.
  *
  * \param queue [in,out] Where to push the message; must not be NULL
  * \param msg   [in,out] Message to push; must not be NULL
- *
- * \return 0 if queue is not full, >0 if it's full, <0 if it's in shutdown mode
  */
-int SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
+void SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
 
 
 /** Pop a message from the queue
@@ -191,6 +160,10 @@ int SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
  * \return The popped message; this function never returns NULL
  */
 SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue, bool internalOnly);
+
+
+/** Check if the queue is full (or more than full) */
+bool SkalQueueIsFull(const SkalQueue* queue);
 
 
 /** Check if the queue is half-full (or more than half-full) */

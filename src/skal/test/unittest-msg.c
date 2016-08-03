@@ -120,6 +120,7 @@ RTT_TEST_END
 RTT_TEST_START(skal_should_have_no_more_msg_ref_1)
 {
     RTT_EXPECT(SkalMsgRefCount_DEBUG() == 0);
+    SkalPlfThreadSetSpecific(NULL); // reset thread-specific data
 }
 RTT_TEST_END
 
@@ -154,7 +155,8 @@ RTT_TEST_START(skal_should_push_a_msg)
 {
     SkalMsg* msg = SkalMsgCreate("TestMsg", "dst1", 0, NULL);
     RTT_ASSERT(msg != NULL);
-    RTT_EXPECT(SkalQueuePush(gQueue, msg) == 0);
+    SkalQueuePush(gQueue, msg);
+    RTT_EXPECT(!SkalQueueIsFull(gQueue));
 }
 RTT_TEST_END
 
@@ -163,7 +165,8 @@ RTT_TEST_START(skal_should_push_an_urgent_msg_and_signal_full)
     SkalMsg* msg = SkalMsgCreate("UrgentMsg", "dst2",
             SKAL_MSG_FLAG_URGENT, NULL);
     RTT_ASSERT(msg != NULL);
-    RTT_EXPECT(SkalQueuePush(gQueue, msg) == 1);
+    SkalQueuePush(gQueue, msg);
+    RTT_EXPECT(SkalQueueIsFull(gQueue));
 }
 RTT_TEST_END
 
@@ -174,21 +177,6 @@ RTT_TEST_START(skal_should_pop_urgent_msg)
     const char* type = SkalMsgType(msg);
     RTT_ASSERT(type != NULL);
     RTT_EXPECT(strcmp(type, "UrgentMsg") == 0);
-    SkalMsgUnref(msg);
-}
-RTT_TEST_END
-
-RTT_TEST_START(skal_should_shutdown_queue)
-{
-    SkalQueueShutdown(gQueue);
-}
-RTT_TEST_END
-
-RTT_TEST_START(skal_should_not_push_msg)
-{
-    SkalMsg* msg = SkalMsgCreate("Bla", "/dev/null", 0, NULL);
-    RTT_ASSERT(msg != NULL);
-    RTT_EXPECT(SkalQueuePush(gQueue, msg) == -1);
     SkalMsgUnref(msg);
 }
 RTT_TEST_END
@@ -221,8 +209,6 @@ RTT_GROUP_END(TestSkalQueue,
         skal_should_push_a_msg,
         skal_should_push_an_urgent_msg_and_signal_full,
         skal_should_pop_urgent_msg,
-        skal_should_shutdown_queue,
-        skal_should_not_push_msg,
         skal_should_pop_regular_msg,
         skal_should_destroy_queue,
         skal_should_have_no_more_msg_ref_2)

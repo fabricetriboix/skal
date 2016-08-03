@@ -73,7 +73,6 @@ struct SkalQueue
     char            name[SKAL_NAME_MAX];
     SkalPlfMutex*   mutex;
     SkalPlfCondVar* condvar;
-    bool            shutdown;
     int64_t         threshold;
     int64_t         assertThreshold;
     CdsList*        internal;
@@ -411,7 +410,6 @@ SkalQueue* SkalQueueCreate(const char* name, int64_t threshold)
     strncpy(queue->name, name, SKAL_NAME_MAX - 1);
     queue->mutex = SkalPlfMutexCreate();
     queue->condvar = SkalPlfCondVarCreate();
-    queue->shutdown = false;
     queue->threshold = threshold;
     if (threshold < 100) {
         queue->assertThreshold = 1000;
@@ -433,24 +431,9 @@ const char* SkalQueueName(const SkalQueue* queue)
 }
 
 
-void SkalQueueShutdown(SkalQueue* queue)
-{
-    SKALASSERT(queue != NULL);
-    queue->shutdown = true;
-}
-
-
-bool SkalQueueIsInShutdownMode(const SkalQueue* queue)
-{
-    SKALASSERT(queue != NULL);
-    return queue->shutdown;
-}
-
-
 void SkalQueueDestroy(SkalQueue* queue)
 {
     SKALASSERT(queue != NULL);
-    SKALASSERT(queue->shutdown);
     SkalPlfMutexLock(queue->mutex);
     CdsListDestroy(queue->regular);
     CdsListDestroy(queue->urgent);
@@ -462,48 +445,23 @@ void SkalQueueDestroy(SkalQueue* queue)
 }
 
 
-int SkalQueuePush(SkalQueue* queue, SkalMsg* msg)
+void SkalQueuePush(SkalQueue* queue, SkalMsg* msg)
 {
     SKALASSERT(queue != NULL);
     SKALASSERT(msg != NULL);
 
     SkalPlfMutexLock(queue->mutex);
-
-    int ret = 0;
-    bool isInternal = msg->internalFlags & SKAL_MSG_IFLAG_INTERNAL;
-    bool isShutdown = queue->shutdown;
-    if (isInternal) {
-        isShutdown = false; // Always push internal messages
-    }
-
-    if (isShutdown) {
-        ret = -1;
+    bool pushed;
+    if (msg->internalFlags & SKAL_MSG_IFLAG_INTERNAL) {
+        pushed = CdsListPushBack(queue->internal, &msg->item);
+    } else if (msg->flags & SKAL_MSG_FLAG_URGENT) {
+        pushed = CdsListPushBack(queue->urgent, &msg->item);
     } else {
-        bool pushed;
-        if (isInternal) {
-            pushed = CdsListPushBack(queue->internal, &msg->item);
-        } else if (msg->flags & SKAL_MSG_FLAG_URGENT) {
-            pushed = CdsListPushBack(queue->urgent, &msg->item);
-        } else {
-            pushed = CdsListPushBack(queue->regular, &msg->item);
-        }
-        SKALASSERT(pushed);
-        SkalPlfCondVarSignal(queue->condvar);
-
-        // Check if the queue is full, but not if we pushed an internal msg
-        if (!isInternal) {
-            int64_t size = CdsListSize(queue->urgent)
-                + CdsListSize(queue->regular);
-            SKALASSERT(size < queue->assertThreshold);
-            if (size >= queue->threshold) {
-                ret = 1;
-            }
-        }
+        pushed = CdsListPushBack(queue->regular, &msg->item);
     }
-
+    SKALASSERT(pushed);
+    SkalPlfCondVarSignal(queue->condvar);
     SkalPlfMutexUnlock(queue->mutex);
-
-    return ret;
 }
 
 
@@ -537,6 +495,20 @@ SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue, bool internalOnly)
     SkalPlfMutexUnlock(queue->mutex);
 
     return msg;
+}
+
+
+bool SkalQueueIsFull(const SkalQueue* queue)
+{
+    SKALASSERT(queue != NULL);
+    SKALASSERT(queue->threshold > 0);
+
+    SkalPlfMutexLock(queue->mutex);
+    int64_t size = CdsListSize(queue->urgent) + CdsListSize(queue->regular);
+    bool isFull = (size >= queue->threshold);
+    SkalPlfMutexUnlock(queue->mutex);
+
+    return isFull;
 }
 
 
