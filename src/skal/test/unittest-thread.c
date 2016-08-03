@@ -18,6 +18,7 @@
 #include "rttest.h"
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 
 RTT_GROUP_START(TestThreadInitExit, 0x00050001u, NULL, NULL)
@@ -26,6 +27,7 @@ RTT_TEST_START(skal_should_initialise_thread)
 {
     // NB: This will create the "skal-master" thread
     SkalThreadInit();
+    usleep(10000); // wait for 10ms to let the "skal-master" thread start
 }
 RTT_TEST_END
 

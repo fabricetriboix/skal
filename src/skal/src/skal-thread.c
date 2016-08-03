@@ -274,6 +274,7 @@ void SkalThreadExit(void)
     SKALASSERT(strncmp(SkalMsgType(resp), "skal-terminated", SKAL_NAME_MAX)
             == 0);
 
+    SkalQueueShutdown(gMaster->queue);
     skalThreadUnref(gMaster);
     SKALASSERT(CdsMapIsEmpty(gThreads)); // All threads must have terminated now
     gMaster = NULL;
@@ -447,8 +448,8 @@ static void skalThreadRun(void* arg)
 
     bool stop = false;
     while (!stop) {
-        bool internalOnly = !CdsMapIsEmpty(priv->xoff);
-        SkalMsg* msg = SkalQueuePop_BLOCKING(thread->queue, internalOnly);
+        bool inXoff = !CdsMapIsEmpty(priv->xoff);
+        SkalMsg* msg = SkalQueuePop_BLOCKING(thread->queue, inXoff);
 
         if (SkalMsgInternalFlags(msg) & SKAL_MSG_IFLAG_INTERNAL) {
             if (!skalThreadHandleInternalMsg(priv, msg)) {
@@ -477,9 +478,8 @@ static void skalThreadRun(void* arg)
     } // Thread loop
 
     if (strncmp(thread->cfg.name, "skal-master", SKAL_NAME_MAX) != 0) {
-        // I am not the master thread: tell the master thread I'm finished
-        // TODO: add a list of other threads waiting on me, so that the master
-        // thread can free them
+        // I am not the master thread: tell the master thread I'm finished.
+        skalThreadSendXon(priv); // free up threads blocked on me
         SkalMsg* msg = SkalMsgCreate("skal-terminated", "skal-master", 0, NULL);
         SkalMsgSetInternalFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
         int ret = SkalQueuePush(gMaster->queue, msg);
@@ -554,7 +554,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
         stop = true;
     }
 
-    return stop;
+    return !stop;
 }
 
 
