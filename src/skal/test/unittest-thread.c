@@ -77,6 +77,7 @@ static bool testSimpleProcessMsg(void* cookie, SkalMsg* msg)
         gError = 0;
         gResult = 1;
     }
+    usleep(1);
     return true;
 }
 
@@ -113,3 +114,79 @@ RTT_GROUP_END(TestThreadSimple,
         skal_simple_should_create_thread,
         skal_simple_should_send_ping_msg,
         skal_simple_should_receive_ping_msg)
+
+
+RTT_GROUP_START(TestThreadStress, 0x00050003u,
+        testThreadEnterGroup, testThreadExitGroup)
+
+static int gMsgSend = 0;
+static int gMsgRecv = 0;
+
+static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
+{
+    if (strncmp(SkalMsgType(msg), "ping", SKAL_NAME_MAX) == 0) {
+        int64_t count = SkalMsgGetInt(msg, "count");
+        if (count != (int64_t)gMsgRecv) {
+            gError++;
+        }
+        gMsgRecv++;
+    }
+    usleep(1);
+    return true;
+}
+
+static bool testStufferProcessMsg(void* cookie, SkalMsg* msg)
+{
+    if (strncmp(SkalMsgType(msg), "kick", SKAL_NAME_MAX) == 0) {
+        SkalMsg* msg2 = SkalMsgCreate("ping", "receiver", 0, NULL);
+        SkalMsgAddInt(msg2, "count", gMsgSend);
+        SkalMsgSend(msg2);
+        gMsgSend++;
+
+        if (gMsgSend < 100) {
+            // Send a message to myself to keep going
+            SkalMsg* msg3 = SkalMsgCreate("kick", "stuffer", 0, NULL);
+            SkalMsgSend(msg3);
+        }
+    }
+    return true;
+}
+
+RTT_TEST_START(skal_stress_should_create_threads)
+{
+    gError = 0;
+
+    SkalThreadCfg cfg;
+    memset(&cfg, 0, sizeof(cfg));
+    snprintf(cfg.name, sizeof(cfg.name), "receiver");
+    cfg.processMsg = testReceiverProcessMsg;
+    cfg.queueThreshold = 5;
+    SkalThreadCreate(&cfg);
+
+    memset(&cfg, 0, sizeof(cfg));
+    snprintf(cfg.name, sizeof(cfg.name), "stuffer");
+    cfg.processMsg = testStufferProcessMsg;
+    SkalThreadCreate(&cfg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_stress_kick_off)
+{
+    SkalMsg* msg = SkalMsgCreate("kick", "stuffer", 0, NULL);
+    SkalMsgSend(msg);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_stress_should_have_sent_and_recv_100_msg)
+{
+    usleep(10000); // give enough time to send and process 100 messages
+    RTT_EXPECT(100 == gMsgSend);
+    RTT_EXPECT(100 == gMsgRecv);
+    RTT_EXPECT(0 == gError);
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestThreadStress,
+        skal_stress_should_create_threads,
+        skal_stress_kick_off,
+        skal_stress_should_have_sent_and_recv_100_msg)

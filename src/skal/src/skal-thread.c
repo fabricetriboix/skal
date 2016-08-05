@@ -338,6 +338,7 @@ void SkalMsgSend(SkalMsg* msg)
         // Tell recipient to notify me when I can send again
         SkalMsg* msg4 = SkalMsgCreate("skal-ntf-xon",
                 SkalMsgRecipient(msg), 0, NULL);
+        SkalMsgAddString(msg4, "origin", priv->thread->cfg.name);
         SkalMsgSetInternalFlags(msg4, SKAL_MSG_IFLAG_INTERNAL);
         SkalQueuePush(recipient->queue, msg4);
     }
