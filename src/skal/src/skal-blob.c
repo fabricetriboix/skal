@@ -38,6 +38,7 @@ struct SkalBlob
     char    allocator[SKAL_NAME_MAX];
     int     ref;
     char    id[SKAL_NAME_MAX];
+    char    name[SKAL_NAME_MAX];
     int64_t size_B;
     void*   obj;
 };
@@ -47,19 +48,6 @@ struct SkalBlob
 /*-------------------------------+
  | Private function declarations |
  +-------------------------------*/
-
-
-/** Allocator map: compare 2 keys
- *
- * The keys are actually the allocator names.
- *
- * \param leftkey  [in] Name of the left-hand side allocator
- * \param rightkey [in] Name of the right-hand side allocator
- * \param cookie   [in] Unused
- *
- * \return <0, 0 or >0 if `leftkey` is respectively <, = or > to `rightkey`
- */
-static int skalAllocatorMapCompare(void* leftkey, void* rightkey, void* cookie);
 
 
 /** Allocator map: unreference an item
@@ -151,8 +139,8 @@ void SkalBlobInit(const SkalAllocator* allocators, int size)
     }
 
     SKALASSERT(gAllocatorMap == NULL);
-    gAllocatorMap = CdsMapCreate("SkalAllocators", SKAL_MAX_ALLOCATORS,
-            skalAllocatorMapCompare, NULL, NULL, skalAllocatorMapUnref);
+    gAllocatorMap = CdsMapCreate("SkalAllocators", SKAL_ALLOCATORS_MAX,
+            SkalStringCompare, NULL, NULL, skalAllocatorMapUnref);
 
     SkalAllocator mallocAllocator = {
         "malloc",                     // name
@@ -189,12 +177,16 @@ void SkalBlobExit(void)
 }
 
 
-SkalBlob* SkalBlobCreate(const char* allocator, const char* id, int64_t size_B)
+SkalBlob* SkalBlobCreate(const char* allocator, const char* id,
+        const char* name, int64_t size_B)
 {
+    if (name != NULL) {
+        SKALASSERT(SkalIsUtf8String(name, SKAL_NAME_MAX));
+    }
     if ((allocator == NULL) || (strlen(allocator) == 0)) {
         allocator = "malloc";
     }
-    SKALASSERT(SkalIsAsciiString(allocator, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsUtf8String(allocator, SKAL_NAME_MAX));
     SKALASSERT(gAllocatorMap != NULL);
 
     SkalBlob* blob = NULL;
@@ -206,10 +198,13 @@ SkalBlob* SkalBlobCreate(const char* allocator, const char* id, int64_t size_B)
                 id, size_B);
         if (obj != NULL) {
             blob = SkalMallocZ(sizeof(*blob));
-            strcpy(blob->allocator, allocator);
+            strncpy(blob->allocator, allocator, sizeof(blob->allocator) - 1);
             blob->ref = 1;
             if (id != NULL) {
-                snprintf(blob->id, sizeof(blob->id), "%s", id);
+                strncpy(blob->id, id, sizeof(blob->id) - 1);
+            }
+            if (name != NULL) {
+                strncpy(blob->name, name, sizeof(blob->name) - 1);
             }
             blob->size_B = size_B;
             blob->obj = obj;
@@ -270,6 +265,13 @@ const char* SkalBlobId(const SkalBlob* blob)
 }
 
 
+const char* SkalBlobName(const SkalBlob* blob)
+{
+    SKALASSERT(blob != NULL);
+    return blob->name;
+}
+
+
 int64_t SkalBlobSize_B(const SkalBlob* blob)
 {
     SKALASSERT(blob != NULL);
@@ -281,12 +283,6 @@ int64_t SkalBlobSize_B(const SkalBlob* blob)
 /*----------------------------------+
  | Private function implementations |
  +----------------------------------*/
-
-
-static int skalAllocatorMapCompare(void* leftkey, void* rightkey, void* cookie)
-{
-    return strcmp((const char*)leftkey, (const char*)rightkey);
-}
 
 
 static void skalAllocatorMapUnref(CdsMapItem* litem)
@@ -303,7 +299,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 {
     SKALASSERT(gAllocatorMap != NULL);
     SKALASSERT(allocator != NULL);
-    SKALASSERT(SkalIsAsciiString(allocator->name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsUtf8String(allocator->name, SKAL_NAME_MAX));
     SKALASSERT(allocator->allocate != NULL);
     SKALASSERT(allocator->free != NULL);
     SKALASSERT(allocator->map != NULL);
@@ -316,7 +312,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
     // NB: If 2 allocators with the same names are inserted, the last one will
     // "overwrite" the previous one. This is intended.
     SKALASSERT(CdsMapInsert(gAllocatorMap,
-                (void*)(item->allocator.name), (CdsMapItem*)item));
+                (void*)(item->allocator.name), &item->item));
 }
 
 

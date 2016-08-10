@@ -27,16 +27,19 @@ static SkalPlfThread* gThread = NULL;
 
 static char gThreadName[100] = "nothing";
 static void* gThreadArg = (void*)0xcafedeca;
+static void* gThreadSpecific = NULL;
 
 static void testSkalPlfThreadFn(void* arg)
 {
+    SkalPlfThreadSetSpecific((void*)0xdeadbeef);
     SkalPlfMutexLock(gMutex);
     while (!gGoAhead) {
         SkalPlfCondVarWait(gCondVar, gMutex);
     }
     gThreadArg = arg;
-    SkalPlfGetCurrentThreadName(gThreadName, sizeof(gThreadName));
+    SkalPlfThreadGetName(gThreadName, sizeof(gThreadName));
     SkalPlfMutexUnlock(gMutex);
+    gThreadSpecific = SkalPlfThreadGetSpecific();
 }
 
 
@@ -108,6 +111,12 @@ RTT_TEST_START(skal_plf_should_free_up_resources)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_plf_thread_specific_should_be_correct)
+{
+    RTT_EXPECT((void*)0xdeadbeef == gThreadSpecific);
+}
+RTT_TEST_END
+
 RTT_TEST_START(skal_plf_should_generate_a_random_number)
 {
     (void)SkalPlfRandomU64();
@@ -123,4 +132,5 @@ RTT_GROUP_END(TestSkalPlf,
         skal_plf_thread_arg_should_be_changed_after_signal,
         skal_plf_thread_name_should_be_changed_after_signal,
         skal_plf_should_free_up_resources,
+        skal_plf_thread_specific_should_be_correct,
         skal_plf_should_generate_a_random_number)

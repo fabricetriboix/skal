@@ -1,3 +1,8 @@
 TODO list:
- - Make it easy to create a debian package
- - Make it easy to create an rpm package
+ - Test base64 functions
+ - Add mtrace or dmalloc
+ - Add miniblobs to msg
+ - Implement 'shm' allocator
+ - Test blob attachments to msg
+ - Implement skald
+ - Implement main process thread

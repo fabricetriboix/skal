@@ -14,10 +14,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SKAL_BLOB_h_
-#define SKAL_BLOB_h_
+#ifndef SKAL_THREAD_h_
+#define SKAL_THREAD_h_
 
 #include "skal.h"
+
+
+
+/*----------------+
+ | Macros & Types |
+ +----------------*/
+
+
+/** Opaque type to a thread */
+typedef struct SkalThread SkalThread;
 
 
 
@@ -26,19 +36,17 @@
  +------------------------------*/
 
 
-/** Initialise SKAL allocators for this process
+/** Initialise the thread module & create the master thread */
+void SkalThreadInit(void);
+
+
+/** Terminate all threads and free up all resources
  *
- * The "malloc" and "shm" allocator will be automatically created.
- *
- * \param allocators [in] Array of custom blob allocators; may be NULL if you
- *                        don't have custom allocators
- * \param size       [in] Size of the previous array
+ * This function will block until all threads have terminated and all resources
+ * have been freed. The master thread will also be terminated.
  */
-void SkalBlobInit(const SkalAllocator* allocators, int size);
+void SkalThreadExit(void);
 
 
-/* Deregister all allocators for this process */
-void SkalBlobExit(void);
 
-
-#endif /* SKAL_BLOB_h_ */
+#endif /* SKAL_THREAD_h_ */

@@ -28,24 +28,6 @@
 
 
 
-/*----------------+
- | Macros & Types |
- +----------------*/
-
-
-/** Maximum length of any name, including the terminating null char, in chars */
-#define SKAL_NAME_MAX 128
-
-
-/** Minimum ASCII character */
-#define SKAL_ASCII_MIN ((char)0x20)
-
-
-/** Maximum ASCII character */
-#define SKAL_ASCII_MAX ((char)0x7e)
-
-
-
 /*------------------------------+
  | Public function declarations |
  +------------------------------*/
@@ -117,15 +99,94 @@ char* SkalSPrintf(const char* format, ...)
     __attribute__(( format(printf, 1, 2) ));
 
 
-/** Check that the given string is a pure ASCII string with a null char
+/** Check the given string is pure ASCII with a terminating null char
  *
  * \param str    [in] String to check; must not be NULL
- * \param maxlen [in] Maximum string length, in characters; must be > 0
+ * \param maxlen [in] Maximum string length, in bytes; must be > 0
  *
  * \return `true` if the string contains only printable ASCII characters and has
- *         a terminated null characters within the first `maxlen` characters
+ *         a terminating null character within the first `maxlen` bytes
  */
 bool SkalIsAsciiString(const char* str, int maxlen);
+
+
+/** Check the given string is UTF-8 with a terminating null char
+ *
+ * \param str    [in] String to check; must not be NULL
+ * \param maxlen [in] Maximum string length, in bytes; must be > 0
+ *
+ * \return `true` if the string contains valid UTF-8 characters and has a
+ *         terminating null character within the first `maxlen` bytes
+ */
+bool SkalIsUtf8String(const char* str, int maxlen);
+
+
+/** Standard string comparison function suitable for CdsMap */
+int SkalStringCompare(void* lefykey, void* rightkey, void* cookie);
+
+
+/** Encode up to 3 bytes into 4 base64 characters
+ *
+ * *IMPORTANT* no null character will be added at the end.
+ *
+ * If `size_B` is <3, only the given number of bytes will be encoded.
+ *
+ * \param data       [in]  Pointer to bytes to encode; must not be NULL
+ * \param size_B     [in]  Number of bytes to encode; must be >0
+ * \param base64     [out] Encoded base64 characters; must not be NULL
+ * \param base64Size [in]  Size of the above buffer, in chars; must be >=4
+ *
+ * \return The number of encoded bytes
+ */
+int SkalBase64Encode3(const uint8_t* data, int size_B,
+        char* base64, int base64Size);
+
+
+/** Encode binary data into a base64 string
+ *
+ * The output base64 string will be null-terminated.
+ *
+ * \param data   [in] Pointer to bytes to encode; must not be NULL
+ * \param size_B [in] Number of bytes to encode; must be >0
+ *
+ * \return Encoded base64 string; this function never returns NULL; you must
+ *         free the base64 string by calling `free()` on it when finished
+ */
+char* SkalBase64Encode(const uint8_t* data, int size_B);
+
+
+/** Decode 4 base64 characters into (up to) 3 bytes
+ *
+ * The input string must be valid base64 characters using '=' as padding if and
+ * when necessary. Blank characters are ignored, but at least 4 valid base64
+ * characters must exist in the string.
+ *
+ * The input string must be null-terminated, although the null terminating
+ * character does not have to be within the first 4 characters.
+ *
+ * \param pBase64 [in,out] Pointer to the base64 string to decode; must not be
+ *                         NULL; must point to a valid base64 string
+ * \param data    [out]    Decoded bytes; must not be NULL
+ * \param size_B  [in]     Size of the above buffer, in bytes; must be >=3
+ *
+ * \return The number of decoded bytes (1, 2 or 3), or -1 if the input string is
+ *         not a valid base64 string
+ */
+int SkalBase64Decode3(const char** pBase64, uint8_t* data, int size_B);
+
+
+/** Decode a base64 string into bytes
+ *
+ * The input string must be null-terminated and must be valid base64 characters
+ * using '=' as padding if and when necessary. Blank characters are ignored.
+ *
+ * \param base64 [in]  Base64 text to decode; must not be NULL
+ * \param size_B [out] Number of decoded bytes; must not be NULL
+ *
+ * \return The decoded bytes, or NULL if `base64` is not a valid base64 string
+ *         (in which case `*size_B` won't be touched)
+ */
+uint8_t* SkalBase64Decode(const char* base64, int* size_B);
 
 
 

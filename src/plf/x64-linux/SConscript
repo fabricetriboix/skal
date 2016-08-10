@@ -4,7 +4,8 @@ import os
 
 artefacts = {}
 
-artefacts['incs'] = [os.path.join("include", "skalplf.h")]
+artefacts['incs'] = [os.path.join("include", "skalcfg.h"),
+                     os.path.join("include", "skalplf.h")]
 srcs = [os.path.join("src", "skalplf.c")]
 artefacts['objs'] = [variant['env'].StaticObject(src) for src in srcs]
 artefacts['testsrcs'] = [os.path.join("test", "unittest.c")]

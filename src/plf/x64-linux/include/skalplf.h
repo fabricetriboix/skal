@@ -24,6 +24,7 @@
  * @{
  */
 
+#include "skalcfg.h"
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -134,6 +135,17 @@ static inline uint64_t SkalPlfRandomU64(void)
 }
 
 
+/** Get the current time
+ *
+ * This is a time that increments linearly in reference to an external clock.
+ * Thus it is not influenced by daylight savings time shifts, time zone changes,
+ * date or time changes, etc.
+ *
+ * On Linux, this is the time elapsed since the last boot.
+ */
+int64_t SkalNow_ns();
+
+
 /** Create a mutex
  *
  * \return A newly created mutex; this function never returns NULL
@@ -233,13 +245,37 @@ void SkalPlfThreadCancel(SkalPlfThread* thread);
 void SkalPlfThreadJoin(SkalPlfThread* thread);
 
 
+/** Set the current thread name
+ *
+ * \param name [in] New name for current thread
+ */
+void SkalPlfThreadSetName(const char* name);
+
+
 /** Get the name of the current thread
  *
  * \param buffer [out] Where to write the current thread's name; must not be
  *                     NULL
  * \param size   [in]  Size of the above buffer, in chars
  */
-void SkalPlfGetCurrentThreadName(char* buffer, int size);
+void SkalPlfThreadGetName(char* buffer, int size);
+
+
+/** Set the thread-specific value
+ *
+ * Please note only one such value can be held for each thread. If you call this
+ * function a second time, the new value will silently overwrite the old value.
+ *
+ * \param value [in] Value to set, specific to the current thread
+ */
+void SkalPlfThreadSetSpecific(void* value);
+
+
+/** Get the thread-specific value
+ *
+ * \return The thread-specific value, or NULL if it was not set
+ */
+void* SkalPlfThreadGetSpecific(void);
 
 
 
