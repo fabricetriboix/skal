@@ -198,7 +198,6 @@ int SkalBase64Encode3(const uint8_t* data, int size_B,
 {
     SKALASSERT(data != NULL);
     SKALASSERT(size_B > 0);
-    SKALASSERT(size_B <= 3);
     SKALASSERT(base64 != NULL);
     SKALASSERT(base64Size >= 4);
 
@@ -321,22 +320,26 @@ uint8_t* SkalBase64Decode(const char* base64, int* size_B)
     if (len >= 4) {
         // Size of output byte array: 3 bytes for every 4 input characters,
         // rounded up.
-        int size = ((len + 3) / 4) * 3;
-        data = SkalMalloc(size);
+        int capacity = ((len + 3) / 4) * 3;
+        data = SkalMalloc(capacity);
         uint8_t* ptr = data;
         bool isValid = true;
+        int size = 0;
         while ((base64[0] != '\0') && isValid) {
-            int n = SkalBase64Decode3(&base64, ptr, size);
+            int n = SkalBase64Decode3(&base64, ptr, capacity);
             if (n < 0) {
                 isValid = false;
             } else {
                 ptr += n;
-                size -= n;
+                capacity -= n;
+                size += n;
             }
         }
         if (!isValid) {
             free(data);
             data = NULL;
+        } else {
+            *size_B = size;
         }
     }
     return data;
@@ -379,7 +382,7 @@ static inline bool isValidBase64Char(char c)
     return ((c >= 'A') && (c <= 'Z'))
         || ((c >= 'a') && (c <= 'z'))
         || ((c >= '0') && (c <= '9'))
-        || ('+' == c) || ('=' == c);
+        || ('+' == c) || ('/' == c) || ('=' == c);
 }
 
 static char nextValidBase64Char(const char** pBase64)
