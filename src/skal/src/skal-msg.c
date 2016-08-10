@@ -41,7 +41,6 @@ typedef struct {
     CdsMapItem      item;
     int8_t          ref;
     skalMsgDataType type;
-    SkalMsg*        msg; // backpointer
     int             size_B;
     char            name[SKAL_NAME_MAX];
     union {
@@ -87,7 +86,7 @@ struct SkalQueue
  +-------------------------------*/
 
 
-/** Allocate a message data item (aka a field)
+/** Allocate a message data item (aka a field) and add it to the `msg`
  *
  * \param msg  [in,out] Message the field will be added to
  * \param name [in]     Field name
@@ -265,7 +264,6 @@ void SkalMsgAddInt(SkalMsg* msg, const char* name, int64_t i)
 {
     skalMsgData* data = skalAllocMsgData(msg, name, SKAL_MSG_DATA_TYPE_INT);
     data->i = i;
-    SKALASSERT(CdsMapInsert(msg->fields, data->name, &data->item));
 }
 
 
@@ -273,7 +271,6 @@ void SkalMsgAddDouble(SkalMsg* msg, const char* name, double d)
 {
     skalMsgData* data = skalAllocMsgData(msg, name, SKAL_MSG_DATA_TYPE_DOUBLE);
     data->d = d;
-    SKALASSERT(CdsMapInsert(msg->fields, data->name, &data->item));
 }
 
 
@@ -283,7 +280,6 @@ void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s)
     skalMsgData* data = skalAllocMsgData(msg, name, SKAL_MSG_DATA_TYPE_STRING);
     data->s = strdup(s);
     SKALASSERT(data->s != NULL);
-    SKALASSERT(CdsMapInsert(msg->fields, data->name, &data->item));
 }
 
 
@@ -297,7 +293,6 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
     data->miniblob = SkalMalloc(size_B);
     memcpy(data->miniblob, miniblob, size_B);
     data->size_B = size_B;
-    SKALASSERT(CdsMapInsert(msg->fields, data->name, &data->item));
 }
 
 
@@ -307,7 +302,6 @@ void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
     skalMsgData* data = skalAllocMsgData(msg, name, SKAL_MSG_DATA_TYPE_BLOB);
     data->blob = blob;
     SkalBlobRef(blob);
-    SKALASSERT(CdsMapInsert(msg->fields, data->name, &data->item));
     SKALPANIC_MSG("Attaching blobs is not yet supported"); // TODO
 }
 
@@ -405,6 +399,11 @@ SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name)
 // TODO
 #if 0
 SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient)
+{
+}
+
+
+char* SkalMsgToJson(const SkalMsg* msg)
 {
 }
 #endif
@@ -552,13 +551,11 @@ static skalMsgData* skalAllocMsgData(SkalMsg* msg,
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
-
     skalMsgData* data = SkalMallocZ(sizeof(*data));
     data->ref = 1;
     data->type = type;
-    data->msg = msg;
     strncpy(data->name, name, sizeof(data->name) - 1);
-
+    SKALASSERT(CdsMapInsert(msg->fields, data->name, &data->item));
     return data;
 }
 
