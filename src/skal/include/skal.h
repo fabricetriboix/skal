@@ -620,13 +620,13 @@ void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s);
  * process to another. So this would be suitable from small data (a few kiB at
  * most).
  *
- * \param msg    [in,out] Message to manipulate; must not be NULL
- * \param name   [in]     Name of the string; must not be NULL
- * \param data   [in]     Data to add; must not be NULL
- * \param size_B [in]     Number of bytes to add; must be > 0
+ * \param msg      [in,out] Message to manipulate; must not be NULL
+ * \param name     [in]     Name of the string; must not be NULL
+ * \param miniblob [in]     Data to add; must not be NULL
+ * \param size_B   [in]     Number of bytes to add; must be > 0
  */
 void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
-        const void* data, int size_B);
+        const uint8_t* miniblob, int size_B);
 
 
 /** Attach a blob to a message
@@ -680,13 +680,12 @@ const char* SkalMsgGetString(const SkalMsg* msg, const char* name);
  *
  * \param msg    [in]  Message to query; must not be NULL
  * \param name   [in]  Name of the binary field; must exists in this `msg`
- * \param buffer [out] Where to write the binary field value; must not be NULL
- * \param size_B [in]  Size of `buffer`, in bytes; must be > 0
+ * \param size_B [out] Number of bytes in the miniblob
  *
  * \return The number of bytes of the binary field, which might be > `size_B`
  */
-int SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
-        void* buffer, int size_B);
+const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
+        int* size_B);
 
 
 /** Access a blob from a message

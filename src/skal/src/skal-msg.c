@@ -48,7 +48,7 @@ typedef struct {
         int64_t   i;
         double    d;
         char*     s;
-        void*     miniblob;
+        uint8_t*  miniblob;
         SkalBlob* blob;
     };
 } skalMsgData;
@@ -287,13 +287,18 @@ void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s)
 }
 
 
-// TODO
-#if 0
 void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
-        const void* data, int size_B)
+        const uint8_t* miniblob, int size_B)
 {
+    SKALASSERT(miniblob != NULL);
+    SKALASSERT(size_B > 0);
+    skalMsgData* data = skalAllocMsgData(msg, name,
+            SKAL_MSG_DATA_TYPE_MINIBLOB);
+    data->miniblob = SkalMalloc(size_B);
+    memcpy(data->miniblob, miniblob, size_B);
+    data->size_B = size_B;
+    SKALASSERT(CdsMapInsert(msg->fields, data->name, &data->item));
 }
-#endif
 
 
 void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
@@ -346,18 +351,22 @@ const char* SkalMsgGetString(const SkalMsg* msg, const char* name)
 }
 
 
-// TODO
-#if 0
-int SkalMsgGetMiniBlob(const SkalMsg* msg, const char* name,
-        void* buffer, int size_B)
+const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
+        int* size_B)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
-    SKALASSERT(buffer != NULL);
-    SKALASSERT(size_B > 0);
+    SKALASSERT(size_B != NULL);
 
+    skalMsgData* data = (skalMsgData*)CdsMapSearch(msg->fields, (void*)name);
+    SKALASSERT(data != NULL);
+    SKALASSERT(SKAL_MSG_DATA_TYPE_MINIBLOB == data->type);
+    SKALASSERT(data->size_B > 0);
+    SKALASSERT(data->miniblob != NULL);
+
+    *size_B = data->size_B;
+    return data->miniblob;
 }
-#endif
 
 
 SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name)

@@ -87,6 +87,13 @@ RTT_TEST_START(skal_msg_add_string)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_msg_add_miniblob)
+{
+    uint8_t data[4] = { 0x11, 0x22, 0x33, 0x44 };
+    SkalMsgAddMiniblob(gMsg, "TestMiniblob", data, sizeof(data));
+}
+RTT_TEST_END
+
 RTT_TEST_START(skal_msg_should_have_correct_int)
 {
     RTT_EXPECT(SkalMsgGetInt(gMsg, "TestInt") == -789);
@@ -108,6 +115,17 @@ RTT_TEST_START(skal_msg_should_have_correct_string)
 {
     const char* s = SkalMsgGetString(gMsg, "TestString");
     RTT_EXPECT(strcmp(s, "This is a test string") == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_msg_should_have_correct_miniblob)
+{
+    int size_B;
+    const uint8_t* data = SkalMsgGetMiniblob(gMsg, "TestMiniblob", &size_B);
+    RTT_EXPECT(data != NULL);
+    RTT_EXPECT(4 == size_B);
+    uint8_t expected[4] = { 0x11, 0x22, 0x33, 0x44 };
+    RTT_EXPECT(memcmp(data, expected, sizeof(expected)) == 0);
 }
 RTT_TEST_END
 
@@ -133,9 +151,11 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_add_int,
         skal_msg_add_double,
         skal_msg_add_string,
+        skal_msg_add_miniblob,
         skal_msg_should_have_correct_int,
         skal_msg_should_have_correct_double,
         skal_msg_should_have_correct_string,
+        skal_msg_should_have_correct_miniblob,
         skal_should_free_msg,
         skal_should_have_no_more_msg_ref_1)
 
