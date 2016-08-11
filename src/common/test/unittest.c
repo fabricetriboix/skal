@@ -22,6 +22,25 @@
 
 RTT_GROUP_START(TestSPrintf, 0x00020001u, NULL, NULL)
 
+static const char* gLongString =
+    "Copyright (c) 2016  Fabrice Triboix\n"
+    "\n"
+    "This program is free software: you can redistribute it and/or modify\n"
+    "it under the terms of the GNU General Public License as published by\n"
+    "the Free Software Foundation, either version 3 of the License, or\n"
+    "(at your option) any later version.\n"
+    "\n"
+    "This program is distributed in the hope that it will be useful,\n"
+    "but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+    "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
+    "GNU General Public License for more details.\n"
+    "\n"
+    "You should have received a copy of the GNU General Public License\n"
+    "along with this program.  If not, see <http://www.gnu.org/licenses/>.\n";
+
+static SkalStringBuilder* gSB = NULL;
+
+
 RTT_TEST_START(skal_sprintf_should_format_a_string)
 {
     const char* world = "world";
@@ -33,8 +52,44 @@ RTT_TEST_START(skal_sprintf_should_format_a_string)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_sprintf_should_format_a_long_string)
+{
+    char* s = SkalSPrintf("%s", gLongString);
+    RTT_ASSERT(s != NULL);
+    RTT_ASSERT(strcmp(s, gLongString) == 0);
+    free(s);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_sb_should_create_string_builder)
+{
+    gSB = SkalStringBuilderCreate(1);
+    RTT_ASSERT(gSB != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_sb_should_append_stuff)
+{
+    SkalStringBuilderAppend(gSB, "%d", 18);
+    SkalStringBuilderAppend(gSB, "%s", "Hello world!");
+    SkalStringBuilderAppend(gSB, "%c", '?');
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_sb_should_finish)
+{
+    char* str = SkalStringBuilderFinish(gSB);
+    gSB = NULL;
+    RTT_EXPECT(strcmp(str, "18Hello world!?") == 0);
+}
+RTT_TEST_END
+
 RTT_GROUP_END(TestSPrintf,
-        skal_sprintf_should_format_a_string)
+        skal_sprintf_should_format_a_string,
+        skal_sprintf_should_format_a_long_string,
+        skal_sb_should_create_string_builder,
+        skal_sb_should_append_stuff,
+        skal_sb_should_finish)
 
 RTT_GROUP_START(TestBase64, 0x00020002u, NULL, NULL)
 

@@ -26,7 +26,15 @@
 
 
 /** Initial size of a dynamic string, in characters */
-#define SKAL_INITIAL_STRING_LENGTH 256
+#define SKAL_INITIAL_STRING_CAPACITY 256
+
+
+struct SkalStringBuilder
+{
+    char* str;
+    int capacity;
+    int index;
+};
 
 
 
@@ -122,18 +130,74 @@ char* SkalSPrintf(const char* format, ...)
     va_list ap2;
     va_copy(ap2, ap);
 
-    int len = SKAL_INITIAL_STRING_LENGTH;
-    char* str = SkalMalloc(len);
-    int n = vsnprintf(str, len, format, ap);
-    if (n >= len) {
-        len = n + 1;
-        str = SkalRealloc(str, len);
-        n = vsnprintf(str, len, format, ap2);
-        SKALASSERT(n <= len);
+    int capacity = SKAL_INITIAL_STRING_CAPACITY;
+    char* str = SkalMalloc(capacity);
+    int n = vsnprintf(str, capacity, format, ap);
+    if (n >= capacity) {
+        capacity = n + 1;
+        str = SkalRealloc(str, capacity);
+        n = vsnprintf(str, capacity, format, ap2);
+        SKALASSERT(n < capacity);
     }
 
     va_end(ap2);
     va_end(ap);
+    return str;
+}
+
+
+SkalStringBuilder* SkalStringBuilderCreate(int initialCapacity)
+{
+    SkalStringBuilder* sb = SkalMalloc(sizeof(*sb));
+    if (initialCapacity > 0) {
+        sb->capacity = initialCapacity;
+    } else {
+        sb->capacity = SKAL_INITIAL_STRING_CAPACITY;
+    }
+    sb->str = SkalMalloc(sb->capacity);
+    sb->str[0] = '\0';
+    sb->index = 0;
+    return sb;
+}
+
+
+void SkalStringBuilderAppend(SkalStringBuilder* sb, const char* format, ...)
+{
+    SKALASSERT(sb != NULL);
+    SKALASSERT(format != NULL);
+
+    va_list ap;
+    va_start(ap, format);
+
+    // NB: `vsnprintf()` will modify `ap`, so we need to make a copy beforehand
+    // if we want to call `vsnprintf()` a 2nd time.
+    va_list ap2;
+    va_copy(ap2, ap);
+
+    int remaining = sb->capacity - sb->index;
+    int n = vsnprintf(&(sb->str[sb->index]), remaining, format, ap);
+    if (n >= remaining) {
+        int missing = remaining - n;
+        int extra = (missing * 2) + SKAL_INITIAL_STRING_CAPACITY;
+        sb->capacity += extra;
+        sb->str = SkalRealloc(sb->str, sb->capacity);
+
+        remaining = sb->capacity - sb->index;
+        n = vsnprintf(&(sb->str[sb->index]), remaining, format, ap2);
+        SKALASSERT(n < remaining);
+    }
+    sb->index += n;
+
+    va_end(ap2);
+    va_end(ap);
+}
+
+
+char* SkalStringBuilderFinish(SkalStringBuilder* sb)
+{
+    SKALASSERT(sb != NULL);
+    char* str = sb->str;
+    free(sb);
     return str;
 }
 

@@ -28,6 +28,25 @@
 
 
 
+/*------------------+
+ | Macros and types |
+ +------------------*/
+
+
+/** Opaque type to a string builder
+ *
+ * A string builder allows building a string piece by piece, extending the
+ * string when needed.
+ *
+ * First, call `SkalStringBuilderCreate()` to create a string builder. Then call
+ * `SkalStringBuilderAppend()` as many times as you like to build the string
+ * piece by piece. Finally, call `SkalStringBuilderFinish()` to finish the
+ * building process.
+ */
+typedef struct SkalStringBuilder SkalStringBuilder;
+
+
+
 /*------------------------------+
  | Public function declarations |
  +------------------------------*/
@@ -97,6 +116,36 @@ void* SkalCalloc(int nItems, int itemSize_B);
  */
 char* SkalSPrintf(const char* format, ...)
     __attribute__(( format(printf, 1, 2) ));
+
+
+/** Create a string builder
+ *
+ * \param initialCapacity [in] Initial capacity of the string, or 0 for default
+ *
+ * \return The newly created string builder; this function never returns NULL
+ */
+SkalStringBuilder* SkalStringBuilderCreate(int initialCapacity);
+
+
+/** Append to a string builder
+ *
+ * \param sb     [in,out] String builder to append to
+ * \param format [in]     A printf-like format string
+ * \param ...    [in]     Printf-like arguments
+ */
+void SkalStringBuilderAppend(SkalStringBuilder* sb, const char* format, ...)
+    __attribute__(( format(printf, 2, 3) ));
+
+
+/** Finish a string builder
+ *
+ * This function de-allocates the string builder, so you can't re-use it.
+ *
+ * \param sb [in,out] String builder to finish (it will be freed)
+ *
+ * \return The resulting string; call `free()` on it when done with it
+ */
+char* SkalStringBuilderFinish(SkalStringBuilder* sb);
 
 
 /** Check the given string is pure ASCII with a terminating null char
