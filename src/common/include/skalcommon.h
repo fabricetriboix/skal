@@ -129,7 +129,7 @@ SkalStringBuilder* SkalStringBuilderCreate(int initialCapacity);
 
 /** Append to a string builder
  *
- * \param sb     [in,out] String builder to append to
+ * \param sb     [in,out] String builder to append to; must not be NULL
  * \param format [in]     A printf-like format string
  * \param ...    [in]     Printf-like arguments
  */
@@ -137,11 +137,21 @@ void SkalStringBuilderAppend(SkalStringBuilder* sb, const char* format, ...)
     __attribute__(( format(printf, 2, 3) ));
 
 
+/** Cut some characters from the end of the string
+ *
+ * \param sb [in,out] String builder to modify; must not be NULL
+ * \param n  [in]     Number of characters to trim from the end of the string
+ *                    if <=0, no action is taken
+ */
+void SkalStringBuilderTrim(SkalStringBuilder* sb, int n);
+
+
 /** Finish a string builder
  *
  * This function de-allocates the string builder, so you can't re-use it.
  *
- * \param sb [in,out] String builder to finish (it will be freed)
+ * \param sb [in,out] String builder to finish (it will be freed); must not be
+ *                    NULL
  *
  * \return The resulting string; call `free()` on it when done with it
  */

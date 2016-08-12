@@ -193,6 +193,20 @@ void SkalStringBuilderAppend(SkalStringBuilder* sb, const char* format, ...)
 }
 
 
+void SkalStringBuilderTrim(SkalStringBuilder* sb, int n)
+{
+    SKALASSERT(sb != NULL);
+    if (n > 0) {
+        if (n > sb->index) {
+            sb->index = 0;
+        } else {
+            sb->index -= n;
+        }
+        sb->str[sb->index] = '\0';
+    }
+}
+
+
 char* SkalStringBuilderFinish(SkalStringBuilder* sb)
 {
     SKALASSERT(sb != NULL);

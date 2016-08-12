@@ -73,6 +73,14 @@ RTT_TEST_START(skal_sb_should_append_stuff)
     SkalStringBuilderAppend(gSB, "%d", 18);
     SkalStringBuilderAppend(gSB, "%s", "Hello world!");
     SkalStringBuilderAppend(gSB, "%c", '?');
+    SkalStringBuilderAppend(gSB, "%c", '?');
+    SkalStringBuilderAppend(gSB, "%s", "XYZ");
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_sb_should_trim)
+{
+    SkalStringBuilderTrim(gSB, 4);
 }
 RTT_TEST_END
 
@@ -89,6 +97,7 @@ RTT_GROUP_END(TestSPrintf,
         skal_sprintf_should_format_a_long_string,
         skal_sb_should_create_string_builder,
         skal_sb_should_append_stuff,
+        skal_sb_should_trim,
         skal_sb_should_finish)
 
 RTT_GROUP_START(TestBase64, 0x00020002u, NULL, NULL)
