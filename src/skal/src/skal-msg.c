@@ -20,12 +20,17 @@
 #include "cdsmap.h"
 #include <stdlib.h>
 #include <string.h>
+#include <float.h>
 
 
 
 /*----------------+
  | Macros & Types |
  +----------------*/
+
+
+/** Capacity increment of a JSON string: 16KiB */
+#define SKAL_JSON_INITIAL_CAPACITY (16 * 1024)
 
 
 typedef enum {
@@ -41,7 +46,7 @@ typedef struct {
     CdsMapItem      item;
     int8_t          ref;
     skalMsgDataType type;
-    int             size_B;
+    int             size_B; // Used only for strings and miniblobs
     char            name[SKAL_NAME_MAX];
     union {
         int64_t   i;
@@ -100,6 +105,11 @@ static skalMsgData* skalAllocMsgData(SkalMsg* msg,
 
 /** Function to unreference a field in a message field map */
 static void skalFieldMapUnref(CdsMapItem* item);
+
+
+/** Function to append a field to a JSON string representing a message */
+static void skalFieldToJson(SkalStringBuilder* sb,
+        const char* name, const skalMsgData* data);
 
 
 
@@ -278,8 +288,9 @@ void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s)
 {
     SKALASSERT(s != NULL);
     skalMsgData* data = skalAllocMsgData(msg, name, SKAL_MSG_DATA_TYPE_STRING);
-    data->s = strdup(s);
-    SKALASSERT(data->s != NULL);
+    data->size_B = strlen(s) + 1;
+    data->s = SkalMallocZ(data->size_B);
+    memcpy(data->s, s, data->size_B);
 }
 
 
@@ -401,12 +412,42 @@ SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name)
 SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient)
 {
 }
+#endif
 
 
 char* SkalMsgToJson(const SkalMsg* msg)
 {
+    SkalStringBuilder* sb = SkalStringBuilderCreate(SKAL_JSON_INITIAL_CAPACITY);
+    SkalStringBuilderAppend(sb,
+            "{\n"
+            " \"type\": \"%s\",\n"
+            " \"sender\": \"%s\",\n"
+            " \"recipient\": \"%s\",\n"
+            " \"marker\": \"%s\",\n"
+            " \"flags\": %u,\n"
+            " \"iflags\": %u,\n"
+            " \"fields\": [\n",
+            SkalMsgType(msg),
+            SkalMsgSender(msg),
+            SkalMsgRecipient(msg),
+            SkalMsgMarker(msg),
+            (unsigned int)SkalMsgFlags(msg),
+            (unsigned int)SkalMsgInternalFlags(msg));
+
+    CdsMapIterator* iterator = CdsMapIteratorCreate(msg->fields, true);
+    void* key;
+    for (   CdsMapItem* item = CdsMapIteratorNext(iterator, &key);
+            item != NULL;
+            item = CdsMapIteratorNext(iterator, &key) ) {
+        skalFieldToJson(sb, (const char*)key, (skalMsgData*)item);
+    }
+    CdsMapIteratorDestroy(iterator);
+
+    SkalStringBuilderTrim(sb, 2);
+    SkalStringBuilderAppend(sb, "\n ]\n}\n");
+
+    return SkalStringBuilderFinish(sb);
 }
-#endif
 
 
 SkalQueue* SkalQueueCreate(const char* name, int64_t threshold)
@@ -579,5 +620,83 @@ static void skalFieldMapUnref(CdsMapItem* item)
             break; // nothing to do
         }
         free(data);
+    }
+}
+
+
+static void skalFieldToJson(SkalStringBuilder* sb,
+        const char* name, const skalMsgData* data)
+{
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(data != NULL);
+
+    switch (data->type) {
+    case SKAL_MSG_DATA_TYPE_INT :
+        SkalStringBuilderAppend(sb,
+                "  {\n"
+                "   \"name\": \"%s\",\n"
+                "   \"type\": \"int\",\n"
+                "   \"value\": %lld\n"
+                "  },\n",
+                name,
+                (long long)data->i);
+        break;
+
+    case SKAL_MSG_DATA_TYPE_DOUBLE :
+        // *IMPORTANT* Take care how the double is converted into string such
+        // that it does not lose precision. The `DECIMAL_DIG` macro exists in
+        // C99 and is the number of digits needed in decimal representation
+        // needed to get back exactly the same number, which is what we need
+        // here.
+        SkalStringBuilderAppend(sb,
+                "  {\n"
+                "   \"name\": \"%s\",\n"
+                "   \"type\": \"double\",\n"
+                "   \"value\": %.*e\n"
+                "  },\n",
+                name,
+                (int)DECIMAL_DIG,
+                data->d);
+        break;
+
+    case SKAL_MSG_DATA_TYPE_STRING :
+        SkalStringBuilderAppend(sb,
+                "  {\n"
+                "   \"name\": \"%s\",\n"
+                "   \"type\": \"string\",\n"
+                "   \"value\": \"%s\"\n"
+                "  },\n",
+                name,
+                data->s);
+        break;
+
+    case SKAL_MSG_DATA_TYPE_MINIBLOB :
+        {
+            char* base64 = SkalBase64Encode(data->miniblob, data->size_B);
+            SkalStringBuilderAppend(sb,
+                    "  {\n"
+                    "   \"name\": \"%s\",\n"
+                    "   \"type\": \"miniblob\",\n"
+                    "   \"value\": \"%s\"\n"
+                    "  },\n",
+                    name,
+                    base64);
+            free(base64);
+        }
+        break;
+
+    case SKAL_MSG_DATA_TYPE_BLOB :
+        SkalStringBuilderAppend(sb,
+                "  {\n"
+                "   \"name\": \"%s\",\n"
+                "   \"type\": \"blob\",\n"
+                "   \"value\": \"%s\"\n"
+                "  },\n",
+                name,
+                SkalBlobId(data->blob));
+        break;
+
+    default :
+        SKALPANIC_MSG("Unknown message data type %d", (int)data->type);
     }
 }

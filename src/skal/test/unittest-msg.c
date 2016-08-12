@@ -31,7 +31,7 @@ RTT_TEST_START(skal_should_create_msg)
     // Fool skal-msg into thinking this thread is managed by SKAL
     SkalPlfThreadSetSpecific((void*)0xcafedeca);
 
-    gMsg = SkalMsgCreate("TestType", "dummy-dst", 0, NULL);
+    gMsg = SkalMsgCreate("TestType", "dummy-dst", 0, "TestMarker");
     RTT_ASSERT(gMsg != NULL);
 }
 RTT_TEST_END
@@ -64,8 +64,7 @@ RTT_TEST_START(skal_msg_should_have_marker)
 {
     const char* marker = SkalMsgMarker(gMsg);
     RTT_ASSERT(marker != NULL);
-    RTT_ASSERT(strlen(marker) > 0);
-    RTT_ASSERT(strlen(marker) < SKAL_NAME_MAX);
+    RTT_EXPECT(strcmp(marker, "TestMarker") == 0);
 }
 RTT_TEST_END
 
@@ -129,7 +128,50 @@ RTT_TEST_START(skal_msg_should_have_correct_miniblob)
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_should_free_msg)
+RTT_TEST_START(skal_msg_should_produce_correct_json)
+{
+    char* json = SkalMsgToJson(gMsg);
+    RTT_ASSERT(json != NULL);
+
+    // NB: Fields will be ordered by name
+    const char* expected =
+        "{\n"
+        " \"type\": \"TestType\",\n"
+        " \"sender\": \"TestThread\",\n"
+        " \"recipient\": \"dummy-dst\",\n"
+        " \"marker\": \"TestMarker\",\n"
+        " \"flags\": 0,\n"
+        " \"iflags\": 0,\n"
+        " \"fields\": [\n"
+        "  {\n"
+        "   \"name\": \"TestDouble\",\n"
+        "   \"type\": \"double\",\n"
+        "   \"value\": 3.456779999999999972715e+02\n"
+        "  },\n"
+        "  {\n"
+        "   \"name\": \"TestInt\",\n"
+        "   \"type\": \"int\",\n"
+        "   \"value\": -789\n"
+        "  },\n"
+        "  {\n"
+        "   \"name\": \"TestMiniblob\",\n"
+        "   \"type\": \"miniblob\",\n"
+        "   \"value\": \"ESIzRA==\"\n"
+        "  },\n"
+        "  {\n"
+        "   \"name\": \"TestString\",\n"
+        "   \"type\": \"string\",\n"
+        "   \"value\": \"This is a test string\"\n"
+        "  }\n"
+        " ]\n"
+        "}\n";
+
+    RTT_EXPECT(strcmp(json, expected) == 0);
+    free(json);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_msg_should_free)
 {
     SkalMsgUnref(gMsg);
 }
@@ -156,7 +198,8 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_should_have_correct_double,
         skal_msg_should_have_correct_string,
         skal_msg_should_have_correct_miniblob,
-        skal_should_free_msg,
+        skal_msg_should_produce_correct_json,
+        skal_msg_should_free,
         skal_should_have_no_more_msg_ref_1)
 
 

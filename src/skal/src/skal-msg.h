@@ -73,13 +73,19 @@ void SkalMsgResetInternalFlags(SkalMsg* msg, uint8_t flags);
 uint8_t SkalMsgInternalFlags(const SkalMsg* msg);
 
 
-/** Create a JSON string that represents the content of the message
+/** Encode a message in JSON
  *
  * If any blob is attached to the message, please note they will only be
- * referenced by their ids in the JSON string. The content of each blob must be
- * passed using a separate mean.
+ * referenced by their ids in the JSON string. If the message is to be sent over
+ * the network, the content of each blob must be passed using a separate mean.
+ *
+ * \param msg [in] Message to encode
+ *
+ * \return The JSON string representing the message; this function never returns
+ *         NULL. Once finished with the JSON string, you must release it by
+ *         calling `free()` on it.
  */
-// TODO
+char* SkalMsgToJson(const SkalMsg* msg);
 
 
 /** Create a message from a JSON string
