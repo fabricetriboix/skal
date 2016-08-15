@@ -14,27 +14,17 @@ AddOption("--target", dest='target', default=autoplf,
 AddOption("--verbose", dest='verbose', action='store_true', default=False,
         help="Display full command lines")
 
-AddOption("--rtsys", dest='rtsys', default="",
-        help="Where rtsys is installed")
+AddOption("--incdir", dest='incdirs', action='append', default=[],
+        help="Include directory (can be specified multiple times)")
 
-AddOption("--cds", dest='cds', default="",
-        help="Where cds is installed")
+AddOption("--libdir", dest='libdirs', action='append', default=[],
+        help="Library directory (can be specified multiple times)")
 
 AddOption("--no-ccache", dest='use_ccache', action='store_false', default=True,
         help="Do not use ccache")
 
 AddOption("--mkdoc", dest='make_doc', action='store_true', default=False,
         help="Also build the documentation for all variants")
-
-# TODO: add include and library paths instead of "rtsys" and 
-# "cds" paths, as it doesn't make sense anymore.
-rtsysPath = ""
-if GetOption('rtsys'):
-    rtsysPath = os.path.abspath(GetOption('rtsys'))
-
-cdsPath = ""
-if GetOption('cds'):
-    cdsPath = os.path.abspath(GetOption('cds'))
 
 
 # Manage cross-compilation
@@ -108,15 +98,11 @@ for v in variantNames:
     variants[v]['env'].Append(LIBPATH = settings[v]['libpath'])
     variants[v]['env'].Append(LIBPATH = [variants[v]['build_root']])
 
-    # Add paths for rtsys & cds
-    if rtsysPath:
-        variants[v]['env'].AppendENVPath('PATH', os.path.join(rtsysPath, "bin"))
-        variants[v]['env'].Append(CPPPATH = os.path.join(rtsysPath, "include"))
-        variants[v]['env'].Append(LIBPATH = os.path.join(rtsysPath, "lib"))
-    if cdsPath:
-        variants[v]['env'].AppendENVPath('PATH', os.path.join(cdsPath, "bin"))
-        variants[v]['env'].Append(CPPPATH = os.path.join(cdsPath, "include"))
-        variants[v]['env'].Append(LIBPATH = os.path.join(cdsPath, "lib"))
+    # Add include and library paths specified on the command line
+    for d in GetOption('incdirs'):
+        variants[v]['env'].Append(CPPPATH = os.path.abspath(d))
+    for d in GetOption('libdirs'):
+        variants[v]['env'].Append(LIBPATH = os.path.abspath(d))
 
     # Autoconf-like stuff
     if not GetOption('clean') and not GetOption('help'):
