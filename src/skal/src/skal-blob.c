@@ -101,6 +101,7 @@ static void* skalMallocMap(void* cookie, void* obj);
 static void skalMallocUnmap(void* cookie, void* obj);
 
 
+// TODO: Implemented "shm" allocator
 /** "shm" allocator: allocate a memory area
  */
 static void* skalShmAllocate(void* cookie, const char* id, int64_t size_B);
@@ -341,27 +342,23 @@ static void skalMallocUnmap(void* cookie, void* obj)
 
 static void* skalShmAllocate(void* cookie, const char* id, int64_t size_B)
 {
-    // TODO
     SKALPANIC_MSG("Not yet implemented");
 }
 
 
 static void skalShmFree(void* cookie, void* obj)
 {
-    // TODO
     SKALPANIC_MSG("Not yet implemented");
 }
 
 
 static void* skalShmMap(void* cookie, void* obj)
 {
-    // TODO
     SKALPANIC_MSG("Not yet implemented");
 }
 
 
 static void skalShmUnmap(void* cookie, void* obj)
 {
-    // TODO
     SKALPANIC_MSG("Not yet implemented");
 }

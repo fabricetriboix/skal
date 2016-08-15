@@ -93,6 +93,8 @@ RTT_TEST_START(skal_msg_add_miniblob)
 }
 RTT_TEST_END
 
+// TODO: test attaching blob to msg
+
 RTT_TEST_START(skal_msg_should_have_correct_int)
 {
     RTT_EXPECT(SkalMsgGetInt(gMsg, "TestInt") == -789);

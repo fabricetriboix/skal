@@ -26,6 +26,8 @@ AddOption("--no-ccache", dest='use_ccache', action='store_false', default=True,
 AddOption("--mkdoc", dest='make_doc', action='store_true', default=False,
         help="Also build the documentation for all variants")
 
+# TODO: add include and library paths instead of "rtsys" and 
+# "cds" paths, as it doesn't make sense anymore.
 rtsysPath = ""
 if GetOption('rtsys'):
     rtsysPath = os.path.abspath(GetOption('rtsys'))
