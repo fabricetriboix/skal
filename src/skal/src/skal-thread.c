@@ -119,6 +119,26 @@ typedef struct
  +-------------------------------*/
 
 
+/** Private function to send a message; allow failure if recipient not found
+ *
+ * You will lose ownership of the message (unless `failIfRecipientNotFound` is
+ * true and the recipient is not found, in which case no action is taken and you
+ * retain ownership of the message).
+ *
+ * The default behaviour if the recipient is not found is to assume it belongs
+ * to another process. So the message is sent to the master thread who will
+ * route it appropriately.
+ *
+ * \param msg                     [in,out] Message to send
+ * \param failIfRecipientNotFound [in]     If the recipient is not found, take
+ *                                         no action and return false.
+ *
+ * \return `false` if `failIfRecipientNotFound` is `true` and the message's
+ *         recipient does not exist for this process; `true` otherwise
+ */
+static bool skalMsgSendPriv(SkalMsg* msg, bool failIfRecipientNotFound);
+
+
 /** Create a thread
  *
  * \param cfg [in] Description of thread to create; must not be NULL and must
@@ -306,6 +326,19 @@ void SkalThreadCreate(const SkalThreadCfg* cfg)
 
 void SkalMsgSend(SkalMsg* msg)
 {
+    bool sent = skalMsgSendPriv(msg, false);
+    SKALASSERT(sent);
+}
+
+
+
+/*----------------------------------+
+ | Private function implementations |
+ +----------------------------------*/
+
+
+static bool skalMsgSendPriv(SkalMsg* msg, bool failIfRecipientNotFound)
+{
     SKALASSERT(msg != NULL);
     SKALASSERT(gMaster != NULL);
 
@@ -317,40 +350,38 @@ void SkalMsgSend(SkalMsg* msg)
         recipient = (SkalThread*)CdsMapSearch(gThreads,
                 (void*)SkalMsgRecipient(msg));
     }
-    if (NULL == recipient) {
+    if ((NULL == recipient) && !failIfRecipientNotFound) {
         recipient = gMaster;
     }
 
-    SkalQueuePush(recipient->queue, msg);
-    if (SkalQueueIsFull(recipient->queue)) {
-        // Recipient queue is full
-        //  => Enter XOFF mode by sending an xoff msg to myself
-        skalThreadPrivate* priv = SkalPlfThreadGetSpecific();
-        SKALASSERT(priv != NULL);
-        SKALASSERT(priv->thread != NULL);
-        SkalMsg* msg3 = SkalMsgCreate("skal-xoff",
-                priv->thread->cfg.name, 0, NULL);
-        SkalMsgSetInternalFlags(msg3, SKAL_MSG_IFLAG_INTERNAL);
-        SkalMsgAddString(msg3, "origin", SkalMsgRecipient(msg));
-        SkalQueuePush(priv->thread->queue, msg3);
+    if (recipient != NULL) {
+        SkalQueuePush(recipient->queue, msg);
+        if (SkalQueueIsFull(recipient->queue)) {
+            // Recipient queue is full
+            //  => Enter XOFF mode by sending an xoff msg to myself
+            skalThreadPrivate* priv = SkalPlfThreadGetSpecific();
+            SKALASSERT(priv != NULL);
+            SKALASSERT(priv->thread != NULL);
+            SkalMsg* msg3 = SkalMsgCreate("skal-xoff",
+                    priv->thread->cfg.name, 0, NULL);
+            SkalMsgSetInternalFlags(msg3, SKAL_MSG_IFLAG_INTERNAL);
+            SkalMsgAddString(msg3, "origin", SkalMsgRecipient(msg));
+            SkalQueuePush(priv->thread->queue, msg3);
 
-        // Tell recipient to notify me when I can send again
-        SkalMsg* msg4 = SkalMsgCreate("skal-ntf-xon",
-                SkalMsgRecipient(msg), 0, NULL);
-        SkalMsgAddString(msg4, "origin", priv->thread->cfg.name);
-        SkalMsgSetInternalFlags(msg4, SKAL_MSG_IFLAG_INTERNAL);
-        SkalQueuePush(recipient->queue, msg4);
+            // Tell recipient to notify me when I can send again
+            SkalMsg* msg4 = SkalMsgCreate("skal-ntf-xon",
+                    SkalMsgRecipient(msg), 0, NULL);
+            SkalMsgAddString(msg4, "origin", priv->thread->cfg.name);
+            SkalMsgSetInternalFlags(msg4, SKAL_MSG_IFLAG_INTERNAL);
+            SkalQueuePush(recipient->queue, msg4);
+        }
+        // else: Message successfully sent => Nothing else to do
     }
-    // else: Message successfully sent => Nothing else to do
 
     SkalPlfMutexUnlock(gMutex);
+
+    return (recipient != NULL);
 }
-
-
-
-/*----------------------------------+
- | Private function implementations |
- +----------------------------------*/
 
 
 static SkalThread* skalThreadCreatePriv(const SkalThreadCfg* cfg)
@@ -565,9 +596,13 @@ static bool skalMasterProcessMsg(void* cookie, SkalMsg* msg)
     if (strcmp(SkalMsgRecipient(msg), "skal-master") != 0) {
         // This message is not for the master thread
         //  => Forward it
-        // TODO: from here: routing
-        SKALPANIC_MSG("Routing not yet implemented!");
-        return false;
+        bool sent = skalMsgSendPriv(msg, true);
+        if (!sent) {
+            // The message's recipient is not in this process
+            //  => TODO: send to skald
+            return false;
+        }
+        return true;
     }
 
     bool ok = true;
