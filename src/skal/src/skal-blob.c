@@ -182,7 +182,7 @@ SkalBlob* SkalBlobCreate(const char* allocator, const char* id,
         const char* name, int64_t size_B)
 {
     if (name != NULL) {
-        SKALASSERT(SkalIsUtf8String(name, SKAL_NAME_MAX));
+        SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
     }
     if ((allocator == NULL) || (strlen(allocator) == 0)) {
         allocator = "malloc";
@@ -300,7 +300,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 {
     SKALASSERT(gAllocatorMap != NULL);
     SKALASSERT(allocator != NULL);
-    SKALASSERT(SkalIsUtf8String(allocator->name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(allocator->name, SKAL_NAME_MAX));
     SKALASSERT(allocator->allocate != NULL);
     SKALASSERT(allocator->free != NULL);
     SKALASSERT(allocator->map != NULL);

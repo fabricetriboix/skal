@@ -62,16 +62,16 @@ static int gResult = -1;
 
 static bool testSimpleProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strncmp(SkalMsgType(msg), "quit", SKAL_NAME_MAX) == 0) {
+    if (strcmp(SkalMsgType(msg), "quit") == 0) {
         return false;
     }
     if (cookie != (void*)0xdeadbabe) {
         gError = 1;
-    } else if (strncmp(SkalMsgType(msg), "ping", SKAL_NAME_MAX) != 0) {
+    } else if (strcmp(SkalMsgType(msg), "ping") != 0) {
         gError = 2;
-    } else if (strncmp(SkalMsgSender(msg), "skal-external", SKAL_NAME_MAX)!=0) {
+    } else if (strcmp(SkalMsgSender(msg), "skal-external")!=0) {
         gError = 3;
-    } else if (strncmp(SkalMsgRecipient(msg), "simple", SKAL_NAME_MAX) != 0) {
+    } else if (strcmp(SkalMsgRecipient(msg), "simple") != 0) {
         gError = 4;
     } else {
         gError = 0;
@@ -124,7 +124,7 @@ static int gMsgRecv = 0;
 
 static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strncmp(SkalMsgType(msg), "ping", SKAL_NAME_MAX) == 0) {
+    if (strcmp(SkalMsgType(msg), "ping") == 0) {
         int64_t count = SkalMsgGetInt(msg, "count");
         if (count != (int64_t)gMsgRecv) {
             gError++;
@@ -137,7 +137,7 @@ static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
 
 static bool testStufferProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strncmp(SkalMsgType(msg), "kick", SKAL_NAME_MAX) == 0) {
+    if (strcmp(SkalMsgType(msg), "kick") == 0) {
         SkalMsg* msg2 = SkalMsgCreate("ping", "receiver", 0, NULL);
         SkalMsgAddInt(msg2, "count", gMsgSend);
         SkalMsgSend(msg2);

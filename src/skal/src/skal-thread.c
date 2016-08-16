@@ -270,9 +270,8 @@ void SkalThreadExit(void)
     SkalQueuePush(gMaster->queue, msg);
 
     SkalMsg* resp = SkalQueuePop_BLOCKING(gGlobalQueue, false);
-    SKALASSERT(strncmp(SkalMsgSender(resp), "skal-master", SKAL_NAME_MAX) == 0);
-    SKALASSERT(strncmp(SkalMsgType(resp), "skal-terminated", SKAL_NAME_MAX)
-            == 0);
+    SKALASSERT(strcmp(SkalMsgSender(resp), "skal-master") == 0);
+    SKALASSERT(strcmp(SkalMsgType(resp), "skal-terminated") == 0);
 
     skalThreadUnref(gMaster);
     SKALASSERT(CdsMapIsEmpty(gThreads)); // All threads must have terminated now
@@ -313,7 +312,7 @@ void SkalMsgSend(SkalMsg* msg)
     SkalPlfMutexLock(gMutex);
 
     SkalThread* recipient = NULL;
-    if (strncmp(SkalMsgRecipient(msg), "skal-master", SKAL_NAME_MAX) != 0) {
+    if (strcmp(SkalMsgRecipient(msg), "skal-master") != 0) {
         // NB: No need to search the thread map for "skal-master"
         recipient = (SkalThread*)CdsMapSearch(gThreads,
                 (void*)SkalMsgRecipient(msg));
@@ -402,6 +401,7 @@ static void skalThreadRun(void* arg)
 
     skalThreadPrivate* priv = SkalMallocZ(sizeof(*priv));
     priv->thread = thread;
+    bool isMasterThread = (strcmp(thread->cfg.name, "skal-master") == 0);
 
     char name[SKAL_NAME_MAX];
     snprintf(name, sizeof(name), "%s-xoff", thread->cfg.name);
@@ -424,7 +424,11 @@ static void skalThreadRun(void* arg)
 
     bool stop = false;
     while (!stop) {
-        bool inXoff = !CdsMapIsEmpty(priv->xoff);
+        bool inXoff = false;
+        if (!isMasterThread && !CdsMapIsEmpty(priv->xoff)) {
+            // NB: The master thread should never block
+            inXoff = true;
+        }
         SkalMsg* msg = SkalQueuePop_BLOCKING(thread->queue, inXoff);
 
         if (SkalMsgInternalFlags(msg) & SKAL_MSG_IFLAG_INTERNAL) {
@@ -453,7 +457,7 @@ static void skalThreadRun(void* arg)
         SkalMsgUnref(msg);
     } // Thread loop
 
-    if (strncmp(thread->cfg.name, "skal-master", SKAL_NAME_MAX) != 0) {
+    if (strcmp(thread->cfg.name, "skal-master") != 0) {
         // I am not the master thread: tell the master thread I'm finished.
         skalThreadSendXon(priv); // free up threads blocked on me
         SkalMsg* msg = SkalMsgCreate("skal-terminated", "skal-master", 0, NULL);
@@ -476,7 +480,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
     bool ok = true;
 
     const char* type = SkalMsgType(msg);
-    if (strncmp(type, "skal-xoff", SKAL_NAME_MAX) == 0) {
+    if (strcmp(type, "skal-xoff") == 0) {
         // A thread is telling me to stop sending to it
         const char* origin = SkalMsgGetString(msg, "origin");
         skalXoffItem* xoffItem = (skalXoffItem*)CdsMapSearch(priv->xoff,
@@ -492,7 +496,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
             SKALASSERT(bret);
         }
 
-    } else if (strncmp(type, "skal-xon", SKAL_NAME_MAX) == 0) {
+    } else if (strcmp(type, "skal-xon") == 0) {
         // A thread is telling me I can resume sending to it
         const char* sender = SkalMsgSender(msg);
         skalXoffItem* xoffItem = (skalXoffItem*)CdsMapSearch(priv->xoff,
@@ -507,7 +511,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
             }
         }
 
-    } else if (strncmp(type, "skal-ntf-xon", SKAL_NAME_MAX) == 0) {
+    } else if (strcmp(type, "skal-ntf-xon") == 0) {
         // A thread is telling me I should notify it when it can send messages
         // again to me
         const char* origin = SkalMsgGetString(msg, "origin");
@@ -524,7 +528,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
             SKALASSERT(bret);
         }
 
-    } else if (strncmp(type, "skal-terminate", SKAL_NAME_MAX) == 0) {
+    } else if (strcmp(type, "skal-terminate") == 0) {
         ok = false;
     }
 
@@ -558,7 +562,7 @@ static void skalThreadSendXon(skalThreadPrivate* priv)
 
 static bool skalMasterProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strncmp(SkalMsgRecipient(msg), "skal-master", SKAL_NAME_MAX) != 0) {
+    if (strcmp(SkalMsgRecipient(msg), "skal-master") != 0) {
         // This message is not for the master thread
         //  => Forward it
         // TODO: from here: routing
@@ -568,7 +572,7 @@ static bool skalMasterProcessMsg(void* cookie, SkalMsg* msg)
 
     bool ok = true;
     const char* type = SkalMsgType(msg);
-    if (strncmp(type, "skal-master-terminate", SKAL_NAME_MAX) == 0) {
+    if (strcmp(type, "skal-master-terminate") == 0) {
         // I have been asked to terminate myself
         //  => Tell all threads to terminate themselves
         SkalPlfMutexLock(gMutex);
@@ -588,7 +592,7 @@ static bool skalMasterProcessMsg(void* cookie, SkalMsg* msg)
         }
         SkalPlfMutexUnlock(gMutex);
 
-    } else if (strncmp(type, "skal-terminated", SKAL_NAME_MAX) == 0) {
+    } else if (strcmp(type, "skal-terminated") == 0) {
         // A thread is telling me it just finished
         // TODO: Deal with any message left in that thread's queue
         SkalPlfMutexLock(gMutex);
