@@ -21,29 +21,9 @@
 #include <unistd.h>
 
 
-RTT_GROUP_START(TestThreadInitExit, 0x00050001u, NULL, NULL)
-
-RTT_TEST_START(skal_should_initialise_thread)
-{
-    // NB: This will create the "skal-master" thread
-    SkalThreadInit();
-    usleep(10000); // wait for 10ms to let the "skal-master" thread start
-}
-RTT_TEST_END
-
-RTT_TEST_START(skal_should_deinitialise_thread)
-{
-    SkalThreadExit();
-}
-RTT_TEST_END
-
-RTT_GROUP_END(TestThreadInitExit,
-        skal_should_initialise_thread,
-        skal_should_deinitialise_thread)
-
-
 static RTBool testThreadEnterGroup(void)
 {
+    SkalPlfInit();
     SkalThreadInit();
     return RTTrue;
 }
@@ -51,10 +31,12 @@ static RTBool testThreadEnterGroup(void)
 static RTBool testThreadExitGroup(void)
 {
     SkalThreadExit();
+    SkalPlfExit();
     return RTTrue;
 }
 
-RTT_GROUP_START(TestThreadSimple, 0x00050002u,
+
+RTT_GROUP_START(TestThreadSimple, 0x00050001u,
         testThreadEnterGroup, testThreadExitGroup)
 
 static int gError = -1;
@@ -116,7 +98,7 @@ RTT_GROUP_END(TestThreadSimple,
         skal_simple_should_receive_ping_msg)
 
 
-RTT_GROUP_START(TestThreadStress, 0x00050003u,
+RTT_GROUP_START(TestThreadStress, 0x00050002u,
         testThreadEnterGroup, testThreadExitGroup)
 
 static int gMsgSend = 0;

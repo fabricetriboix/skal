@@ -20,6 +20,19 @@
 #include <unistd.h>
 
 
+static RTBool testPlfGroupEnter(void)
+{
+    SkalPlfInit();
+    return RTTrue;
+}
+
+static RTBool testPlfGroupExit(void)
+{
+    SkalPlfExit();
+    return RTTrue;
+}
+
+
 static SkalPlfMutex* gMutex = NULL;
 static SkalPlfCondVar* gCondVar = NULL;
 static bool gGoAhead = false;
@@ -43,7 +56,7 @@ static void testSkalPlfThreadFn(void* arg)
 }
 
 
-RTT_GROUP_START(TestSkalPlf, 0x00010001u, NULL, NULL)
+RTT_GROUP_START(TestSkalPlf, 0x00010001u, testPlfGroupEnter, testPlfGroupExit)
 
 RTT_TEST_START(skal_plf_should_create_mutex)
 {

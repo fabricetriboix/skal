@@ -20,9 +20,22 @@
 #include <string.h>
 
 
+static RTBool testMsgGroupEnter(void)
+{
+    SkalPlfInit();
+    return RTTrue;
+}
+
+static RTBool testMsgGroupExit(void)
+{
+    SkalPlfExit();
+    return RTTrue;
+}
+
+
 static SkalMsg* gMsg = NULL;
 
-RTT_GROUP_START(TestSkalMsg, 0x00040001u, NULL, NULL)
+RTT_GROUP_START(TestSkalMsg, 0x00040001u, testMsgGroupEnter, testMsgGroupExit)
 
 RTT_TEST_START(skal_should_create_msg)
 {
@@ -207,7 +220,7 @@ RTT_GROUP_END(TestSkalMsg,
 
 static SkalQueue* gQueue = NULL;
 
-RTT_GROUP_START(TestSkalQueue, 0x00040002u, NULL, NULL)
+RTT_GROUP_START(TestSkalQueue, 0x00040002u, testMsgGroupEnter, testMsgGroupExit)
 
 RTT_TEST_START(skal_should_create_queue)
 {

@@ -20,7 +20,21 @@
 #include <string.h>
 
 
-RTT_GROUP_START(TestSPrintf, 0x00020001u, NULL, NULL)
+static RTBool testCommonGroupEnter(void)
+{
+    SkalPlfInit();
+    return RTTrue;
+}
+
+static RTBool testCommonGroupExit(void)
+{
+    SkalPlfExit();
+    return RTTrue;
+}
+
+
+RTT_GROUP_START(TestSPrintf, 0x00020001u,
+        testCommonGroupEnter, testCommonGroupExit)
 
 static const char* gLongString =
     "Copyright (c) 2016  Fabrice Triboix\n"
@@ -100,7 +114,8 @@ RTT_GROUP_END(TestSPrintf,
         skal_sb_should_trim,
         skal_sb_should_finish)
 
-RTT_GROUP_START(TestBase64, 0x00020002u, NULL, NULL)
+RTT_GROUP_START(TestBase64, 0x00020002u,
+        testCommonGroupEnter, testCommonGroupExit)
 
 RTT_TEST_START(skal_base64_should_encode3_1_byte)
 {

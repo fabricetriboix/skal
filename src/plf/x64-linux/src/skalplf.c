@@ -65,7 +65,6 @@ struct SkalPlfThread
 
 /** Key to thread-specific values */
 static pthread_key_t gKey;
-static bool gKeyInitialised = false;
 
 
 /** Access to "/dev/urandom" */
@@ -78,7 +77,6 @@ static int gRandomFd = -1;
  +-------------------------------*/
 
 
-static void skalPlfInitPThreadKeyIfNeeded(void);
 
 
 
@@ -87,13 +85,30 @@ static void skalPlfInitPThreadKeyIfNeeded(void);
  +---------------------------------*/
 
 
+void SkalPlfInit(void)
+{
+    int ret = pthread_key_create(&gKey, NULL);
+    SKALASSERT(0 == ret);
+
+    gRandomFd = open("/dev/urandom", O_RDONLY);
+    SKALASSERT(gRandomFd >= 0);
+}
+
+
+void SkalPlfExit(void)
+{
+    int ret = pthread_key_delete(gKey);
+    SKALASSERT(0 == ret);
+
+    ret = close(gRandomFd);
+    SKALASSERT(0 == ret);
+    gRandomFd = -1;
+}
+
+
 void SkalPlfRandom(uint8_t* buffer, int size_B)
 {
-    if (gRandomFd < 0) {
-        gRandomFd = open("/dev/urandom", O_RDONLY);
-        SKALASSERT(gRandomFd >= 0);
-    }
-
+    SKALASSERT(gRandomFd >= 0);
     while (size_B > 0) {
         int ret = read(gRandomFd, buffer, size_B);
         SKALASSERT(ret > 0);
@@ -248,7 +263,6 @@ void SkalPlfThreadGetName(char* buffer, int size)
 
 void SkalPlfThreadSetSpecific(void* value)
 {
-    skalPlfInitPThreadKeyIfNeeded();
     int ret = pthread_setspecific(gKey, value);
     SKALASSERT(0 == ret);
 }
@@ -256,22 +270,5 @@ void SkalPlfThreadSetSpecific(void* value)
 
 void* SkalPlfThreadGetSpecific(void)
 {
-    skalPlfInitPThreadKeyIfNeeded();
     return pthread_getspecific(gKey);
-}
-
-
-
-/*----------------------------------+
- | Private function implementations |
- +----------------------------------*/
-
-
-static void skalPlfInitPThreadKeyIfNeeded(void)
-{
-    if (!gKeyInitialised) {
-        int ret = pthread_key_create(&gKey, NULL);
-        SKALASSERT(0 == ret);
-        gKeyInitialised = true;
-    }
 }

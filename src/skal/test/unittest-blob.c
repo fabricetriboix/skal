@@ -63,6 +63,7 @@ static SkalAllocator gSkalTestBlobAllocator = {
 
 static RTBool skalBlobTestGroupEntry(void)
 {
+    SkalPlfInit();
     SkalBlobInit(&gSkalTestBlobAllocator, 1);
     return RTTrue;
 }
@@ -70,6 +71,7 @@ static RTBool skalBlobTestGroupEntry(void)
 static RTBool skalBlobTestGroupExit(void)
 {
     SkalBlobExit();
+    SkalPlfExit();
     return RTTrue;
 }
 
