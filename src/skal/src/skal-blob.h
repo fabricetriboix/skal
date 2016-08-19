@@ -30,9 +30,9 @@
  *
  * The "malloc" and "shm" allocator will be automatically created.
  *
- * \param allocators [in] Array of custom blob allocators; may be NULL if you
+ * @param allocators [in] Array of custom blob allocators; may be NULL if you
  *                        don't have custom allocators
- * \param size       [in] Size of the previous array
+ * @param size       [in] Size of the previous array
  */
 void SkalBlobInit(const SkalAllocator* allocators, int size);
 

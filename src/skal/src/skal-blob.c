@@ -52,51 +52,51 @@ struct SkalBlob
 
 /** Allocator map: unreference an item
  *
- * \param litem [in,out] Allocator item to unreference
+ * @param litem [in,out] Allocator item to unreference
  */
 static void skalAllocatorMapUnref(CdsMapItem* litem);
 
 
 /** Register an allocator into the allocator map
  *
- * \param allocator [in] Description of allocator to register
+ * @param allocator [in] Description of allocator to register
  */
 static void skalRegisterAllocator(const SkalAllocator* allocator);
 
 
 /** "malloc" allocator: allocate a memory area
  *
- * \param cookie [in] Unused
- * \param id     [in] Unused
- * \param size_B [in] Number of bytes to allocate, must be >0
+ * @param cookie [in] Unused
+ * @param id     [in] Unused
+ * @param size_B [in] Number of bytes to allocate, must be >0
  *
- * \return The allocated memory area; this function never returns NULL
+ * @return The allocated memory area; this function never returns NULL
  */
 static void* skalMallocAllocate(void* cookie, const char* id, int64_t size_B);
 
 
 /** "malloc" allocator: free a memory area
  *
- * \param cookie [in]     Unused
- * \param obj    [in,out] Memory area to de-allocate
+ * @param cookie [in]     Unused
+ * @param obj    [in,out] Memory area to de-allocate
  */
 static void skalMallocFree(void* cookie, void* obj);
 
 
 /** "malloc" allocator: map a memory area into process memory space
  *
- * \param cookie [in]     Unused
- * \param obj    [in,out] Memory area to map
+ * @param cookie [in]     Unused
+ * @param obj    [in,out] Memory area to map
  *
- * \return Mapped memory area (same as `obj` actually)
+ * @return Mapped memory area (same as `obj` actually)
  */
 static void* skalMallocMap(void* cookie, void* obj);
 
 
 /** "malloc" allocator: unmap from process memory space
  *
- * \param cookie [in]     Unused
- * \param obj    [in,out] Memory area to unmap
+ * @param cookie [in]     Unused
+ * @param obj    [in,out] Memory area to unmap
  */
 static void skalMallocUnmap(void* cookie, void* obj);
 

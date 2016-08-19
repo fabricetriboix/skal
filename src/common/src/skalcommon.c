@@ -57,18 +57,18 @@ static char base64ByteToChar(uint8_t byte);
  *
  * This function ignores blanks.
  *
- * \param pBase64 [in,out] Pointer to string to parse
+ * @param pBase64 [in,out] Pointer to string to parse
  *
- * \return The found base64 character, or '\0' if not found
+ * @return The found base64 character, or '\0' if not found
  */
 static char nextValidBase64Char(const char** pBase64);
 
 
 /** Convert a base64 char into a 6-bit byte
  *
- * \param c [in] Character to convert; must be a valid base64 character
+ * @param c [in] Character to convert; must be a valid base64 character
  *
- * \return The decoded 6-bit byte
+ * @return The decoded 6-bit byte
  */
 static uint8_t base64CharToByte(char c);
 

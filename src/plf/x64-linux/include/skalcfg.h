@@ -19,8 +19,8 @@
 
 /** SKAL compile-time configuration
  *
- * \defgroup skalcfg SKAL Configuration
- * \addtogroup skalcfg
+ * @defgroup skalcfg SKAL Configuration
+ * @addtogroup skalcfg
  * @{
  *
  * This file defines all the compile-time configuration parameters for SKAL.

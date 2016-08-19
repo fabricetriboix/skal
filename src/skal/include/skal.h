@@ -19,8 +19,8 @@
 
 /** SKAL
  *
- * \defgroup skal SKAL
- * \addtogroup skal
+ * @defgroup skal SKAL
+ * @addtogroup skal
  * @{
  *
  * Please note all strings must be ASCII strings of at most `SKAL_NAME_MAX` in
@@ -302,10 +302,10 @@ typedef struct
  * A skald daemon should be running on the same computer before this call is
  * made.
  *
- * \param skaldUrl   [in] URL to connect to skald. This may be NULL. Actually,
+ * @param skaldUrl   [in] URL to connect to skald. This may be NULL. Actually,
  *                        this should be NULL unless you really know what you
  *                        are doing.
- * \param allocators [in] A NULL-teminated array of custom blob allocators. This
+ * @param allocators [in] A NULL-teminated array of custom blob allocators. This
  *                        may be NULL. Actually, this should be NULL, unless you
  *                        have some special way to store data (like a video
  *                        card storing frame buffers).
@@ -320,7 +320,7 @@ typedef struct
  * might free blobs created by this allocator. Failure to do so will result in
  * asserts.
  *
- * \return `true` if OK, `false` if can't connect to skald
+ * @return `true` if OK, `false` if can't connect to skald
  */
 bool SkalInit(const char* skaldUrl, const SkalAllocator* allocators);
 
@@ -337,7 +337,7 @@ void SkalExit(void);
  * NB: The only way to terminate a thread is for its `processMsg` callback to
  * return `false`, or for the process itself to be terminated.
  *
- * \param thread [in] Description of the thread to create
+ * @param thread [in] Description of the thread to create
  */
 void SkalThreadCreate(const SkalThreadCfg* cfg);
 
@@ -346,7 +346,7 @@ void SkalThreadCreate(const SkalThreadCfg* cfg);
  *
  * This function must be called from within the thread that must subscribe.
  *
- * \param group [in] Group to subscribe to; must not be NULL
+ * @param group [in] Group to subscribe to; must not be NULL
  */
 void SkalThreadSubscribe(const char* group);
 
@@ -355,7 +355,7 @@ void SkalThreadSubscribe(const char* group);
  *
  * This function must be called from within the thread that must unsubscribe.
  *
- * \param group [in] Group to unsubscribe to; must not be NULL
+ * @param group [in] Group to unsubscribe to; must not be NULL
  */
 void SkalThreadUnsubscribe(const char* group);
 
@@ -370,13 +370,13 @@ void SkalLoop(void) __attribute__((noreturn));
 
 /** Create a blob
  *
- * \param allocator [in] Allocator to use to create the blob. This may be NULL,
+ * @param allocator [in] Allocator to use to create the blob. This may be NULL,
  *                       or the empty string, in which case the "malloc"
  *                       allocator is used.
- * \param id        [in] Identifier for the allocator. NULL may or may not be a
+ * @param id        [in] Identifier for the allocator. NULL may or may not be a
  *                       valid value depending on the allocator.
- * \param name      [in] A name for this blob; may be NULL.
- * \param size_B    [in] Minimum number of bytes to allocate. <= 0 may or
+ * @param name      [in] A name for this blob; may be NULL.
+ * @param size_B    [in] Minimum number of bytes to allocate. <= 0 may or
  *                       may not be allowed, depending on the allocator.
  *
  * The following allocators are always available:
@@ -426,7 +426,7 @@ void SkalLoop(void) __attribute__((noreturn));
  *  - the data needs to be modified after it is read; in this case, a more
  *    complex mechanism, possibly based on reference counters, would be required
  *
- * \return The newly created blob with its reference count set to 1, or NULL in
+ * @return The newly created blob with its reference count set to 1, or NULL in
  *         case of error (`allocator` does not exist, invalid `id` or `size_B`
  *         for the chosen allocator, or failed to allocate)
  */
@@ -438,7 +438,7 @@ SkalBlob* SkalBlobCreate(const char* allocator, const char* id,
  *
  * This will increment the blob's reference counter by one.
  *
- * \param blob [in,out] Blob to reference; must not be NULL
+ * @param blob [in,out] Blob to reference; must not be NULL
  */
 void SkalBlobRef(SkalBlob* blob);
 
@@ -451,7 +451,7 @@ void SkalBlobRef(SkalBlob* blob);
  * assume you are the last to call `SkalBlobUnref()` on that blob and that it
  * does not exist anymore when this function returns.
  *
- * \param blob [in,out] Blob to de-reference; must not be NULL
+ * @param blob [in,out] Blob to de-reference; must not be NULL
  */
 void SkalBlobUnref(SkalBlob* blob);
 
@@ -464,9 +464,9 @@ void SkalBlobUnref(SkalBlob* blob);
  * *You do not have exclusive access to the blob*, please refer to
  * `SkalBlobCreate()` for more information.
  *
- * \param blob [in,out] Blob to map; must not be NULL
+ * @param blob [in,out] Blob to map; must not be NULL
  *
- * \return A pointer to the mapped memory area, or NULL in case of error
+ * @return A pointer to the mapped memory area, or NULL in case of error
  */
 void* SkalBlobMap(SkalBlob* blob);
 
@@ -476,50 +476,50 @@ void* SkalBlobMap(SkalBlob* blob);
  * Always call this function as soon as possible after a call to
  * `SkalBlobMap()`.
  *
- * \param blob [in,out] Blob to unmap; must not be NULL
+ * @param blob [in,out] Blob to unmap; must not be NULL
  */
 void SkalBlobUnmap(SkalBlob* blob);
 
 
 /** Get the blob's id
  *
- * \param blob [in] Blob to query; must not be NULL
+ * @param blob [in] Blob to query; must not be NULL
  *
- * \return The blob id, which may be NULL
+ * @return The blob id, which may be NULL
  */
 const char* SkalBlobId(const SkalBlob* blob);
 
 
 /** Get the blob's name
  *
- * \param blob [in] Blob to query; must not be NULL
+ * @param blob [in] Blob to query; must not be NULL
  *
- * \return The blob name, which may be NULL
+ * @return The blob name, which may be NULL
  */
 const char* SkalBlobName(const SkalBlob* blob);
 
 
 /** Get the blob's size, in bytes
  *
- * \param blob [in] The blob to query; must not be NULL
+ * @param blob [in] The blob to query; must not be NULL
  *
- * \return The blob's size, in bytes, which may be 0
+ * @return The blob's size, in bytes, which may be 0
  */
 int64_t SkalBlobSize_B(const SkalBlob* blob);
 
 
 /** Create an empty message
  *
- * \param type   [in] Message's type. This argument may not be NULL and may
+ * @param type   [in] Message's type. This argument may not be NULL and may
  *                    not be an empty string. Please note that message types
  *                    starting with "skal-" are reserved for SKAL's own use, so
  *                    please avoid prefixing your message types with "skal-".
- * \param flags  [in] Message flags; please refer to `SKAL_MSG_FLAG_*`
- * \param marker [in] A marker that helps uniquely identify this message. This
+ * @param flags  [in] Message flags; please refer to `SKAL_MSG_FLAG_*`
+ * @param marker [in] A marker that helps uniquely identify this message. This
  *                    argument may be NULL, in which case a marker will be
  *                    automatically generated.
  *
- * \return The newly created SKAL message; this function never returns NULL
+ * @return The newly created SKAL message; this function never returns NULL
  */
 SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
         uint8_t flags, const char* marker);
@@ -535,7 +535,7 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
  * that the message has been freed and is no longer available when this function
  * returns.
  *
- * \param msg [in,out] Message to de-reference; must not be NULL; might be
+ * @param msg [in,out] Message to de-reference; must not be NULL; might be
  *                     freed by this call
  */
 void SkalMsgUnref(SkalMsg* msg);
@@ -543,72 +543,72 @@ void SkalMsgUnref(SkalMsg* msg);
 
 /** Get the message type
  *
- * \param msg [in] Message to query; must not be NULL
+ * @param msg [in] Message to query; must not be NULL
  *
- * \return The message type; never NULL
+ * @return The message type; never NULL
  */
 const char* SkalMsgType(const SkalMsg* msg);
 
 
 /** Get the message sender
  *
- * \param msg [in] Message to query; must not be NULL
+ * @param msg [in] Message to query; must not be NULL
  *
- * \return The message sender; never NULL
+ * @return The message sender; never NULL
  */
 const char* SkalMsgSender(const SkalMsg* msg);
 
 
 /** Get the message recipient
  *
- * \param msg [in] Message to query; must not be NULL
+ * @param msg [in] Message to query; must not be NULL
  *
- * \return The message recipient; never NULL
+ * @return The message recipient; never NULL
  */
 const char* SkalMsgRecipient(const SkalMsg* msg);
 
 
 /** Get the message flags
  *
- * \param msg [in] Message to query; must not be NULL
+ * @param msg [in] Message to query; must not be NULL
  *
- * \return The message flags
+ * @return The message flags
  */
 uint8_t SkalMsgFlags(const SkalMsg* msg);
 
 
 /** Get the message marker
  *
- * \param msg [in] Message to query; must not be NULL
+ * @param msg [in] Message to query; must not be NULL
  *
- * \return The message marker, never NULL
+ * @return The message marker, never NULL
  */
 const char* SkalMsgMarker(const SkalMsg* msg);
 
 
 /** Add an extra integer to the message
  *
- * \param msg  [in,out] Message to manipulate; must not be NULL
- * \param name [in]     Name of the integer; must not be NULL
- * \param i    [in]     Integer to add
+ * @param msg  [in,out] Message to manipulate; must not be NULL
+ * @param name [in]     Name of the integer; must not be NULL
+ * @param i    [in]     Integer to add
  */
 void SkalMsgAddInt(SkalMsg* msg, const char* name, int64_t i);
 
 
 /** Add an extra floating-point number to the message
  *
- * \param msg  [in,out] Message to manipulate; must not be NULL
- * \param name [in]     Name of the double; must not be NULL
- * \param d    [in]     Double to add
+ * @param msg  [in,out] Message to manipulate; must not be NULL
+ * @param name [in]     Name of the double; must not be NULL
+ * @param d    [in]     Double to add
  */
 void SkalMsgAddDouble(SkalMsg* msg, const char* name, double d);
 
 
 /** Add an extra string to the message
  *
- * \param msg  [in,out] Message to manipulate; must not be NULL
- * \param name [in]     Name of the string; must not be NULL
- * \param s    [in]     String to add; must not be NULL; must be UTF-8 encoded
+ * @param msg  [in,out] Message to manipulate; must not be NULL
+ * @param name [in]     Name of the string; must not be NULL
+ * @param s    [in]     String to add; must not be NULL; must be UTF-8 encoded
  *                      and null-terminated; can be of arbitrary length.
  */
 void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s);
@@ -620,10 +620,10 @@ void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s);
  * process to another. So this would be suitable from small data (a few kiB at
  * most).
  *
- * \param msg      [in,out] Message to manipulate; must not be NULL
- * \param name     [in]     Name of the string; must not be NULL
- * \param miniblob [in]     Data to add; must not be NULL
- * \param size_B   [in]     Number of bytes to add; must be > 0
+ * @param msg      [in,out] Message to manipulate; must not be NULL
+ * @param name     [in]     Name of the string; must not be NULL
+ * @param miniblob [in]     Data to add; must not be NULL
+ * @param size_B   [in]     Number of bytes to add; must be > 0
  */
 void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
         const uint8_t* miniblob, int size_B);
@@ -635,39 +635,39 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
  * want to continue accessing the blob after this call, you need to take a
  * reference first, by calling `SkalBlobRef(blob)`.
  *
- * \param msg  [in,out] Message to modify; must not be NULL
- * \param name [in]     Name of the blob; must not be NULL
- * \param blob [in]     Blob to attach; must not be NULL
+ * @param msg  [in,out] Message to modify; must not be NULL
+ * @param name [in]     Name of the blob; must not be NULL
+ * @param blob [in]     Blob to attach; must not be NULL
  */
 void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob);
 
 
 /** Get the value of an integer previously added to a message
  *
- * \param msg  [in] Message to query; must not be NULL
- * \param name [in] Name of the integer; must exists in this `msg`
+ * @param msg  [in] Message to query; must not be NULL
+ * @param name [in] Name of the integer; must exists in this `msg`
  *
- * \return The value of the integer
+ * @return The value of the integer
  */
 int64_t SkalMsgGetInt(const SkalMsg* msg, const char* name);
 
 
 /** Get the value of a double previously added to a message
  *
- * \param msg  [in] Message to query; must not be NULL
- * \param name [in] Name of the double; must exists in this `msg`
+ * @param msg  [in] Message to query; must not be NULL
+ * @param name [in] Name of the double; must exists in this `msg`
  *
- * \return The value of the double
+ * @return The value of the double
  */
 double SkalMsgGetDouble(const SkalMsg* msg, const char* name);
 
 
 /** Get the value of a string previously added to a message
  *
- * \param msg  [in] Message to query; must not be NULL
- * \param name [in] Name of the string; must exists in this `msg`
+ * @param msg  [in] Message to query; must not be NULL
+ * @param name [in] Name of the string; must exists in this `msg`
  *
- * \return The value of the string; this function never returns NULL
+ * @return The value of the string; this function never returns NULL
  */
 const char* SkalMsgGetString(const SkalMsg* msg, const char* name);
 
@@ -678,11 +678,11 @@ const char* SkalMsgGetString(const SkalMsg* msg, const char* name);
  * inside `buffer`. In any case, this function returns the size of the binary
  * data, which might be greater than the size of `buffer`, if it was too small.
  *
- * \param msg    [in]  Message to query; must not be NULL
- * \param name   [in]  Name of the binary field; must exists in this `msg`
- * \param size_B [out] Number of bytes in the miniblob
+ * @param msg    [in]  Message to query; must not be NULL
+ * @param name   [in]  Name of the binary field; must exists in this `msg`
+ * @param size_B [out] Number of bytes in the miniblob
  *
- * \return The number of bytes of the binary field, which might be > `size_B`
+ * @return The number of bytes of the binary field, which might be > `size_B`
  */
 const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
         int* size_B);
@@ -693,10 +693,10 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
  * The blob's reference counter will be incremented for you. Please call
  * `SkalBlobUnref(blob)` when you are done with it.
  *
- * \param msg  [in] Message to query; must not be NULL
- * \param name [in] Name of the blob; must exists in this `msg`
+ * @param msg  [in] Message to query; must not be NULL
+ * @param name [in] Name of the blob; must exists in this `msg`
  *
- * \return The found blob; this function never returns NULL
+ * @return The found blob; this function never returns NULL
  */
 SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name);
 
@@ -705,24 +705,24 @@ SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name);
  *
  * The ownership of the found blob will be transferred to you.
  *
- * \param msg  [in,out] Message to manipulate; must not be NULL
- * \param name [in]     Name of the blob; must exists in this `msg`
+ * @param msg  [in,out] Message to manipulate; must not be NULL
+ * @param name [in]     Name of the blob; must exists in this `msg`
  *
- * \return The found blob; this function never returns NULL
+ * @return The found blob; this function never returns NULL
  */
 SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name);
 
 
 /** Make a copy of a message
  *
- * \param msg       [in] Message to copy
- * \param refBlobs  [in] If set to `false`, the new message will not have any
+ * @param msg       [in] Message to copy
+ * @param refBlobs  [in] If set to `false`, the new message will not have any
  *                       blob. If set to `true`, the new message will reference
  *                       all the blobs attached to `msg`
- * \param recipient [in] Recipient for this new message; may be NULL to keep the
+ * @param recipient [in] Recipient for this new message; may be NULL to keep the
  *                       same recipient as `msg`
  *
- * \return The copied message; this function never returns NULL
+ * @return The copied message; this function never returns NULL
  */
 SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient);
 
@@ -731,7 +731,7 @@ SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient);
  *
  * You will lose ownership of the message.
  *
- * \param msg [in,out] Message to send
+ * @param msg [in,out] Message to send
  */
 void SkalMsgSend(SkalMsg* msg);
 

@@ -17,10 +17,10 @@
 #ifndef SKAL_COMMON_h_
 #define SKAL_COMMON_h_
 
-/** Platform-dependent stuff for SKAL
+/** Common stuff for SKAL
  *
- * \defgroup skalcommon Platform-dependent stuff for SKAL
- * \addtogroup skalcommon
+ * @defgroup skalcommon Common stuff for SKAL
+ * @addtogroup skalcommon
  * @{
  */
 
@@ -57,9 +57,9 @@ typedef struct SkalStringBuilder SkalStringBuilder;
  * The behaviour of this function is the same as for `malloc(3)`, but it asserts
  * if it fails.
  *
- * \param size_B [in] Number of bytes to allocate; must be > 0
+ * @param size_B [in] Number of bytes to allocate; must be > 0
  *
- * \return A pointer to the newly allocated memory area, never NULL; please
+ * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
 void* SkalMalloc(int size_B);
@@ -70,9 +70,9 @@ void* SkalMalloc(int size_B);
  * The behaviour of this function is the same as for `malloc(3)`, but it asserts
  * if it fails. Also, the memory will be initialised to zeros.
  *
- * \param size_B [in] Number of bytes to allocate; must be > 0
+ * @param size_B [in] Number of bytes to allocate; must be > 0
  *
- * \return A pointer to the newly allocated memory area, never NULL; please
+ * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
 void* SkalMallocZ(int size_B);
@@ -83,10 +83,10 @@ void* SkalMallocZ(int size_B);
  * The behaviour of this function is the same as for `realloc(3)`, but it
  * asserts if it fails.
  *
- * \param ptr    [in,out] Pointer to the memory area to replace; may be NULL
- * \param size_B [in]     Number of bytes to re-allocate; must be > 0
+ * @param ptr    [in,out] Pointer to the memory area to replace; may be NULL
+ * @param size_B [in]     Number of bytes to re-allocate; must be > 0
  *
- * \return A pointer to the newly allocated memory area, never NULL; please
+ * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
 void* SkalRealloc(void* ptr, int size_B);
@@ -97,10 +97,10 @@ void* SkalRealloc(void* ptr, int size_B);
  * The behaviour of this function is the same as for `calloc(3)`, but it asserts
  * if it fails. The memory will be initialised to zeros.
  *
- * \param nItems     [in] Number of items to allocate; must be > 0
- * \param itemSize_B [in] Size of one item, in bytes; must be > 0
+ * @param nItems     [in] Number of items to allocate; must be > 0
+ * @param itemSize_B [in] Size of one item, in bytes; must be > 0
  *
- * \return A pointer to the newly allocated memory area, never NULL; please
+ * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
 void* SkalCalloc(int nItems, int itemSize_B);
@@ -108,10 +108,10 @@ void* SkalCalloc(int nItems, int itemSize_B);
 
 /** Helper function to sprintf a string
  *
- * \param format [in] A printf-like format string
- * \param ...    [in] Printf-like arguments
+ * @param format [in] A printf-like format string
+ * @param ...    [in] Printf-like arguments
  *
- * \return The formatted string, never NULL; please release with `free()` when
+ * @return The formatted string, never NULL; please release with `free()` when
  *         you no longer need it
  */
 char* SkalSPrintf(const char* format, ...)
@@ -120,18 +120,18 @@ char* SkalSPrintf(const char* format, ...)
 
 /** Create a string builder
  *
- * \param initialCapacity [in] Initial capacity of the string, or 0 for default
+ * @param initialCapacity [in] Initial capacity of the string, or 0 for default
  *
- * \return The newly created string builder; this function never returns NULL
+ * @return The newly created string builder; this function never returns NULL
  */
 SkalStringBuilder* SkalStringBuilderCreate(int initialCapacity);
 
 
 /** Append to a string builder
  *
- * \param sb     [in,out] String builder to append to; must not be NULL
- * \param format [in]     A printf-like format string
- * \param ...    [in]     Printf-like arguments
+ * @param sb     [in,out] String builder to append to; must not be NULL
+ * @param format [in]     A printf-like format string
+ * @param ...    [in]     Printf-like arguments
  */
 void SkalStringBuilderAppend(SkalStringBuilder* sb, const char* format, ...)
     __attribute__(( format(printf, 2, 3) ));
@@ -139,8 +139,8 @@ void SkalStringBuilderAppend(SkalStringBuilder* sb, const char* format, ...)
 
 /** Cut some characters from the end of the string
  *
- * \param sb [in,out] String builder to modify; must not be NULL
- * \param n  [in]     Number of characters to trim from the end of the string
+ * @param sb [in,out] String builder to modify; must not be NULL
+ * @param n  [in]     Number of characters to trim from the end of the string
  *                    if <=0, no action is taken
  */
 void SkalStringBuilderTrim(SkalStringBuilder* sb, int n);
@@ -150,20 +150,20 @@ void SkalStringBuilderTrim(SkalStringBuilder* sb, int n);
  *
  * This function de-allocates the string builder, so you can't re-use it.
  *
- * \param sb [in,out] String builder to finish (it will be freed); must not be
+ * @param sb [in,out] String builder to finish (it will be freed); must not be
  *                    NULL
  *
- * \return The resulting string; call `free()` on it when done with it
+ * @return The resulting string; call `free()` on it when done with it
  */
 char* SkalStringBuilderFinish(SkalStringBuilder* sb);
 
 
 /** Check the given string is pure ASCII with a terminating null char
  *
- * \param str    [in] String to check; must not be NULL
- * \param maxlen [in] Maximum string length, in bytes; must be > 0
+ * @param str    [in] String to check; must not be NULL
+ * @param maxlen [in] Maximum string length, in bytes; must be > 0
  *
- * \return `true` if the string contains only printable ASCII characters and has
+ * @return `true` if the string contains only printable ASCII characters and has
  *         a terminating null character within the first `maxlen` bytes
  */
 bool SkalIsAsciiString(const char* str, int maxlen);
@@ -171,10 +171,10 @@ bool SkalIsAsciiString(const char* str, int maxlen);
 
 /** Check the given string is UTF-8 with a terminating null char
  *
- * \param str    [in] String to check; must not be NULL
- * \param maxlen [in] Maximum string length, in bytes; must be > 0
+ * @param str    [in] String to check; must not be NULL
+ * @param maxlen [in] Maximum string length, in bytes; must be > 0
  *
- * \return `true` if the string contains valid UTF-8 characters and has a
+ * @return `true` if the string contains valid UTF-8 characters and has a
  *         terminating null character within the first `maxlen` bytes
  */
 bool SkalIsUtf8String(const char* str, int maxlen);
@@ -190,12 +190,12 @@ int SkalStringCompare(void* lefykey, void* rightkey, void* cookie);
  *
  * If `size_B` is <3, only the given number of bytes will be encoded.
  *
- * \param data       [in]  Pointer to bytes to encode; must not be NULL
- * \param size_B     [in]  Number of bytes to encode; must be >0
- * \param base64     [out] Encoded base64 characters; must not be NULL
- * \param base64Size [in]  Size of the above buffer, in chars; must be >=4
+ * @param data       [in]  Pointer to bytes to encode; must not be NULL
+ * @param size_B     [in]  Number of bytes to encode; must be >0
+ * @param base64     [out] Encoded base64 characters; must not be NULL
+ * @param base64Size [in]  Size of the above buffer, in chars; must be >=4
  *
- * \return The number of encoded bytes
+ * @return The number of encoded bytes
  */
 int SkalBase64Encode3(const uint8_t* data, int size_B,
         char* base64, int base64Size);
@@ -205,10 +205,10 @@ int SkalBase64Encode3(const uint8_t* data, int size_B,
  *
  * The output base64 string will be null-terminated.
  *
- * \param data   [in] Pointer to bytes to encode; must not be NULL
- * \param size_B [in] Number of bytes to encode; must be >0
+ * @param data   [in] Pointer to bytes to encode; must not be NULL
+ * @param size_B [in] Number of bytes to encode; must be >0
  *
- * \return Encoded base64 string; this function never returns NULL; you must
+ * @return Encoded base64 string; this function never returns NULL; you must
  *         free the base64 string by calling `free()` on it when finished
  */
 char* SkalBase64Encode(const uint8_t* data, int size_B);
@@ -223,12 +223,12 @@ char* SkalBase64Encode(const uint8_t* data, int size_B);
  * The input string must be null-terminated, although the null terminating
  * character does not have to be within the first 4 characters.
  *
- * \param pBase64 [in,out] Pointer to the base64 string to decode; must not be
+ * @param pBase64 [in,out] Pointer to the base64 string to decode; must not be
  *                         NULL; must point to a valid base64 string
- * \param data    [out]    Decoded bytes; must not be NULL
- * \param size_B  [in]     Size of the above buffer, in bytes; must be >=3
+ * @param data    [out]    Decoded bytes; must not be NULL
+ * @param size_B  [in]     Size of the above buffer, in bytes; must be >=3
  *
- * \return The number of decoded bytes (1, 2 or 3), or -1 if the input string is
+ * @return The number of decoded bytes (1, 2 or 3), or -1 if the input string is
  *         not a valid base64 string
  */
 int SkalBase64Decode3(const char** pBase64, uint8_t* data, int size_B);
@@ -239,10 +239,10 @@ int SkalBase64Decode3(const char** pBase64, uint8_t* data, int size_B);
  * The input string must be null-terminated and must be valid base64 characters
  * using '=' as padding if and when necessary. Blank characters are ignored.
  *
- * \param base64 [in]  Base64 text to decode; must not be NULL
- * \param size_B [out] Number of decoded bytes; must not be NULL
+ * @param base64 [in]  Base64 text to decode; must not be NULL
+ * @param size_B [out] Number of decoded bytes; must not be NULL
  *
- * \return The decoded bytes, or NULL if `base64` is not a valid base64 string
+ * @return The decoded bytes, or NULL if `base64` is not a valid base64 string
  *         (in which case `*size_B` won't be touched)
  */
 uint8_t* SkalBase64Decode(const char* base64, int* size_B);

@@ -129,11 +129,11 @@ typedef struct
  * to another process. So the message is sent to the master thread who will
  * route it appropriately.
  *
- * \param msg                     [in,out] Message to send
- * \param failIfRecipientNotFound [in]     If the recipient is not found, take
+ * @param msg                     [in,out] Message to send
+ * @param failIfRecipientNotFound [in]     If the recipient is not found, take
  *                                         no action and return false.
  *
- * \return `false` if `failIfRecipientNotFound` is `true` and the message's
+ * @return `false` if `failIfRecipientNotFound` is `true` and the message's
  *         recipient does not exist for this process; `true` otherwise
  */
 static bool skalMsgSendPriv(SkalMsg* msg, bool failIfRecipientNotFound);
@@ -141,10 +141,10 @@ static bool skalMsgSendPriv(SkalMsg* msg, bool failIfRecipientNotFound);
 
 /** Create a thread
  *
- * \param cfg [in] Description of thread to create; must not be NULL and must
+ * @param cfg [in] Description of thread to create; must not be NULL and must
  *                 comply with the restrictions indicated in `skal.h`
  *
- * \return The newly created thread; this function never returns NULL
+ * @return The newly created thread; this function never returns NULL
  */
 static SkalThread* skalThreadCreatePriv(const SkalThreadCfg* cfg);
 
@@ -163,7 +163,7 @@ static void skalMapUnrefFree(CdsMapItem* item);
 
 /** Run a SKAL thread
  *
- * \param arg [in] Argument; actually a `SkalThread*` structure representing
+ * @param arg [in] Argument; actually a `SkalThread*` structure representing
  *                 this very thread
  */
 static void skalThreadRun(void* arg);
@@ -171,27 +171,27 @@ static void skalThreadRun(void* arg);
 
 /** Utility function for a thread: handle internal message
  *
- * \param priv [in,out] Thread private data
- * \param msg  [in]     Received message
+ * @param priv [in,out] Thread private data
+ * @param msg  [in]     Received message
  *
- * \return `false` to stop this thread now, otherwise `true`
+ * @return `false` to stop this thread now, otherwise `true`
  */
 static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg);
 
 
 /** Utility function for a thread: send "xon" messages to all blocked threads
  *
- * \param priv [in,out] Thread private data
+ * @param priv [in,out] Thread private data
  */
 static void skalThreadSendXon(skalThreadPrivate* priv);
 
 
 /** Message processing function for the master thread
  *
- * \param cookie [in]     Not used
- * \param msg    [in,out] Received message
+ * @param cookie [in]     Not used
+ * @param msg    [in,out] Received message
  *
- * \return `false` to terminate the thread, otherwise `true`
+ * @return `false` to terminate the thread, otherwise `true`
  */
 static bool skalMasterProcessMsg(void* cookie, SkalMsg* msg);
 

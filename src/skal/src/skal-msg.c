@@ -93,11 +93,11 @@ struct SkalQueue
 
 /** Allocate a message data item (aka a field) and add it to the `msg`
  *
- * \param msg  [in,out] Message the field will be added to
- * \param name [in]     Field name
- * \param type [in]     Field type
+ * @param msg  [in,out] Message the field will be added to
+ * @param name [in]     Field name
+ * @param type [in]     Field type
  *
- * \return The newly created datum; this function never returns NULL
+ * @return The newly created datum; this function never returns NULL
  */
 static skalMsgData* skalAllocMsgData(SkalMsg* msg,
         const char* name, skalMsgDataType type);

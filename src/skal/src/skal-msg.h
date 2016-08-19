@@ -45,30 +45,30 @@ typedef struct SkalQueue SkalQueue;
  * This will increment the message reference counter by one. If blobs are
  * attached to the message, their reference counters are also incremented.
  *
- * \param msg [in,out] Message to reference; must not be NULL
+ * @param msg [in,out] Message to reference; must not be NULL
  */
 void SkalMsgRef(SkalMsg* msg);
 
 
 /** Set a message's internal flags
  *
- * \param msg [in,out] Message to manipulate; must not be NULL
+ * @param msg [in,out] Message to manipulate; must not be NULL
  */
 void SkalMsgSetInternalFlags(SkalMsg* msg, uint8_t flags);
 
 
 /** Reset a message's internal flags
  *
- * \param msg [in,out] Message to manipulate; must not be NULL
+ * @param msg [in,out] Message to manipulate; must not be NULL
  */
 void SkalMsgResetInternalFlags(SkalMsg* msg, uint8_t flags);
 
 
 /** Get a message's internal flags
  *
- * \param msg [in] Messaage to query
+ * @param msg [in] Messaage to query
  *
- * \return The message internal flags
+ * @return The message internal flags
  */
 uint8_t SkalMsgInternalFlags(const SkalMsg* msg);
 
@@ -79,9 +79,9 @@ uint8_t SkalMsgInternalFlags(const SkalMsg* msg);
  * referenced by their ids in the JSON string. If the message is to be sent over
  * the network, the content of each blob must be passed using a separate mean.
  *
- * \param msg [in] Message to encode
+ * @param msg [in] Message to encode
  *
- * \return The JSON string representing the message; this function never returns
+ * @return The JSON string representing the message; this function never returns
  *         NULL. Once finished with the JSON string, you must release it by
  *         calling `free()` on it.
  */
@@ -95,9 +95,9 @@ char* SkalMsgToJson(const SkalMsg* msg);
  * function. Until all the blobs attached to this message are reconstructed,
  * this message will remain partial and can't be sent to anyone.
  *
- * \param json [in] JSON string to parse
+ * @param json [in] JSON string to parse
  *
- * \return The newly created SKAL message, with its reference counter set to 1,
+ * @return The newly created SKAL message, with its reference counter set to 1,
  *         or NULL if the JSON string is not valid.
  */
 // TODO SkalMsg* SkalMsgCreateFromJson(const char* json);
@@ -105,20 +105,20 @@ char* SkalMsgToJson(const SkalMsg* msg);
 
 /** Create a message queue
  *
- * \param name      [in] Queue name; must not be NULL
- * \param threshold [in] When to return `false` when enqueuing a message;
+ * @param name      [in] Queue name; must not be NULL
+ * @param threshold [in] When to return `false` when enqueuing a message;
  *                       must be > 0
  *
- * \return The created message queue; this function never returns NULL
+ * @return The created message queue; this function never returns NULL
  */
 SkalQueue* SkalQueueCreate(const char* name, int64_t threshold);
 
 
 /** Get the queue name
  *
- * \param queue [in] Queue to query
+ * @param queue [in] Queue to query
  *
- * \return The queue name as set in `SkalQueueCreate()`
+ * @return The queue name as set in `SkalQueueCreate()`
  */
 const char* SkalQueueName(const SkalQueue* queue);
 
@@ -127,7 +127,7 @@ const char* SkalQueueName(const SkalQueue* queue);
  *
  * All pending messages will be silently dropped.
  *
- * \param queue [in] Message queue to destroy; must not be NULL
+ * @param queue [in] Message queue to destroy; must not be NULL
  */
 void SkalQueueDestroy(SkalQueue* queue);
 
@@ -137,8 +137,8 @@ void SkalQueueDestroy(SkalQueue* queue);
  * You will lose ownership of the `msg`. This function always succeeds in
  * inserting the message into the queue.
  *
- * \param queue [in,out] Where to push the message; must not be NULL
- * \param msg   [in,out] Message to push; must not be NULL
+ * @param queue [in,out] Where to push the message; must not be NULL
+ * @param msg   [in,out] Message to push; must not be NULL
  */
 void SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
 
@@ -160,10 +160,10 @@ void SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
  *  - If there are no internal message pending, urgent messages
  *  - Otherwise, regular messages
  *
- * \param queue        [in,out] From where to pop a message
- * \param internalOnly [in]     Whether to wait for internal messages only
+ * @param queue        [in,out] From where to pop a message
+ * @param internalOnly [in]     Whether to wait for internal messages only
  *
- * \return The popped message; this function never returns NULL
+ * @return The popped message; this function never returns NULL
  */
 SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue, bool internalOnly);
 
