@@ -36,7 +36,7 @@ static RTBool testThreadExitGroup(void)
 }
 
 
-RTT_GROUP_START(TestThreadSimple, 0x00050001u,
+RTT_GROUP_START(TestThreadSimple, 0x00060001u,
         testThreadEnterGroup, testThreadExitGroup)
 
 static int gError = -1;
@@ -98,7 +98,7 @@ RTT_GROUP_END(TestThreadSimple,
         skal_simple_should_receive_ping_msg)
 
 
-RTT_GROUP_START(TestThreadStress, 0x00050002u,
+RTT_GROUP_START(TestThreadStress, 0x00060002u,
         testThreadEnterGroup, testThreadExitGroup)
 
 static int gMsgSend = 0;

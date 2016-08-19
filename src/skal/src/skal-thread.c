@@ -16,6 +16,7 @@
 
 #include "skal-thread.h"
 #include "skal-msg.h"
+#include "skal-queue.h"
 #include "cdsmap.h"
 #include <stdlib.h>
 #include <string.h>
