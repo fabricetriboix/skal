@@ -27,6 +27,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
+#include <string.h>
 
 
 
@@ -39,20 +41,17 @@
 #define SKAL_GUARD_SIZE_B 1024
 
 
-struct SkalPlfMutex
-{
+struct SkalPlfMutex {
     pthread_mutex_t m;
 };
 
 
-struct SkalPlfCondVar
-{
+struct SkalPlfCondVar {
     pthread_cond_t cv;
 };
 
 
-struct SkalPlfThread
-{
+struct SkalPlfThread {
     pthread_t id;
 };
 
@@ -72,14 +71,6 @@ static int gRandomFd = -1;
 
 
 
-/*-------------------------------+
- | Private function declarations |
- +-------------------------------*/
-
-
-
-
-
 /*---------------------------------+
  | Public function implementations |
  +---------------------------------*/
@@ -87,7 +78,14 @@ static int gRandomFd = -1;
 
 void SkalPlfInit(void)
 {
-    int ret = pthread_key_create(&gKey, NULL);
+    // Ignore SIGPIPE; this evil signal makes the process terminate by default
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = SIG_IGN;
+    int ret = sigaction(SIGPIPE, &sa, NULL);
+    SKALASSERT(0 == ret);
+
+    ret = pthread_key_create(&gKey, NULL);
     SKALASSERT(0 == ret);
 
     gRandomFd = open("/dev/urandom", O_RDONLY);
