@@ -478,11 +478,11 @@ static void skalThreadRun(void* arg)
             skalThreadSendXon(priv);
         }
 
-        int64_t start_ns = SkalNow_ns();
+        int64_t start_ns = SkalPlfNow_ns();
         if (!thread->cfg.processMsg(thread->cfg.cookie, msg)) {
             stop = true;
         }
-        int64_t duration_ns = SkalNow_ns() - start_ns;
+        int64_t duration_ns = SkalPlfNow_ns() - start_ns;
         // TODO: Do something with `duration_ns`
         (void)duration_ns;
 

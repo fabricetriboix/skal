@@ -116,7 +116,7 @@ void SkalPlfRandom(uint8_t* buffer, int size_B)
 }
 
 
-int64_t SkalNow_ns()
+int64_t SkalPlfNow_ns()
 {
     struct timespec ts;
     int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);

@@ -60,6 +60,18 @@
 #define SKAL_DEFAULT_QUEUE_THRESHOLD 100
 
 
+/** Default backlog value for server sockets */
+#define SKAL_NET_DEFAULT_BACKLOG 20
+
+
+/** Default timeout value for connectionless sockets */
+#define SKAL_NET_DEFAULT_TIMEOUT_us (10 * 1000 * 1000)
+
+
+/** Default socket polling timeout */
+#define SKAL_NET_DEFAULT_POLL_TIMEOUT_us (1000 * 1000)
+
+
 
 /* @} */
 #endif /* SKAL_CFG_h_ */
