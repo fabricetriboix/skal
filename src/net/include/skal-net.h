@@ -140,7 +140,7 @@ typedef enum {
     SKAL_NET_EV_OUT,
 
     /** A comm socket has established a connection to its server */
-    SKAL_NET_EV_ESTABLISED,
+    SKAL_NET_EV_ESTABLISHED,
 
     /** A comm socket can't establish a connection to its server
      *
@@ -149,7 +149,7 @@ typedef enum {
      *
      * It is recommended you destroy this socket whenever convenient.
      */
-    SKAL_NET_EV_NOT_ESTABLISED,
+    SKAL_NET_EV_NOT_ESTABLISHED,
 
     /** The OS reported an error on the given socket
      *
@@ -300,7 +300,7 @@ void SkalNetDestroy(SkalNet* net);
  *
  * @param net       [in,out] Socket set to add server socket to; must not be
  *                           NULL
- * @param type      [in]     Type of socket to create
+ * @param sntype    [in]     Type of socket to create
  * @param localAddr [in]     Local address to listen to. If `type` is
  *                           `SKAL_NET_TYPE_PIPE`, this argument is ignored and
  *                           may be NULL. For all other `type`; must not be
@@ -321,7 +321,7 @@ void SkalNetDestroy(SkalNet* net);
  *
  * @return Id of the newly created server socket; this function never fails
  */
-int SkalNetServerCreate(SkalNet* net, SkalNetType type,
+int SkalNetServerCreate(SkalNet* net, SkalNetType sntype,
         const SkalNetAddr* localAddr, int bufsize_B, void* context, int extra);
 
 
@@ -335,7 +335,7 @@ int SkalNetServerCreate(SkalNet* net, SkalNetType type,
  * `SKAL_NET_EV_NOT_ESTABLISED` event.
  *
  * @param net        [in,out] Socket set to add comm socket to; must not be NULL
- * @param type       [in]     Type of socket to create; must not be
+ * @param sntype     [in]     Type of socket to create; must not be
  *                            `SKAL_NET_TYPE_PIPE`
  * @param localAddr  [in]     Local address to bind to; may be NULL; ignored for
  *                            UNIX sockets
@@ -349,7 +349,7 @@ int SkalNetServerCreate(SkalNet* net, SkalNetType type,
  *
  * @return Id of the newly created comm socket
  */
-int SkalNetCommCreate(SkalNet* net, SkalNetType type,
+int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
         const SkalNetAddr* localAddr, const SkalNetAddr* remoteAddr,
         int bufsize_B, void* context, int64_t timeout_us);
 
