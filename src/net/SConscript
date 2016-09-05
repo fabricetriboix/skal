@@ -7,6 +7,6 @@ artefacts = {}
 artefacts['incs'] = [os.path.join("include", "skal-net.h")]
 srcs = [os.path.join("src", "skal-net.c")]
 artefacts['objs'] = [variant['env'].StaticObject(src) for src in srcs]
-# TODO artefacts['testsrcs'] = [os.path.join("test", "unittest-blob.c")]
+artefacts['testsrcs'] = [os.path.join("test", "unittest-basic.c")]
 
 Return('artefacts')

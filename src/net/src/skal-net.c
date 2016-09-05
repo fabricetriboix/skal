@@ -572,7 +572,7 @@ int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
 }
 
 
-const SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net)
+SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net)
 {
     SKALASSERT(net != NULL);
 

@@ -364,7 +364,7 @@ int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
  * @return The event that occurred, or NULL if timeout; when you are finished
  *         with the event, please call `SkalNetEventUnref()` on it
  */
-const SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net);
+SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net);
 
 
 /** Assign a context to a socket
