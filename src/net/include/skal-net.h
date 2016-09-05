@@ -58,7 +58,8 @@ typedef enum {
      *
      * A `SKAL_NET_EV_CONN` event will be generated automatically, and the
      * `SkalNetEventConn.commSockid` will be the sockid for writing data into
-     * the pipe. It is not possible to read from the pipe using this sockid.
+     * the pipe (please note the `SkalNetEventConn.peer` is meaningless for
+     * pipes). It is not possible to read from the pipe using this sockid.
      */
     SKAL_NET_TYPE_PIPE,
 
@@ -168,9 +169,8 @@ typedef struct {
 
 /** Event extra data: Data received */
 typedef struct {
-    SkalNetAddr peer;   /**< Address of who sent the data */
-    int         size_B; /**< Number of bytes received; always >0 */
-    uint8_t*    data;   /**< Received data; never NULL */
+    int   size_B; /**< Number of bytes received; always >0 */
+    void* data;   /**< Received data; never NULL */
 } SkalNetEventIn;
 
 
@@ -440,7 +440,7 @@ bool SkalNetWantToSend(SkalNet* net, int sockid, bool flag);
  * @return Result of send operation
  */
 SkalNetSendResult SkalNetSend_BLOCKING(SkalNet* net, int sockid,
-        const uint8_t* data, int size_B);
+        const void* data, int size_B);
 
 
 /** Destroy a socket from a socket set

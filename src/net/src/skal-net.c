@@ -247,7 +247,7 @@ static int skalNetNewComm(SkalNet* net, int sockid, int fd,
  * @return Received data, allocated using `malloc(3)`; please call `free(3)` on
  *         it when finished with it
  */
-static uint8_t* skalNetReadPacket(SkalNet* net, int sockid,
+static void* skalNetReadPacket(SkalNet* net, int sockid,
         int* size_B, SkalNetAddr* sender);
 
 
@@ -266,7 +266,7 @@ static uint8_t* skalNetReadPacket(SkalNet* net, int sockid,
  * @return The send result
  */
 static SkalNetSendResult skalNetSendPacket(SkalNet* net, int sockid,
-        const uint8_t* data, int size_B);
+        const void* data, int size_B);
 
 
 /** Receive data from a stream-based socket
@@ -283,21 +283,23 @@ static SkalNetSendResult skalNetSendPacket(SkalNet* net, int sockid,
  * @return Received data, allocated using `malloc(3)`; please call `free(3)` on
  *         it when finished with it
  */
-static uint8_t* skalNetReadStream(SkalNet* net, int sockid, int* size_B);
+static void* skalNetReadStream(SkalNet* net, int sockid, int* size_B);
 
 
 /** Send data over a stream-oriented socket
  *
  * This function will make sure all the data is sent.
  *
- * @param fd     [in] File descriptor of socket to send through
- * @param data   [in] Data to send; must not be NULL
- * @param size_B [in] Number of bytes to send; must be >0
+ * @param net    [in,out] Socket set where the socket to send through is; must
+ *                        not be NULL
+ * @param sockid [in]     Id of socket to send from
+ * @param data   [in]     Data to send; must not be NULL
+ * @param size_B [in]     Number of bytes to send; must be >0
  *
  * @return The send result
  */
-static SkalNetSendResult skalNetSendStream(int fd,
-        const uint8_t* data, int size_B);
+static SkalNetSendResult skalNetSendStream(SkalNet* net, int sockid,
+        const void* data, int size_B);
 
 
 /** Handle the reception of data on a connection-less server socket
@@ -315,7 +317,7 @@ static SkalNetSendResult skalNetSendStream(int fd,
  * @param size_B [in]     How many bytes have been received; must be >0
  */
 static void skalNetHandleDataOnCnxLessServerSocket(SkalNet* net,
-        int sockid, const SkalNetAddr* sender, uint8_t* data, int size_B);
+        int sockid, const SkalNetAddr* sender, void* data, int size_B);
 
 
 
@@ -637,7 +639,7 @@ bool SkalNetWantToSend(SkalNet* net, int sockid, bool flag)
 
 
 SkalNetSendResult SkalNetSend_BLOCKING(SkalNet* net, int sockid,
-        const uint8_t* data, int size_B)
+        const void* data, int size_B)
 {
     SKALASSERT(net != NULL);
 
@@ -646,7 +648,7 @@ SkalNetSendResult SkalNetSend_BLOCKING(SkalNet* net, int sockid,
         skalNetSocket* c = &(net->sockets[sockid]);
         if ((c->fd >= 0) && !(c->isServer)) {
             if (SOCK_STREAM == c->type) {
-                result = skalNetSendStream(c->fd, data, size_B);
+                result = skalNetSendStream(net, sockid, data, size_B);
             } else {
                 result = skalNetSendPacket(net, sockid, data, size_B);
             }
@@ -1007,19 +1009,32 @@ static void skalNetHandleIn(SkalNet* net, int sockid)
             int size_B;
             SkalNetAddr sender;
             memset(&sender, 0, sizeof(sender));
-            uint8_t* data = skalNetReadPacket(net, sockid, &size_B, &sender);
+            void* data = skalNetReadPacket(net, sockid, &size_B, &sender);
             if (data != NULL) {
                 SKALASSERT(size_B > 0);
                 skalNetHandleDataOnCnxLessServerSocket(net, sockid,
                         &sender, data, size_B);
             }
-        } else {
+        } else if (s->domain >= 0) {
             // We received a connection request from a client
             skalNetAccept(net, sockid);
+        } else {
+            // This is a pipe
+            int size_B;
+            void* data = skalNetReadStream(net, sockid, &size_B);
+            if (data != NULL) {
+                SKALASSERT(size_B > 0);
+                SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_IN,
+                        sockid);
+                event->in.size_B = size_B;
+                event->in.data = data;
+                bool inserted = CdsListPushBack(net->events, &event->item);
+                SKALASSERT(inserted);
+            }
         }
     } else {
         int size_B;
-        uint8_t* data = NULL;
+        void* data = NULL;
         if (SOCK_STREAM == s->type) {
             data = skalNetReadStream(net, sockid, &size_B);
         } else {
@@ -1028,7 +1043,6 @@ static void skalNetHandleIn(SkalNet* net, int sockid)
         if (data != NULL) {
             SKALASSERT(size_B > 0);
             SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_IN, sockid);
-            event->in.peer = s->peer;
             event->in.size_B = size_B;
             event->in.data = data;
             bool inserted = CdsListPushBack(net->events, &event->item);
@@ -1120,7 +1134,7 @@ static int skalNetNewComm(SkalNet* net, int sockid, int fd,
         c->peer = *peer;
     }
 
-    if (!(c->isCnxLess)) {
+    if ((c->domain >= 0) && !(c->isCnxLess)) {
         // Set the socket buffer size
         // NB: If it's connection-less comm socket, the fd will be the same as
         // the server socket, so the buffer sizes have been set already.
@@ -1141,7 +1155,7 @@ static int skalNetNewComm(SkalNet* net, int sockid, int fd,
 }
 
 
-static uint8_t* skalNetReadPacket(SkalNet* net, int sockid,
+static void* skalNetReadPacket(SkalNet* net, int sockid,
         int* size_B, SkalNetAddr* sender)
 {
     SKALASSERT(net != NULL);
@@ -1153,7 +1167,7 @@ static uint8_t* skalNetReadPacket(SkalNet* net, int sockid,
     skalNetSocket* c = &(net->sockets[sockid]);
     SKALASSERT(c->fd >= 0);
     SKALASSERT(c->bufsize_B > 0);
-    uint8_t* data = malloc(c->bufsize_B);
+    void* data = malloc(c->bufsize_B);
     SKALASSERT(data != NULL);
 
     int ret = -1;
@@ -1190,7 +1204,7 @@ static uint8_t* skalNetReadPacket(SkalNet* net, int sockid,
 
 
 static SkalNetSendResult skalNetSendPacket(SkalNet* net, int sockid,
-        const uint8_t* data, int size_B)
+        const void* data, int size_B)
 {
     SKALASSERT(net != NULL);
     SKALASSERT((sockid >= 0) && (sockid < net->nsockets));
@@ -1237,23 +1251,30 @@ static SkalNetSendResult skalNetSendPacket(SkalNet* net, int sockid,
 }
 
 
-static uint8_t* skalNetReadStream(SkalNet* net, int sockid, int* size_B)
+static void* skalNetReadStream(SkalNet* net, int sockid, int* size_B)
 {
     SKALASSERT(net != NULL);
     SKALASSERT((sockid >= 0) && (sockid < net->nsockets));
     SKALASSERT(size_B != NULL);
 
-    skalNetSocket* s = &(net->sockets[sockid]);
-    SKALASSERT(s->fd >= 0);
-    SKALASSERT(s->bufsize_B > 0);
-    uint8_t* data = malloc(s->bufsize_B);
+    skalNetSocket* c = &(net->sockets[sockid]);
+    SKALASSERT(c->fd >= 0);
+    SKALASSERT(c->bufsize_B > 0);
+    void* data = malloc(c->bufsize_B);
     SKALASSERT(data != NULL);
 
     bool done = false;
-    int remaining_B = s->bufsize_B;
+    int remaining_B = c->bufsize_B;
     int readSoFar_B = 0;
     while (!done && (remaining_B > 0)) {
-        int ret = recv(s->fd, data + readSoFar_B, remaining_B, MSG_DONTWAIT);
+        int ret;
+        if (c->domain >= 0) {
+            // This is a socket
+            ret = recv(c->fd, data + readSoFar_B, remaining_B, MSG_DONTWAIT);
+        } else {
+            // This is a pipe
+            ret = read(c->fd, data + readSoFar_B, remaining_B);
+        }
         if (ret < 0) {
             if ((EAGAIN == errno) || (EWOULDBLOCK == errno)) {
                 done = true;
@@ -1276,6 +1297,11 @@ static uint8_t* skalNetReadStream(SkalNet* net, int sockid, int* size_B)
         } else {
             readSoFar_B += ret;
             remaining_B -= ret;
+
+            if (c->domain < 0) {
+                // This is a pipe => Stop as soon as we read something
+                done = true;
+            }
         }
     }
 
@@ -1289,15 +1315,27 @@ static uint8_t* skalNetReadStream(SkalNet* net, int sockid, int* size_B)
 }
 
 
-static SkalNetSendResult skalNetSendStream(int fd,
-        const uint8_t* data, int size_B)
+static SkalNetSendResult skalNetSendStream(SkalNet* net, int sockid,
+        const void* data, int size_B)
 {
+    SKALASSERT(net != NULL);
+    SKALASSERT(sockid >= 0);
+    SKALASSERT(sockid < net->nsockets);
+    skalNetSocket* c = &(net->sockets[sockid]);
+    SKALASSERT(c->fd >= 0);
     SKALASSERT(data != NULL);
     SKALASSERT(size_B > 0);
 
     SkalNetSendResult result = SKAL_NET_SEND_OK;
     while ((size_B > 0) && (SKAL_NET_SEND_OK == result)) {
-        int ret = send(fd, data, size_B, MSG_NOSIGNAL);
+        int ret;
+        if (c->domain >= 0) {
+            // This is a socket
+            ret = send(c->fd, data, size_B, MSG_NOSIGNAL);
+        } else {
+            // This is a pipe
+            ret = write(c->fd, data, size_B);
+        }
         if (ret < 0) {
             switch (errno) {
             case EINTR :
@@ -1324,7 +1362,7 @@ static SkalNetSendResult skalNetSendStream(int fd,
 
 
 static void skalNetHandleDataOnCnxLessServerSocket(SkalNet* net,
-        int sockid, const SkalNetAddr* sender, uint8_t* data, int size_B)
+        int sockid, const SkalNetAddr* sender, void* data, int size_B)
 {
     SKALASSERT(net != NULL);
     SKALASSERT((sockid >= 0) && (sockid < net->nsockets));
@@ -1354,7 +1392,6 @@ static void skalNetHandleDataOnCnxLessServerSocket(SkalNet* net,
     }
 
     SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_IN, client->sockid);
-    event->in.peer = *sender;
     event->in.size_B = size_B;
     event->in.data = data;
     bool inserted = CdsListPushBack(net->events, &event->item);
