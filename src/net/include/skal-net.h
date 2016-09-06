@@ -162,8 +162,14 @@ typedef enum {
 
 /** Event extra data: Connection accepted */
 typedef struct {
-    int         commSockid; /**< Id of newly created comm socket */
-    SkalNetAddr peer;       /**< Address of who connected to us */
+    int commSockid; /**< Id of newly created comm socket */
+
+    /** Address of who connected to us
+     *
+     * This is meaningless for pipes and UNIX sockets, in which case this field
+     * contains random junk.
+     */
+    SkalNetAddr peer;
 } SkalNetEventConn;
 
 
@@ -345,7 +351,8 @@ int SkalNetServerCreate(SkalNet* net, SkalNetType sntype,
  *                            socket; this context will be provided back when
  *                            events occur on this socket for your conveninence
  * @param timeout_us [in]     Idle timeout in us (for connection-less comm
- *                            sockets only); <=0 for default
+ *                            sockets only, ignored for other sockets);
+ *                            <=0 for default
  *
  * @return Id of the newly created comm socket
  */

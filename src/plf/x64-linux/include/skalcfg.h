@@ -72,6 +72,18 @@
 #define SKAL_NET_DEFAULT_POLL_TIMEOUT_us (1000 * 1000)
 
 
+/** Default socket buffer size, in bytes */
+#define SKAL_NET_DEFAULT_BUFSIZE_B (128 * 1024)
+
+
+/** Minimum socket buffer size, in bytes */
+#define SKAL_NET_MIN_BUFSIZE_B 2048
+
+
+/** Maximum socket buffer size, in bytes */
+#define SKAL_NET_MAX_BUFSIZE_B 212992
+
+
 
 /* @} */
 #endif /* SKAL_CFG_h_ */

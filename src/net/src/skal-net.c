@@ -34,13 +34,6 @@
  +----------------*/
 
 
-/** Minimum value for a socket buffer size */
-#define SKAL_NET_MIN_BUFSIZE_B 2048
-
-/** Maximum value for a socket buffer size */
-#define SKAL_NET_MAX_BUFSIZE_B 212992
-
-
 /** Item for the `skalNetSocket.cnxLessClients` map
  *
  * NB: We don't keep track of references, because these items are only stored in
@@ -90,11 +83,8 @@ struct SkalNet {
  +-------------------------------*/
 
 
-/** Crop the given socket buffer size value
- *
- * The
- */
-static int skalNetCropBufsize_B(int bufsize_B);
+/** Get a sensible buffer size from a caller-supplied value */
+static int skalNetGetBufsize_B(int bufsize_B);
 
 
 /** Compare two keys of the connection-less client map */
@@ -500,7 +490,7 @@ int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
     c->domain = domain;
     c->type = type;
     c->protocol = protocol;
-    c->bufsize_B = skalNetCropBufsize_B(bufsize_B);
+    c->bufsize_B = skalNetGetBufsize_B(bufsize_B);
     if (SOCK_DGRAM == type) {
         c->isCnxLess = true;
         c->timeout_us = timeout_us;
@@ -692,13 +682,13 @@ bool SkalNetSocketDestroy(SkalNet* net, int sockid)
  +-------------------------------------*/
 
 
-static int skalNetCropBufsize_B(int bufsize_B)
+static int skalNetGetBufsize_B(int bufsize_B)
 {
-    if (bufsize_B < SKAL_NET_MIN_BUFSIZE_B) {
-        bufsize_B = SKAL_NET_MIN_BUFSIZE_B;
-    } else if (bufsize_B > SKAL_NET_MAX_BUFSIZE_B) {
-        bufsize_B = SKAL_NET_MAX_BUFSIZE_B;
+    if (bufsize_B <= 0) {
+        bufsize_B = SKAL_NET_DEFAULT_BUFSIZE_B;
     }
+    SKALASSERT(bufsize_B >= SKAL_NET_MIN_BUFSIZE_B);
+    SKALASSERT(bufsize_B <= SKAL_NET_MAX_BUFSIZE_B);
     return bufsize_B;
 }
 
@@ -839,7 +829,7 @@ static int skalNetCreatePipe(SkalNet* net, int bufsize_B, void* context)
     s->type = SOCK_STREAM;
     s->protocol = 0;
     s->isServer = true;
-    s->bufsize_B = skalNetCropBufsize_B(bufsize_B);
+    s->bufsize_B = skalNetGetBufsize_B(bufsize_B);
     s->context = context;
 
     (void)skalNetNewComm(net, sockid, fds[1], NULL);
@@ -876,7 +866,7 @@ static int skalNetCreateServer(SkalNet* net, int domain, int type,
     s->protocol = protocol;
     s->isServer = true;
     s->isCnxLess = (SOCK_DGRAM == type);
-    s->bufsize_B = skalNetCropBufsize_B(bufsize_B);
+    s->bufsize_B = skalNetGetBufsize_B(bufsize_B);
     if (s->isCnxLess) {
         if (extra > 0) {
             s->timeout_us = extra;
@@ -982,16 +972,17 @@ static void skalNetSelect(SkalNet* net)
         count = 0;
     }
 
+    // NB: `net->sockets` may be reallocated in this loop, so we have to make
+    // sure we always access it directly.
     for (int sockid = 0; (sockid < net->nsockets) && (count > 0); sockid++) {
-        skalNetSocket* s = &(net->sockets[sockid]);
-        if (s->fd >= 0) {
-            if (FD_ISSET(s->fd, &readfds)) {
+        if (net->sockets[sockid].fd >= 0) {
+            if (FD_ISSET(net->sockets[sockid].fd, &readfds)) {
                 skalNetHandleIn(net, sockid);
             }
-            if (FD_ISSET(s->fd, &writefds)) {
+            if (FD_ISSET(net->sockets[sockid].fd, &writefds)) {
                 skalNetHandleOut(net, sockid);
             }
-            if (FD_ISSET(s->fd, &exceptfds)) {
+            if (FD_ISSET(net->sockets[sockid].fd, &exceptfds)) {
                 skalNetHandleExcept(net, sockid);
             }
             count--;

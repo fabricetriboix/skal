@@ -18,21 +18,24 @@
 #include "rttest.h"
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 
 static RTBool skalNetTestGroupEntry(void)
 {
     SkalPlfInit();
+    unlink("test.sock");
     return RTTrue;
 }
 
 static RTBool skalNetTestGroupExit(void)
 {
     SkalPlfExit();
+    unlink("test.sock");
     return RTTrue;
 }
 
-RTT_GROUP_START(TestNetBasic, 0x000110001u,
+RTT_GROUP_START(TestNetBasic, 0x00110001u,
         skalNetTestGroupEntry, skalNetTestGroupExit)
 
 static SkalNet* gNet = NULL;
@@ -74,7 +77,7 @@ RTT_GROUP_END(TestNetBasic,
         skal_net_basic_should_destroy_set)
 
 
-RTT_GROUP_START(TestNetPipe, 0x000110002u,
+RTT_GROUP_START(TestNetPipe, 0x00110002u,
         skalNetTestGroupEntry, skalNetTestGroupExit)
 
 static int gServerSockid = -1;
@@ -104,6 +107,7 @@ RTT_TEST_START(skal_net_pipe_should_have_created_client)
     RTT_ASSERT((void*)0xcafedeca == event->context);
     gClientSockid = event->conn.commSockid;
     RTT_ASSERT(gClientSockid >= 0);
+    SkalNetEventUnref(event);
 }
 RTT_TEST_END
 
@@ -134,6 +138,7 @@ RTT_TEST_START(skal_net_pipe_should_receive_data)
         memcpy(buffer + index, event->in.data, event->in.size_B);
         index += event->in.size_B;
         count -= event->in.size_B;
+        SkalNetEventUnref(event);
     }
     RTT_EXPECT(strncmp(buffer, "Hello, World!", sizeof(buffer)) == 0);
 }
@@ -146,7 +151,6 @@ RTT_TEST_START(skal_net_pipe_should_destroy_set)
 }
 RTT_TEST_END
 
-
 RTT_GROUP_END(TestNetPipe,
         skal_net_pipe_should_create_set,
         skal_net_pipe_should_create_server,
@@ -154,3 +158,137 @@ RTT_GROUP_END(TestNetPipe,
         skal_net_pipe_should_send_data,
         skal_net_pipe_should_receive_data,
         skal_net_pipe_should_destroy_set)
+
+
+RTT_GROUP_START(TestNetUnixStream, 0x00110003u,
+        skalNetTestGroupEntry, skalNetTestGroupExit)
+
+static SkalNet* gCommNet = NULL;
+static int gCommSockid = -1;
+
+RTT_TEST_START(skal_net_unix_stream_should_create_sets)
+{
+    gNet = SkalNetCreate(0);
+    RTT_ASSERT(gNet != NULL);
+
+    gCommNet = SkalNetCreate(0);
+    RTT_ASSERT(gCommNet != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_create_server)
+{
+    SkalNetAddr addr;
+    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
+    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_UNIX_STREAM,
+            &addr, 0, gNet, 0);
+    RTT_ASSERT(gServerSockid >= 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_create_client)
+{
+    SkalNetAddr addr;
+    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
+    gCommSockid = SkalNetCommCreate(gCommNet, SKAL_NET_TYPE_UNIX_STREAM,
+            NULL, &addr, 0, (void*)0xdeadbabe, 0);
+    RTT_ASSERT(gCommSockid >= 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_recv_conn_ev)
+{
+    usleep(1000);
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
+    RTT_ASSERT(gServerSockid == event->sockid);
+    RTT_ASSERT(gNet == event->context);
+    gClientSockid = event->conn.commSockid;
+    RTT_ASSERT(gClientSockid >= 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_recv_estab_ev)
+{
+    usleep(1000);
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
+    RTT_ASSERT(gCommSockid == event->sockid);
+    RTT_ASSERT((void*)0xdeadbabe == event->context);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_close_server)
+{
+    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    gServerSockid = -1;
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_send_ping)
+{
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gCommNet,
+            gCommSockid, "ping", 5);
+    RTT_ASSERT(SKAL_NET_SEND_OK == result);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_recv_ping)
+{
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_IN == event->type);
+    RTT_ASSERT(gClientSockid == event->sockid);
+    RTT_ASSERT(5 == event->in.size_B);
+    RTT_ASSERT(event->in.data != NULL);
+    RTT_EXPECT(strcmp("ping", event->in.data) == 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_send_pong)
+{
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
+            gClientSockid, "pong", 5);
+    RTT_ASSERT(SKAL_NET_SEND_OK == result);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_recv_pong)
+{
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_IN == event->type);
+    RTT_ASSERT(gCommSockid == event->sockid);
+    RTT_ASSERT(5 == event->in.size_B);
+    RTT_ASSERT(event->in.data != NULL);
+    RTT_EXPECT(strcmp("pong", event->in.data) == 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_stream_should_destroy_sets)
+{
+    SkalNetDestroy(gNet);
+    SkalNetDestroy(gCommNet);
+    gNet = NULL;
+    gCommNet = NULL;
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestNetUnixStream,
+        skal_net_unix_stream_should_create_sets,
+        skal_net_unix_stream_should_create_server,
+        skal_net_unix_stream_should_create_client,
+        skal_net_unix_stream_should_recv_conn_ev,
+        skal_net_unix_stream_should_recv_estab_ev,
+        skal_net_unix_stream_should_close_server,
+        skal_net_unix_stream_should_send_ping,
+        skal_net_unix_stream_should_recv_ping,
+        skal_net_unix_stream_should_send_pong,
+        skal_net_unix_stream_should_recv_pong,
+        skal_net_unix_stream_should_destroy_sets)
