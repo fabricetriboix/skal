@@ -52,7 +52,7 @@ RTT_TEST_START(skal_net_basic_should_print_ip4)
 {
     char buffer[32];
     SkalNetIp4ToString(0xDEADBEEF, buffer, sizeof(buffer));
-    RTT_EXPECT(strcmp(buffer, "222.173.190.239") == 0);
+    RTT_EXPECT(strncmp(buffer, "222.173.190.239", sizeof(buffer)) == 0);
 }
 RTT_TEST_END
 
@@ -245,7 +245,7 @@ RTT_TEST_START(skal_net_unix_stream_should_recv_ping)
     RTT_ASSERT(gClientSockid == event->sockid);
     RTT_ASSERT(5 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strcmp("ping", event->in.data) == 0);
+    RTT_EXPECT(strncmp("ping", event->in.data, 5) == 0);
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -266,7 +266,7 @@ RTT_TEST_START(skal_net_unix_stream_should_recv_pong)
     RTT_ASSERT(gCommSockid == event->sockid);
     RTT_ASSERT(5 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strcmp("pong", event->in.data) == 0);
+    RTT_EXPECT(strncmp("pong", event->in.data, 5) == 0);
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -277,6 +277,9 @@ RTT_TEST_START(skal_net_unix_stream_should_destroy_sets)
     SkalNetDestroy(gCommNet);
     gNet = NULL;
     gCommNet = NULL;
+    gServerSockid = -1;
+    gClientSockid = -1;
+    gCommSockid = -1;
 }
 RTT_TEST_END
 
@@ -292,3 +295,160 @@ RTT_GROUP_END(TestNetUnixStream,
         skal_net_unix_stream_should_send_pong,
         skal_net_unix_stream_should_recv_pong,
         skal_net_unix_stream_should_destroy_sets)
+
+
+RTT_GROUP_START(TestNetUnixDgram, 0x00110004u,
+        skalNetTestGroupEntry, skalNetTestGroupExit)
+
+RTT_TEST_START(skal_net_unix_dgram_should_create_sets)
+{
+    gNet = SkalNetCreate(0);
+    RTT_ASSERT(gNet != NULL);
+
+    gCommNet = SkalNetCreate(-1);
+    RTT_ASSERT(gCommNet != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_create_server)
+{
+    SkalNetAddr addr;
+    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
+    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_UNIX_DGRAM,
+            &addr, 0, gNet, 0);
+    RTT_ASSERT(gServerSockid >= 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_create_client)
+{
+    SkalNetAddr addr;
+    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
+    gCommSockid = SkalNetCommCreate(gCommNet, SKAL_NET_TYPE_UNIX_DGRAM,
+            NULL, &addr, 0, (void*)0xdeadbabe, 0);
+    RTT_ASSERT(gCommSockid >= 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_recv_estab_ev)
+{
+    usleep(1000);
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
+    RTT_ASSERT(gCommSockid == event->sockid);
+    RTT_ASSERT((void*)0xdeadbabe == event->context);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_send_hello)
+{
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gCommNet,
+            gCommSockid, "Hello, ", 7);
+    RTT_ASSERT(SKAL_NET_SEND_OK == result);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_send_world)
+{
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gCommNet,
+            gCommSockid, "World!", 7);
+    RTT_ASSERT(SKAL_NET_SEND_OK == result);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_recv_conn_ev)
+{
+    usleep(1000);
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
+    RTT_ASSERT(gServerSockid == event->sockid);
+    RTT_ASSERT(gNet == event->context);
+    gClientSockid = event->conn.commSockid;
+    RTT_ASSERT(gClientSockid >= 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_close_server)
+{
+    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    gServerSockid = -1;
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_recv_hello)
+{
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_IN == event->type);
+    RTT_ASSERT(gClientSockid == event->sockid);
+    RTT_ASSERT(7 == event->in.size_B);
+    RTT_ASSERT(event->in.data != NULL);
+    RTT_EXPECT(strncmp("Hello, ", event->in.data, 7) == 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_recv_world)
+{
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_IN == event->type);
+    RTT_ASSERT(gClientSockid == event->sockid);
+    RTT_ASSERT(7 == event->in.size_B);
+    RTT_ASSERT(event->in.data != NULL);
+    RTT_EXPECT(strncmp("World!", event->in.data, 8) == 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_send_hi)
+{
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
+            gClientSockid, "hi", 3);
+    RTT_ASSERT(SKAL_NET_SEND_OK == result);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_recv_hi)
+{
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_IN == event->type);
+    RTT_ASSERT(gCommSockid == event->sockid);
+    RTT_ASSERT(3 == event->in.size_B);
+    RTT_ASSERT(event->in.data != NULL);
+    RTT_EXPECT(strncmp("hi", event->in.data, 3) == 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_unix_dgram_should_destroy_sets)
+{
+    SkalNetDestroy(gNet);
+    SkalNetDestroy(gCommNet);
+    gNet = NULL;
+    gCommNet = NULL;
+    gServerSockid = -1;
+    gClientSockid = -1;
+    gCommSockid = -1;
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestNetUnixDgram,
+        skal_net_unix_dgram_should_create_sets,
+        skal_net_unix_dgram_should_create_server,
+        skal_net_unix_dgram_should_create_client,
+        skal_net_unix_dgram_should_recv_estab_ev,
+        skal_net_unix_dgram_should_send_hello,
+        skal_net_unix_dgram_should_send_world,
+        skal_net_unix_dgram_should_recv_conn_ev,
+        skal_net_unix_dgram_should_close_server,
+        skal_net_unix_dgram_should_recv_hello,
+        skal_net_unix_dgram_should_recv_world,
+        skal_net_unix_dgram_should_send_hi,
+        skal_net_unix_dgram_should_recv_hi,
+        skal_net_unix_dgram_should_destroy_sets)

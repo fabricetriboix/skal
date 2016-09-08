@@ -254,7 +254,7 @@ void SkalPlfThreadGetName(char* buffer, int size)
     SKALASSERT(size > 0);
     int ret = pthread_getname_np(pthread_self(), buffer, size);
     if (ret != 0) {
-        snprintf(buffer, size, "%d", (int)syscall(SYS_gettid));
+        snprintf(buffer, size, "%d", SkalPlfTid());
     }
 }
 
@@ -269,4 +269,22 @@ void SkalPlfThreadSetSpecific(void* value)
 void* SkalPlfThreadGetSpecific(void)
 {
     return pthread_getspecific(gKey);
+}
+
+
+int SkalPlfTid(void)
+{
+    return (int)syscall(SYS_gettid);
+}
+
+
+const char* SkalPlfTmpDir(void)
+{
+    return "/tmp";
+}
+
+
+char SkalPlfDirSep(void)
+{
+    return '/';
 }

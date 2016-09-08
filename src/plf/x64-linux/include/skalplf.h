@@ -286,6 +286,22 @@ void SkalPlfThreadSetSpecific(void* value);
 void* SkalPlfThreadGetSpecific(void);
 
 
+/** Get the pid or tid of the current thread */
+int SkalPlfTid(void);
+
+
+/** Path to system-wide temporary directory
+ *
+ * @return Absolute path to system-wide temporary directory; this function never
+ *         returns NULL
+ */
+const char* SkalPlfTmpDir(void);
+
+
+/** Directory separator character */
+char SkalPlfDirSep(void);
+
+
 
 /* @} */
 #endif /* SKAL_PLF_h_ */

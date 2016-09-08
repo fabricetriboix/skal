@@ -49,7 +49,6 @@ typedef struct {
 /** Structure representing a single socket (or pipe end) */
 typedef struct {
     int     fd;             // File descriptor
-    int     fdRef;          // Reference counter to the file descriptor
     int     domain;         // As in the call to `socket(2)`, or -1 for pipes
     int     type;           // As in the call to `socket(2)`
     int     protocol;       // As in the call to `socket(2)`
@@ -65,6 +64,7 @@ typedef struct {
     CdsMap* cnxLessClients; // Cnx-less server socket: map of clients sockets,
                             //  items are of type `skalNetCnxLessClientItem`,
                             //  and keys are of type `SkalNetAddr`
+    char*   localPath;      // Cnx-less UNIX socket: local path bound to
     SkalNetAddr peer;       // Comm socket: Address of peer
 } skalNetSocket;
 
@@ -493,21 +493,25 @@ int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
     c->bufsize_B = skalNetGetBufsize_B(bufsize_B);
     if (SOCK_DGRAM == type) {
         c->isCnxLess = true;
-        c->timeout_us = timeout_us;
+        if (timeout_us > 0) {
+            c->timeout_us = timeout_us;
+        } else {
+            c->timeout_us = SKAL_NET_DEFAULT_TIMEOUT_us;
+        }
+        c->lastActivity_us = SkalPlfNow_ns() / 1000LL;
     }
     c->peer = *remoteAddr;
     c->context = context;
 
-    // Create the socket and enable address reuse.
+    // Create the socket and enable address reuse
     int fd = socket(domain, type, protocol);
     c->fd = fd;
-    c->fdRef = 1;
     int optval = 1;
     int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
     SKALASSERT(ret != -1);
 
     // Make stream-oriented sockets non-blocking (so the calling thread is not
-    // blocked while it is trying to connect).
+    // blocked while it is trying to connect)
     if (SOCK_STREAM == type) {
         int flags = fcntl(fd, F_GETFL);
         SKALASSERT(flags != -1);
@@ -516,12 +520,32 @@ int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
         SKALASSERT(0 == ret);
     }
 
-    // Bind the socket if requested
-    struct sockaddr sa;
-    if ((localAddr != NULL) && (domain != AF_UNIX)) {
-        // NB: It doesn't make sense to bind a UNIX client socket
-        socklen_t len = skalNetAddrToPosix(domain, localAddr, &sa);
-        ret = bind(fd, &sa, len);
+    // Bind the socket if requested; NB: we always bind UNIX sockets
+    // NB: We use `struct sockaddr_un` as a generic storage for socket addresses
+    // because neither `struct sockaddr` nor `struct sockaddr_storage` are large
+    // enough to store a UNIX socket address.
+    struct sockaddr_un sun;
+    struct sockaddr* sa = (struct sockaddr*)&sun;
+    if ((localAddr != NULL) || (AF_UNIX == domain)) {
+        socklen_t len;
+        if (AF_UNIX == domain) {
+            // Generate a unique, random, path for the comm socket to bind to
+            // NB: We require this so that each connnection-less UNIX comm
+            // socket can be distinguished by the server socket.
+            snprintf(   sun.sun_path, sizeof(sun.sun_path),
+                        "%s%cskal-%d-%016llx-%08lx.sock",
+                        SkalPlfTmpDir(),
+                        SkalPlfDirSep(),
+                        SkalPlfTid(),
+                        (unsigned long long)SkalPlfNow_ns(),
+                        (unsigned long)SkalPlfRandomU32());
+            sun.sun_family = AF_UNIX;
+            len = sizeof(sun);
+            c->localPath = strdup(sun.sun_path);
+        } else {
+            len = skalNetAddrToPosix(domain, localAddr, sa);
+        }
+        ret = bind(fd, sa, len);
         SKALASSERT(0 == ret);
     }
 
@@ -533,30 +557,27 @@ int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
             &c->bufsize_B, sizeof(c->bufsize_B));
     SKALASSERT(0 == ret);
 
-    // Initiate the connection (only for connection-oriented sockets)
-    if (!(c->isCnxLess)) {
-        socklen_t len = skalNetAddrToPosix(domain, remoteAddr, &sa);
-        ret = connect(fd, &sa, len);
-        if (ret < 0) {
-            SKALASSERT(EINPROGRESS == errno);
-            c->isInProgress = true;
-        } else {
-            // Connection has been established immediately; this would be
-            // unusual (except maybe for `AF_UNIX` sockets), but we handle the
-            // case nevertheless.
-            SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_ESTABLISHED,
-                    sockid);
-            bool inserted = CdsListPushBack(net->events, &event->item);
-            SKALASSERT(inserted);
+    socklen_t len = skalNetAddrToPosix(domain, remoteAddr, sa);
+    ret = connect(fd, sa, len);
+    if (ret < 0) {
+        SKALASSERT(EINPROGRESS == errno);
+        c->isInProgress = true;
+    } else {
+        // Connection has been established immediately; this would be
+        // unusual (except maybe for `AF_UNIX` sockets), but we handle the
+        // case nevertheless.
+        SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_ESTABLISHED,
+                sockid);
+        bool inserted = CdsListPushBack(net->events, &event->item);
+        SKALASSERT(inserted);
 
-            // Put the socket back in blocking mode
-            if (SOCK_STREAM == type) {
-                int flags = fcntl(fd, F_GETFL);
-                SKALASSERT(flags != -1);
-                flags &= ~O_NONBLOCK;
-                ret = fcntl(fd, F_SETFL, flags);
-                SKALASSERT(0 == ret);
-            }
+        // Put the socket back in blocking mode
+        if (SOCK_STREAM == type) {
+            int flags = fcntl(fd, F_GETFL);
+            SKALASSERT(flags != -1);
+            flags &= ~O_NONBLOCK;
+            ret = fcntl(fd, F_SETFL, flags);
+            SKALASSERT(0 == ret);
         }
     }
 
@@ -578,9 +599,9 @@ SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net)
         skalNetSocket* s = &(net->sockets[sockid]);
         if ((s->fd >= 0) && !(s->isServer) && s->isCnxLess) {
             if ((now_us - s->lastActivity_us) > s->timeout_us) {
-                SkalNetEvent* evdis = skalNetEventAllocate(SKAL_NET_EV_DISCONN,
-                        sockid);
-                bool inserted = CdsListPushBack(net->events, &evdis->item);
+                SkalNetEvent* evdisconn = skalNetEventAllocate(
+                        SKAL_NET_EV_DISCONN, sockid);
+                bool inserted = CdsListPushBack(net->events, &evdisconn->item);
                 SKALASSERT(inserted);
             }
         }
@@ -591,7 +612,12 @@ SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net)
         // We fill in the context at the last minute, in case the upper layer
         // changes (or sets) the context between the time the event is generated
         // and now.
-        event->context = net->sockets[event->sockid].context;
+        if (net->sockets[event->sockid].fd < 0) {
+            // Socket has been closed by upper layer => Drop the event
+            SkalNetEventUnref(event);
+        } else {
+            event->context = net->sockets[event->sockid].context;
+        }
     }
     return event;
 }
@@ -656,8 +682,17 @@ bool SkalNetSocketDestroy(SkalNet* net, int sockid)
     bool destroyed = false;
     skalNetSocket* s = &(net->sockets[sockid]);
     if (s->fd >= 0) {
-        s->fdRef--;
-        if (s->fdRef <= 0) {
+        // For connection-less server sockets, the fd is shared between the
+        // server and all the clients created out of this server.
+        bool canClose = true;
+        if (s->isCnxLess) {
+            for (int i = 0; (i < net->nsockets) && canClose; i++) {
+                if ((net->sockets[i].fd == s->fd) && (sockid != i)) {
+                    canClose = false;
+                }
+            }
+        }
+        if (canClose) {
             int ret = -1;
             while (ret < 0) {
                 ret = close(s->fd);
@@ -665,10 +700,15 @@ bool SkalNetSocketDestroy(SkalNet* net, int sockid)
                     SKALASSERT(EINTR == errno);
                 }
             }
-            s->fd = -1;
         }
+
+        s->fd = -1;
         if (s->cnxLessClients != NULL) {
             CdsMapDestroy(s->cnxLessClients);
+        }
+        if (s->localPath != NULL) {
+            unlink(s->localPath);
+            free(s->localPath);
         }
         destroyed = true;
     }
@@ -824,7 +864,6 @@ static int skalNetCreatePipe(SkalNet* net, int bufsize_B, void* context)
 
     skalNetSocket* s = &(net->sockets[sockid]);
     s->fd = fds[0];
-    s->fdRef = 1;
     s->domain = -1;
     s->type = SOCK_STREAM;
     s->protocol = 0;
@@ -889,16 +928,23 @@ static int skalNetCreateServer(SkalNet* net, int domain, int type,
     int fd = socket(domain, type, protocol);
     SKALASSERT(fd >= 0);
     s->fd = fd;
-    s->fdRef = 1;
     int optval = 1;
     int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
     SKALASSERT(ret != -1);
 
     // Bind the socket
-    struct sockaddr sa;
-    socklen_t len = skalNetAddrToPosix(domain, localAddr, &sa);
-    ret = bind(fd, &sa, len);
+    // NB: We use `struct sockaddr_un` as a generic storage for socket addresses
+    // because neither `struct sockaddr` nor `struct sockaddr_storage` are large
+    // enough to store a UNIX socket address.
+    struct sockaddr_un sun;
+    struct sockaddr* sa = (struct sockaddr*)&sun;
+    socklen_t len = skalNetAddrToPosix(domain, localAddr, sa);
+    ret = bind(fd, sa, len);
     SKALASSERT(0 == ret);
+    if (AF_UNIX == domain) {
+        // Ensure we delete the socket file when finished
+        s->localPath = strdup(localAddr->unix.path);
+    }
 
     if (s->isCnxLess) {
         // Set buffer size on connection-less server sockets, as they are used
@@ -1088,16 +1134,17 @@ static void skalNetHandleExcept(SkalNet* net, int sockid)
 static void skalNetAccept(SkalNet* net, int sockid)
 {
     skalNetSocket* s = &(net->sockets[sockid]);
-    struct sockaddr sa;
-    socklen_t len = sizeof(sa);
-    int fd = accept(s->fd, &sa, &len);
+    struct sockaddr_un sun;
+    socklen_t len = sizeof(sun);
+    struct sockaddr* sa = (struct sockaddr*)&sun;
+    int fd = accept(s->fd, sa, &len);
     if (fd < 0) {
         SKALASSERT(    (EINTR == errno)
                     || (ECONNABORTED == errno)
                     || (EPROTO == errno));
     } else {
         SkalNetAddr peer;
-        int domain = skalNetPosixToAddr(&sa, &peer);
+        int domain = skalNetPosixToAddr(sa, &peer);
         SKALASSERT(domain == s->domain);
 
         (void)skalNetNewComm(net, sockid, fd, &peer);
@@ -1113,7 +1160,6 @@ static int skalNetNewComm(SkalNet* net, int sockid, int fd,
     skalNetSocket* s = &(net->sockets[sockid]);
     skalNetSocket* c = &(net->sockets[commSockid]);
     c->fd = fd;
-    c->fdRef = 1;
     c->domain = s->domain;
     c->type = s->type;
     c->protocol = s->protocol;
@@ -1153,7 +1199,6 @@ static void* skalNetReadPacket(SkalNet* net, int sockid,
     SKALASSERT(sockid >= 0);
     SKALASSERT(sockid < net->nsockets);
     SKALASSERT(size_B != NULL);
-    SKALASSERT(sender != NULL);
 
     skalNetSocket* c = &(net->sockets[sockid]);
     SKALASSERT(c->fd >= 0);
@@ -1163,9 +1208,13 @@ static void* skalNetReadPacket(SkalNet* net, int sockid,
 
     int ret = -1;
     while (ret < 0) {
-        struct sockaddr sa;
-        socklen_t socklen;
-        ret = recvfrom(c->fd, data, c->bufsize_B, 0, &sa, &socklen);
+        // NB: We can't use `struct sockaddr` or `struct sockaddr_storage`
+        // because neither is large enough for UNIX addresses; so we use `struct
+        // sockaddr_un` as the generic storage for socket addresses.
+        struct sockaddr_un sun;
+        socklen_t socklen = sizeof(sun);
+        struct sockaddr* sa = (struct sockaddr*)&sun;
+        ret = recvfrom(c->fd, data, c->bufsize_B, 0, sa, &socklen);
         if (ret < 0) {
             SKALASSERT(EINTR == errno);
 
@@ -1180,7 +1229,7 @@ static void* skalNetReadPacket(SkalNet* net, int sockid,
 
         } else {
             if (sender != NULL) {
-                int domain = skalNetPosixToAddr(&sa, sender);
+                int domain = skalNetPosixToAddr(sa, sender);
                 SKALASSERT(domain == c->domain);
             }
             if (c->isCnxLess) {
@@ -1207,12 +1256,13 @@ static SkalNetSendResult skalNetSendPacket(SkalNet* net, int sockid,
     SKALASSERT(!(c->isServer));
     SKALASSERT(c->type != SOCK_STREAM);
 
-    struct sockaddr sa;
-    socklen_t socklen = skalNetAddrToPosix(c->domain, &c->peer, &sa);
+    struct sockaddr_un sun;
+    struct sockaddr* sa = (struct sockaddr*)&sun;
+    socklen_t socklen = skalNetAddrToPosix(c->domain, &c->peer, sa);
     SkalNetSendResult result = SKAL_NET_SEND_OK;
     bool done = false;
     while (!done) {
-        int ret = sendto(c->fd, data, size_B, MSG_NOSIGNAL, &sa, socklen);
+        int ret = sendto(c->fd, data, size_B, MSG_NOSIGNAL, sa, socklen);
         if (ret < 0) {
             switch (errno) {
             case EINTR :
@@ -1371,13 +1421,12 @@ static void skalNetHandleDataOnCnxLessServerSocket(SkalNet* net,
     if (NULL == client) {
         // This is the first time we are receiving data from this client
         int commSockid = skalNetNewComm(net, sockid, s->fd, sender);
-        net->sockets[commSockid].fdRef++; // `fd` is shared with server
-        net->sockets[commSockid].lastActivity_us = SkalPlfNow_ns() / 1000LL;
+        // NB: Careful! The previous call might have re-allocated `net->sockets`
 
         client = malloc(sizeof(*client));
         client->address = *sender;
         client->sockid = commSockid;
-        bool inserted = CdsMapInsert(s->cnxLessClients,
+        bool inserted = CdsMapInsert(net->sockets[sockid].cnxLessClients,
                 &client->address, &client->item);
         SKALASSERT(inserted);
     }
@@ -1387,4 +1436,6 @@ static void skalNetHandleDataOnCnxLessServerSocket(SkalNet* net,
     event->in.data = data;
     bool inserted = CdsListPushBack(net->events, &event->item);
     SKALASSERT(inserted);
+
+    net->sockets[client->sockid].lastActivity_us = SkalPlfNow_ns() / 1000LL;
 }
