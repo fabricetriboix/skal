@@ -611,3 +611,139 @@ RTT_GROUP_END(TestNetUnixSeqpkt,
         skal_net_unix_seqpkt_should_send_hi,
         skal_net_unix_seqpkt_should_recv_hi,
         skal_net_unix_seqpkt_should_destroy_sets)
+
+
+RTT_GROUP_START(TestNetTcp, 0x00110006u,
+        skalNetTestGroupEntry, skalNetTestGroupExit)
+
+RTT_TEST_START(skal_net_tcp_should_create_sets)
+{
+    gNet = SkalNetCreate(0);
+    RTT_ASSERT(gNet != NULL);
+
+    gCommNet = SkalNetCreate(0);
+    RTT_ASSERT(gCommNet != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_create_server)
+{
+    SkalNetAddr addr;
+    RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
+    addr.ip4.port = 5678;
+    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_IP4_TCP,
+            &addr, 0, NULL, 0);
+    RTT_ASSERT(gServerSockid >= 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_create_client)
+{
+    SkalNetAddr addr;
+    RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
+    addr.ip4.port = 5678;
+    gCommSockid = SkalNetCommCreate(gCommNet, SKAL_NET_TYPE_IP4_TCP,
+            NULL, &addr, 0, NULL, 0);
+    RTT_ASSERT(gCommSockid >= 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_recv_conn_ev)
+{
+    usleep(1000);
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
+    RTT_ASSERT(gServerSockid == event->sockid);
+    RTT_ASSERT(NULL == event->context);
+    gClientSockid = event->conn.commSockid;
+    RTT_ASSERT(gClientSockid >= 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_recv_estab_ev)
+{
+    usleep(1000);
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
+    RTT_ASSERT(gCommSockid == event->sockid);
+    RTT_ASSERT(NULL == event->context);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_close_server)
+{
+    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    gServerSockid = -1;
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_send_ping)
+{
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gCommNet,
+            gCommSockid, "ping", 5);
+    RTT_ASSERT(SKAL_NET_SEND_OK == result);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_recv_ping)
+{
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_IN == event->type);
+    RTT_ASSERT(gClientSockid == event->sockid);
+    RTT_ASSERT(5 == event->in.size_B);
+    RTT_ASSERT(event->in.data != NULL);
+    RTT_EXPECT(strncmp("ping", event->in.data, 5) == 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_send_pong)
+{
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
+            gClientSockid, "pong", 5);
+    RTT_ASSERT(SKAL_NET_SEND_OK == result);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_recv_pong)
+{
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
+    RTT_ASSERT(event != NULL);
+    RTT_ASSERT(SKAL_NET_EV_IN == event->type);
+    RTT_ASSERT(gCommSockid == event->sockid);
+    RTT_ASSERT(5 == event->in.size_B);
+    RTT_ASSERT(event->in.data != NULL);
+    RTT_EXPECT(strncmp("pong", event->in.data, 5) == 0);
+    SkalNetEventUnref(event);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_tcp_should_destroy_sets)
+{
+    SkalNetDestroy(gNet);
+    SkalNetDestroy(gCommNet);
+    gNet = NULL;
+    gCommNet = NULL;
+    gServerSockid = -1;
+    gClientSockid = -1;
+    gCommSockid = -1;
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestNetTcp,
+        skal_net_tcp_should_create_sets,
+        skal_net_tcp_should_create_server,
+        skal_net_tcp_should_create_client,
+        skal_net_tcp_should_recv_conn_ev,
+        skal_net_tcp_should_recv_estab_ev,
+        skal_net_tcp_should_close_server,
+        skal_net_tcp_should_send_ping,
+        skal_net_tcp_should_recv_ping,
+        skal_net_tcp_should_send_pong,
+        skal_net_tcp_should_recv_pong,
+        skal_net_tcp_should_destroy_sets)
