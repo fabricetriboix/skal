@@ -182,16 +182,15 @@ void SkalMsgRef(SkalMsg* msg)
     msg->ref++;
 
     // Reference attached blobs, if any
-    CdsMapIterator* iter = CdsMapIteratorCreate(msg->fields, true);
-    for (   CdsMapItem* item = CdsMapIteratorNext(iter, NULL);
+    CdsMapIteratorReset(msg->fields, true);
+    for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, NULL);
             item != NULL;
-            item = CdsMapIteratorNext(iter, NULL) ) {
+            item = CdsMapIteratorNext(msg->fields, NULL) ) {
         skalMsgData* data = (skalMsgData*)item;
         if (SKAL_MSG_DATA_TYPE_BLOB == data->type) {
             SkalBlobRef(data->blob);
         }
     }
-    CdsMapIteratorDestroy(iter);
 
     gMsgRefCount_DEBUG++;
 }
@@ -203,16 +202,15 @@ void SkalMsgUnref(SkalMsg* msg)
     msg->ref--;
 
     // Unreference attached blobs, if any
-    CdsMapIterator* iter = CdsMapIteratorCreate(msg->fields, true);
-    for (   CdsMapItem* item = CdsMapIteratorNext(iter, NULL);
+    CdsMapIteratorReset(msg->fields, true);
+    for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, NULL);
             item != NULL;
-            item = CdsMapIteratorNext(iter, NULL) ) {
+            item = CdsMapIteratorNext(msg->fields, NULL) ) {
         skalMsgData* data = (skalMsgData*)item;
         if (SKAL_MSG_DATA_TYPE_BLOB == data->type) {
             SkalBlobUnref(data->blob);
         }
     }
-    CdsMapIteratorDestroy(iter);
 
     gMsgRefCount_DEBUG--;
     if (msg->ref <= 0) {
@@ -421,14 +419,13 @@ char* SkalMsgToJson(const SkalMsg* msg)
             (unsigned int)SkalMsgFlags(msg),
             (unsigned int)SkalMsgInternalFlags(msg));
 
-    CdsMapIterator* iterator = CdsMapIteratorCreate(msg->fields, true);
+    CdsMapIteratorReset(msg->fields, true);
     void* key;
-    for (   CdsMapItem* item = CdsMapIteratorNext(iterator, &key);
+    for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, &key);
             item != NULL;
-            item = CdsMapIteratorNext(iterator, &key) ) {
+            item = CdsMapIteratorNext(msg->fields, &key) ) {
         skalFieldToJson(sb, (const char*)key, (skalMsgData*)item);
     }
-    CdsMapIteratorDestroy(iterator);
 
     SkalStringBuilderTrim(sb, 2);
     SkalStringBuilderAppend(sb, "\n ]\n}\n");
