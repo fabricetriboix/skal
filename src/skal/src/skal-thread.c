@@ -605,6 +605,7 @@ static void skalThreadRetryNtfXon(skalThreadPrivate* priv, int64_t now_us)
             SkalMsgAddString(msg, "origin", priv->thread->cfg.name);
             SkalMsgSetInternalFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
             SkalMsgSend(msg);
+            xoffItem->lastNtfXonTime_us = now_us;
         }
     }
 }
