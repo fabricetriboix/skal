@@ -498,7 +498,7 @@ int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
         } else {
             c->timeout_us = SKAL_NET_DEFAULT_TIMEOUT_us;
         }
-        c->lastActivity_us = SkalPlfNow_ns() / 1000LL;
+        c->lastActivity_us = SkalPlfNow_us();
     }
     c->peer = *remoteAddr;
     c->context = context;
@@ -594,7 +594,7 @@ SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net)
     }
 
     // Scan cnx-less comm sockets for timeouts
-    int64_t now_us = SkalPlfNow_ns() / 1000LL;
+    int64_t now_us = SkalPlfNow_us();
     for (int sockid = 0; sockid < net->nsockets; sockid++) {
         skalNetSocket* s = &(net->sockets[sockid]);
         if ((s->fd >= 0) && !(s->isServer) && s->isCnxLess) {
@@ -1233,7 +1233,7 @@ static void* skalNetReadPacket(SkalNet* net, int sockid,
                 SKALASSERT(domain == c->domain);
             }
             if (c->isCnxLess) {
-                c->lastActivity_us = SkalPlfNow_ns() / 1000LL;
+                c->lastActivity_us = SkalPlfNow_us();
             }
         }
     }
@@ -1284,7 +1284,7 @@ static SkalNetSendResult skalNetSendPacket(SkalNet* net, int sockid,
                 result = SKAL_NET_SEND_TRUNC;
             }
             if (c->isCnxLess) {
-                c->lastActivity_us = SkalPlfNow_ns() / 1000LL;
+                c->lastActivity_us = SkalPlfNow_us();
             }
         }
     }
@@ -1437,5 +1437,5 @@ static void skalNetHandleDataOnCnxLessServerSocket(SkalNet* net,
     bool inserted = CdsListPushBack(net->events, &event->item);
     SKALASSERT(inserted);
 
-    net->sockets[client->sockid].lastActivity_us = SkalPlfNow_ns() / 1000LL;
+    net->sockets[client->sockid].lastActivity_us = SkalPlfNow_us();
 }
