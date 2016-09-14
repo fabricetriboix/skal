@@ -39,8 +39,9 @@ typedef struct SkalQueue SkalQueue;
 /** Create a message queue
  *
  * @param name      [in] Queue name; must not be NULL
- * @param threshold [in] When to return `false` when enqueuing a message;
- *                       must be > 0
+ * @param threshold [in] When enqueuing a new message, `SkalQueuePush()` will
+ *                       return `false` if there are more than `threshold`
+ *                       messages currently enqueued; must be > 0
  *
  * @return The created message queue; this function never returns NULL
  */
@@ -79,9 +80,10 @@ void SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
 /** Pop a message from the queue
  *
  * This is a blocking function! Actually, this is the only blocking function in
- * the whole SKAL framework! If the queue is not empty, this function will pop
- * the message currently at the front of the queue. If the queue is empty, this
- * function will block until a message is pushed into it.
+ * the whole SKAL framework! (There are blocking functions in skal-net, but they
+ * should not block if used carefully). If the queue is not empty, this function
+ * will pop the message currently at the front of the queue. If the queue is
+ * empty, this function will block until a message is pushed into it.
  *
  * If the `internalOnly` argument is set, urgent and regular messages are
  * ignored, and only internal messages are popped. If no internal message is
@@ -101,12 +103,25 @@ void SkalQueuePush(SkalQueue* queue, SkalMsg* msg);
 SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue, bool internalOnly);
 
 
+/** Pop a message from the queue, non-blocking version
+ *
+ * This function works like `SkalQueuePop_BLOCKING()` except that it does not
+ * block and return NULL if the queue is empty.
+ *
+ * @param queue        [in,out] From where to pop a message
+ * @param internalOnly [in]     Whether to wait for internal messages only
+ *
+ * @return The popped message, or NULL if queue is empty
+ */
+SkalMsg* SkalQueuePop(SkalQueue* queue, bool internalOnly);
+
+
 /** Check if the queue is full (or more than full) */
-bool SkalQueueIsFull(const SkalQueue* queue);
+bool SkalQueueIsFullOrMore(const SkalQueue* queue);
 
 
 /** Check if the queue is half-full (or more than half-full) */
-bool SkalQueueIsHalfFull(const SkalQueue* queue);
+bool SkalQueueIsHalfFullOrMore(const SkalQueue* queue);
 
 
 

@@ -146,7 +146,26 @@ SkalMsg* SkalQueuePop_BLOCKING(SkalQueue* queue, bool internalOnly)
 }
 
 
-bool SkalQueueIsFull(const SkalQueue* queue)
+SkalMsg* SkalQueuePop(SkalQueue* queue, bool internalOnly)
+{
+    SKALASSERT(queue != NULL);
+
+    SkalPlfMutexLock(queue->mutex);
+    SkalMsg* msg = NULL;
+    if (!CdsListIsEmpty(queue->internal)) {
+        msg = (SkalMsg*)CdsListPopFront(queue->internal);
+    } else if (!CdsListIsEmpty(queue->urgent)) {
+        msg = (SkalMsg*)CdsListPopFront(queue->urgent);
+    } else {
+        msg = (SkalMsg*)CdsListPopFront(queue->regular);
+    }
+    SkalPlfMutexUnlock(queue->mutex);
+
+    return msg;
+}
+
+
+bool SkalQueueIsFullOrMore(const SkalQueue* queue)
 {
     SKALASSERT(queue != NULL);
     SKALASSERT(queue->threshold > 0);
@@ -160,7 +179,7 @@ bool SkalQueueIsFull(const SkalQueue* queue)
 }
 
 
-bool SkalQueueIsHalfFull(const SkalQueue* queue)
+bool SkalQueueIsHalfFullOrMore(const SkalQueue* queue)
 {
     SKALASSERT(queue != NULL);
     SKALASSERT(queue->threshold > 0);
