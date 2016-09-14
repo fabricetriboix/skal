@@ -125,6 +125,15 @@ int64_t SkalPlfNow_ns()
 }
 
 
+int64_t SkalPlfNow_us()
+{
+    struct timespec ts;
+    int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    SKALASSERT(ret == 0);
+    return ((int64_t)ts.tv_sec * 100000LL) + ((int64_t)ts.tv_nsec / 1000LL);
+}
+
+
 SkalPlfMutex* SkalPlfMutexCreate(void)
 {
     SkalPlfMutex* mutex = malloc(sizeof(*mutex));
