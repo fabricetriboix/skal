@@ -286,6 +286,9 @@ typedef struct
     /** Size of the stack for this thread; if <= 0, use OS default */
     int32_t stackSize_B;
 
+    /** How long to wait before retrying to send; <=0 for default value */
+    int64_t xoffTimeout_us;
+
     /** TODO */
     int statsCount;
 } SkalThreadCfg;

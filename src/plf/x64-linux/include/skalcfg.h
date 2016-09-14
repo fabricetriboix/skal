@@ -56,6 +56,10 @@
 #define SKAL_XOFF_MAX 1000
 
 
+/** Default XOFF timeout (how long to wait before retrying to send) */
+#define SKAL_DEFAULT_XOFF_TIMEOUT_us 50000
+
+
 /** Default queue threshold */
 #define SKAL_DEFAULT_QUEUE_THRESHOLD 100
 

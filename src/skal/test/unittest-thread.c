@@ -161,7 +161,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_stress_should_have_sent_and_recv_100_msg)
 {
-    usleep(10000); // give enough time to send and process 100 messages
+    usleep(50000); // give enough time to send and process 100 messages
     RTT_EXPECT(100 == gMsgSend);
     RTT_EXPECT(100 == gMsgRecv);
     RTT_EXPECT(0 == gError);
