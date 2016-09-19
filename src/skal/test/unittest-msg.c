@@ -151,6 +151,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
     // NB: Fields will be ordered by name
     const char* expected =
         "{\n"
+        " \"version\": 1,\n"
         " \"type\": \"TestType\",\n"
         " \"sender\": \"TestThread\",\n"
         " \"recipient\": \"dummy-dst\",\n"

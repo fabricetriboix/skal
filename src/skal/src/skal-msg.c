@@ -405,6 +405,7 @@ char* SkalMsgToJson(const SkalMsg* msg)
     SkalStringBuilder* sb = SkalStringBuilderCreate(SKAL_JSON_INITIAL_CAPACITY);
     SkalStringBuilderAppend(sb,
             "{\n"
+            " \"version\": %d,\n"
             " \"type\": \"%s\",\n"
             " \"sender\": \"%s\",\n"
             " \"recipient\": \"%s\",\n"
@@ -412,6 +413,7 @@ char* SkalMsgToJson(const SkalMsg* msg)
             " \"flags\": %u,\n"
             " \"iflags\": %u,\n"
             " \"fields\": [\n",
+            (int)SKAL_MSG_VERSION,
             SkalMsgType(msg),
             SkalMsgSender(msg),
             SkalMsgRecipient(msg),

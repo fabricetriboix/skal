@@ -26,6 +26,10 @@
  +----------------*/
 
 
+/** Version number of the message format */
+#define SKAL_MSG_VERSION 1
+
+
 /** Message flag: super-urgent message; reserved for SKAL internal use */
 #define SKAL_MSG_IFLAG_INTERNAL 0x80
 
