@@ -113,7 +113,7 @@ static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
         }
         gMsgRecv++;
     }
-    usleep(1);
+    usleep(100);
     return true;
 }
 
@@ -125,7 +125,7 @@ static bool testStufferProcessMsg(void* cookie, SkalMsg* msg)
         SkalMsgSend(msg2);
         gMsgSend++;
 
-        if (gMsgSend < 100) {
+        if (gMsgSend < 1000) {
             // Send a message to myself to keep going
             SkalMsg* msg3 = SkalMsgCreate("kick", "stuffer", 0, NULL);
             SkalMsgSend(msg3);
@@ -161,9 +161,16 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_stress_should_have_sent_and_recv_100_msg)
 {
-    usleep(50000); // give enough time to send and process 100 messages
-    RTT_EXPECT(100 == gMsgSend);
-    RTT_EXPECT(100 == gMsgRecv);
+    // Give enough time to send and process 1000 messages
+    for (int i = 0; i < 10000; i++) {
+        usleep(1000);
+        if (gMsgRecv >= 1000) {
+            break;
+        }
+    }
+
+    RTT_EXPECT(1000 == gMsgSend);
+    RTT_EXPECT(1000 == gMsgRecv);
     RTT_EXPECT(0 == gError);
 }
 RTT_TEST_END

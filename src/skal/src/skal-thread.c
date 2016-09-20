@@ -459,7 +459,7 @@ static void skalThreadRun(void* arg)
         bool inXoff = false;
         if (!CdsMapIsEmpty(priv->xoff)) {
             // I have some `xoff` pending, so I am blocked
-            if (isMasterThread) {
+            if (!isMasterThread) {
                 // NB: The master thread should never block
                 inXoff = true;
             }
