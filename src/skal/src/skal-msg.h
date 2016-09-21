@@ -100,7 +100,7 @@ char* SkalMsgToJson(const SkalMsg* msg);
  * @return The newly created SKAL message, with its reference counter set to 1,
  *         or NULL if the JSON string is not valid.
  */
-// TODO SkalMsg* SkalMsgCreateFromJson(const char* json);
+SkalMsg* SkalMsgCreateFromJson(const char* json);
 
 
 /** DEBUG: Get the number of message references in this process

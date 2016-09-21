@@ -34,20 +34,20 @@
 
 
 typedef enum {
-    SKAL_MSG_DATA_TYPE_INT,
-    SKAL_MSG_DATA_TYPE_DOUBLE,
-    SKAL_MSG_DATA_TYPE_STRING,
-    SKAL_MSG_DATA_TYPE_MINIBLOB,
-    SKAL_MSG_DATA_TYPE_BLOB
-} skalMsgDataType;
+    SKAL_MSG_FIELD_TYPE_INT,
+    SKAL_MSG_FIELD_TYPE_DOUBLE,
+    SKAL_MSG_FIELD_TYPE_STRING,
+    SKAL_MSG_FIELD_TYPE_MINIBLOB,
+    SKAL_MSG_FIELD_TYPE_BLOB
+} skalMsgFieldType;
 
 
 typedef struct {
-    CdsMapItem      item;
-    int8_t          ref;
-    skalMsgDataType type;
-    int             size_B; // Used only for strings and miniblobs
-    char            name[SKAL_NAME_MAX];
+    CdsMapItem       item;
+    int8_t           ref;
+    skalMsgFieldType type;
+    int              size_B; // Used only for strings and miniblobs
+    char             name[SKAL_NAME_MAX];
     union {
         int64_t   i;
         double    d;
@@ -55,7 +55,7 @@ typedef struct {
         uint8_t*  miniblob;
         SkalBlob* blob;
     };
-} skalMsgData;
+} skalMsgField;
 
 
 struct SkalMsg
@@ -68,7 +68,7 @@ struct SkalMsg
     char        sender[SKAL_NAME_MAX];
     char        recipient[SKAL_NAME_MAX];
     char        marker[SKAL_NAME_MAX];
-    CdsMap*     fields; // Map of `skalMsgData`, indexed by field name
+    CdsMap*     fields; // Map of `skalMsgField`, indexed by field name
 };
 
 
@@ -78,16 +78,16 @@ struct SkalMsg
  +-------------------------------*/
 
 
-/** Allocate a message data item (aka a field) and add it to the `msg`
+/** Allocate a message field and add it to the `msg`
  *
  * @param msg  [in,out] Message the field will be added to
  * @param name [in]     Field name
  * @param type [in]     Field type
  *
- * @return The newly created datum; this function never returns NULL
+ * @return The newly created field; this function never returns NULL
  */
-static skalMsgData* skalAllocMsgData(SkalMsg* msg,
-        const char* name, skalMsgDataType type);
+static skalMsgField* skalAllocMsgField(SkalMsg* msg,
+        const char* name, skalMsgFieldType type);
 
 
 /** Function to unreference a field in a message field map */
@@ -96,7 +96,7 @@ static void skalFieldMapUnref(CdsMapItem* item);
 
 /** Function to append a field to a JSON string representing a message */
 static void skalFieldToJson(SkalStringBuilder* sb,
-        const char* name, const skalMsgData* data);
+        const char* name, const skalMsgField* field);
 
 
 
@@ -186,9 +186,9 @@ void SkalMsgRef(SkalMsg* msg)
     for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, NULL);
             item != NULL;
             item = CdsMapIteratorNext(msg->fields, NULL) ) {
-        skalMsgData* data = (skalMsgData*)item;
-        if (SKAL_MSG_DATA_TYPE_BLOB == data->type) {
-            SkalBlobRef(data->blob);
+        skalMsgField* field = (skalMsgField*)item;
+        if (SKAL_MSG_FIELD_TYPE_BLOB == field->type) {
+            SkalBlobRef(field->blob);
         }
     }
 
@@ -206,9 +206,9 @@ void SkalMsgUnref(SkalMsg* msg)
     for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, NULL);
             item != NULL;
             item = CdsMapIteratorNext(msg->fields, NULL) ) {
-        skalMsgData* data = (skalMsgData*)item;
-        if (SKAL_MSG_DATA_TYPE_BLOB == data->type) {
-            SkalBlobUnref(data->blob);
+        skalMsgField* field = (skalMsgField*)item;
+        if (SKAL_MSG_FIELD_TYPE_BLOB == field->type) {
+            SkalBlobUnref(field->blob);
         }
     }
 
@@ -257,25 +257,27 @@ const char* SkalMsgMarker(const SkalMsg* msg)
 
 void SkalMsgAddInt(SkalMsg* msg, const char* name, int64_t i)
 {
-    skalMsgData* data = skalAllocMsgData(msg, name, SKAL_MSG_DATA_TYPE_INT);
-    data->i = i;
+    skalMsgField* field = skalAllocMsgField(msg, name, SKAL_MSG_FIELD_TYPE_INT);
+    field->i = i;
 }
 
 
 void SkalMsgAddDouble(SkalMsg* msg, const char* name, double d)
 {
-    skalMsgData* data = skalAllocMsgData(msg, name, SKAL_MSG_DATA_TYPE_DOUBLE);
-    data->d = d;
+    skalMsgField* field = skalAllocMsgField(msg, name,
+            SKAL_MSG_FIELD_TYPE_DOUBLE);
+    field->d = d;
 }
 
 
 void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s)
 {
     SKALASSERT(s != NULL);
-    skalMsgData* data = skalAllocMsgData(msg, name, SKAL_MSG_DATA_TYPE_STRING);
-    data->size_B = strlen(s) + 1;
-    data->s = SkalMallocZ(data->size_B);
-    memcpy(data->s, s, data->size_B);
+    skalMsgField* field = skalAllocMsgField(msg, name,
+            SKAL_MSG_FIELD_TYPE_STRING);
+    field->size_B = strlen(s) + 1;
+    field->s = SkalMallocZ(field->size_B);
+    memcpy(field->s, s, field->size_B);
 }
 
 
@@ -284,19 +286,20 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
 {
     SKALASSERT(miniblob != NULL);
     SKALASSERT(size_B > 0);
-    skalMsgData* data = skalAllocMsgData(msg, name,
-            SKAL_MSG_DATA_TYPE_MINIBLOB);
-    data->miniblob = SkalMalloc(size_B);
-    memcpy(data->miniblob, miniblob, size_B);
-    data->size_B = size_B;
+    skalMsgField* field = skalAllocMsgField(msg, name,
+            SKAL_MSG_FIELD_TYPE_MINIBLOB);
+    field->miniblob = SkalMalloc(size_B);
+    memcpy(field->miniblob, miniblob, size_B);
+    field->size_B = size_B;
 }
 
 
 void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
 {
     SKALASSERT(blob != NULL);
-    skalMsgData* data = skalAllocMsgData(msg, name, SKAL_MSG_DATA_TYPE_BLOB);
-    data->blob = blob;
+    skalMsgField* field = skalAllocMsgField(msg, name,
+            SKAL_MSG_FIELD_TYPE_BLOB);
+    field->blob = blob;
     SkalBlobRef(blob);
     SKALPANIC_MSG("Attaching blobs is not yet supported"); // TODO
 }
@@ -307,11 +310,11 @@ int64_t SkalMsgGetInt(const SkalMsg* msg, const char* name)
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
 
-    skalMsgData* data = (skalMsgData*)CdsMapSearch(msg->fields, (void*)name);
-    SKALASSERT(data != NULL);
-    SKALASSERT(SKAL_MSG_DATA_TYPE_INT == data->type);
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    SKALASSERT(field != NULL);
+    SKALASSERT(SKAL_MSG_FIELD_TYPE_INT == field->type);
 
-    return data->i;
+    return field->i;
 }
 
 
@@ -320,11 +323,11 @@ double SkalMsgGetDouble(const SkalMsg* msg, const char* name)
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
 
-    skalMsgData* data = (skalMsgData*)CdsMapSearch(msg->fields, (void*)name);
-    SKALASSERT(data != NULL);
-    SKALASSERT(SKAL_MSG_DATA_TYPE_DOUBLE == data->type);
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    SKALASSERT(field != NULL);
+    SKALASSERT(SKAL_MSG_FIELD_TYPE_DOUBLE == field->type);
 
-    return data->d;
+    return field->d;
 }
 
 
@@ -333,11 +336,11 @@ const char* SkalMsgGetString(const SkalMsg* msg, const char* name)
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
 
-    skalMsgData* data = (skalMsgData*)CdsMapSearch(msg->fields, (void*)name);
-    SKALASSERT(data != NULL);
-    SKALASSERT(SKAL_MSG_DATA_TYPE_STRING == data->type);
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    SKALASSERT(field != NULL);
+    SKALASSERT(SKAL_MSG_FIELD_TYPE_STRING == field->type);
 
-    return data->s;
+    return field->s;
 }
 
 
@@ -348,14 +351,14 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
     SKALASSERT(size_B != NULL);
 
-    skalMsgData* data = (skalMsgData*)CdsMapSearch(msg->fields, (void*)name);
-    SKALASSERT(data != NULL);
-    SKALASSERT(SKAL_MSG_DATA_TYPE_MINIBLOB == data->type);
-    SKALASSERT(data->size_B > 0);
-    SKALASSERT(data->miniblob != NULL);
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    SKALASSERT(field != NULL);
+    SKALASSERT(SKAL_MSG_FIELD_TYPE_MINIBLOB == field->type);
+    SKALASSERT(field->size_B > 0);
+    SKALASSERT(field->miniblob != NULL);
 
-    *size_B = data->size_B;
-    return data->miniblob;
+    *size_B = field->size_B;
+    return field->miniblob;
 }
 
 
@@ -364,11 +367,11 @@ SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
 
-    skalMsgData* data = (skalMsgData*)CdsMapSearch(msg->fields, (void*)name);
-    SKALASSERT(data != NULL);
-    SKALASSERT(SKAL_MSG_DATA_TYPE_BLOB == data->type);
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    SKALASSERT(field != NULL);
+    SKALASSERT(SKAL_MSG_FIELD_TYPE_BLOB == field->type);
 
-    SkalBlob* blob = data->blob;
+    SkalBlob* blob = field->blob;
     SKALASSERT(blob != NULL);
     SkalBlobRef(blob);
     return blob;
@@ -380,14 +383,14 @@ SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name)
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
 
-    skalMsgData* data = (skalMsgData*)CdsMapSearch(msg->fields, (void*)name);
-    SKALASSERT(data != NULL);
-    SKALASSERT(SKAL_MSG_DATA_TYPE_BLOB == data->type);
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    SKALASSERT(field != NULL);
+    SKALASSERT(SKAL_MSG_FIELD_TYPE_BLOB == field->type);
 
-    SkalBlob* blob = data->blob;
+    SkalBlob* blob = field->blob;
     SKALASSERT(blob != NULL);
     SkalBlobRef(blob);
-    CdsMapItemRemove(msg->fields, &data->item);
+    CdsMapItemRemove(msg->fields, &field->item);
     return blob;
 }
 
@@ -426,13 +429,20 @@ char* SkalMsgToJson(const SkalMsg* msg)
     for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, &key);
             item != NULL;
             item = CdsMapIteratorNext(msg->fields, &key) ) {
-        skalFieldToJson(sb, (const char*)key, (skalMsgData*)item);
+        skalFieldToJson(sb, (const char*)key, (skalMsgField*)item);
     }
 
     SkalStringBuilderTrim(sb, 2);
     SkalStringBuilderAppend(sb, "\n ]\n}\n");
 
     return SkalStringBuilderFinish(sb);
+}
+
+
+SkalMsg* SkalMsgCreateFromJson(const char* json)
+{
+    // TODO: from here
+    return NULL;
 }
 
 
@@ -448,51 +458,51 @@ int64_t SkalMsgRefCount_DEBUG(void)
  +----------------------------------*/
 
 
-static skalMsgData* skalAllocMsgData(SkalMsg* msg,
-        const char* name, skalMsgDataType type)
+static skalMsgField* skalAllocMsgField(SkalMsg* msg,
+        const char* name, skalMsgFieldType type)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
-    skalMsgData* data = SkalMallocZ(sizeof(*data));
-    data->ref = 1;
-    data->type = type;
-    strncpy(data->name, name, sizeof(data->name) - 1);
-    SKALASSERT(CdsMapInsert(msg->fields, data->name, &data->item));
-    return data;
+    skalMsgField* field = SkalMallocZ(sizeof(*field));
+    field->ref = 1;
+    field->type = type;
+    strncpy(field->name, name, sizeof(field->name) - 1);
+    SKALASSERT(CdsMapInsert(msg->fields, field->name, &field->item));
+    return field;
 }
 
 
 static void skalFieldMapUnref(CdsMapItem* item)
 {
-    skalMsgData* data = (skalMsgData*)item;
-    data->ref--;
-    if (data->ref <= 0) {
-        switch (data->type) {
-        case SKAL_MSG_DATA_TYPE_STRING :
-            free(data->s);
+    skalMsgField* field = (skalMsgField*)item;
+    field->ref--;
+    if (field->ref <= 0) {
+        switch (field->type) {
+        case SKAL_MSG_FIELD_TYPE_STRING :
+            free(field->s);
             break;
-        case SKAL_MSG_DATA_TYPE_MINIBLOB :
-            free(data->miniblob);
+        case SKAL_MSG_FIELD_TYPE_MINIBLOB :
+            free(field->miniblob);
             break;
-        case SKAL_MSG_DATA_TYPE_BLOB :
-            SkalBlobUnref(data->blob);
+        case SKAL_MSG_FIELD_TYPE_BLOB :
+            SkalBlobUnref(field->blob);
             break;
         default :
             break; // nothing to do
         }
-        free(data);
+        free(field);
     }
 }
 
 
 static void skalFieldToJson(SkalStringBuilder* sb,
-        const char* name, const skalMsgData* data)
+        const char* name, const skalMsgField* field)
 {
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
-    SKALASSERT(data != NULL);
+    SKALASSERT(field != NULL);
 
-    switch (data->type) {
-    case SKAL_MSG_DATA_TYPE_INT :
+    switch (field->type) {
+    case SKAL_MSG_FIELD_TYPE_INT :
         SkalStringBuilderAppend(sb,
                 "  {\n"
                 "   \"name\": \"%s\",\n"
@@ -500,10 +510,10 @@ static void skalFieldToJson(SkalStringBuilder* sb,
                 "   \"value\": %lld\n"
                 "  },\n",
                 name,
-                (long long)data->i);
+                (long long)field->i);
         break;
 
-    case SKAL_MSG_DATA_TYPE_DOUBLE :
+    case SKAL_MSG_FIELD_TYPE_DOUBLE :
         // *IMPORTANT* Take care how the double is converted into string such
         // that it does not lose precision. The `DECIMAL_DIG` macro exists in
         // C99 and is the number of digits needed in decimal representation
@@ -517,10 +527,10 @@ static void skalFieldToJson(SkalStringBuilder* sb,
                 "  },\n",
                 name,
                 (int)DECIMAL_DIG,
-                data->d);
+                field->d);
         break;
 
-    case SKAL_MSG_DATA_TYPE_STRING :
+    case SKAL_MSG_FIELD_TYPE_STRING :
         SkalStringBuilderAppend(sb,
                 "  {\n"
                 "   \"name\": \"%s\",\n"
@@ -528,12 +538,12 @@ static void skalFieldToJson(SkalStringBuilder* sb,
                 "   \"value\": \"%s\"\n"
                 "  },\n",
                 name,
-                data->s);
+                field->s);
         break;
 
-    case SKAL_MSG_DATA_TYPE_MINIBLOB :
+    case SKAL_MSG_FIELD_TYPE_MINIBLOB :
         {
-            char* base64 = SkalBase64Encode(data->miniblob, data->size_B);
+            char* base64 = SkalBase64Encode(field->miniblob, field->size_B);
             SkalStringBuilderAppend(sb,
                     "  {\n"
                     "   \"name\": \"%s\",\n"
@@ -546,7 +556,7 @@ static void skalFieldToJson(SkalStringBuilder* sb,
         }
         break;
 
-    case SKAL_MSG_DATA_TYPE_BLOB :
+    case SKAL_MSG_FIELD_TYPE_BLOB :
         SkalStringBuilderAppend(sb,
                 "  {\n"
                 "   \"name\": \"%s\",\n"
@@ -554,10 +564,10 @@ static void skalFieldToJson(SkalStringBuilder* sb,
                 "   \"value\": \"%s\"\n"
                 "  },\n",
                 name,
-                SkalBlobId(data->blob));
+                SkalBlobId(field->blob));
         break;
 
     default :
-        SKALPANIC_MSG("Unknown message data type %d", (int)data->type);
+        SKALPANIC_MSG("Unknown message data type %d", (int)field->type);
     }
 }
