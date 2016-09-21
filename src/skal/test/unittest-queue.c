@@ -50,7 +50,7 @@ RTT_TEST_START(skal_should_push_a_msg)
     SkalMsg* msg = SkalMsgCreate("TestMsg", "dst1", 0, NULL);
     RTT_ASSERT(msg != NULL);
     SkalQueuePush(gQueue, msg);
-    RTT_EXPECT(!SkalQueueIsFullOrMore(gQueue));
+    RTT_EXPECT(!SkalQueueIsOverHighThreshold(gQueue));
 }
 RTT_TEST_END
 
@@ -60,7 +60,7 @@ RTT_TEST_START(skal_should_push_an_urgent_msg_and_signal_full)
             SKAL_MSG_FLAG_URGENT, NULL);
     RTT_ASSERT(msg != NULL);
     SkalQueuePush(gQueue, msg);
-    RTT_EXPECT(SkalQueueIsFullOrMore(gQueue));
+    RTT_EXPECT(SkalQueueIsOverHighThreshold(gQueue));
 }
 RTT_TEST_END
 

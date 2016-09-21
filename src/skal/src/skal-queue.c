@@ -165,7 +165,7 @@ SkalMsg* SkalQueuePop(SkalQueue* queue, bool internalOnly)
 }
 
 
-bool SkalQueueIsFullOrMore(const SkalQueue* queue)
+bool SkalQueueIsOverHighThreshold(const SkalQueue* queue)
 {
     SKALASSERT(queue != NULL);
     SKALASSERT(queue->threshold > 0);
@@ -179,7 +179,7 @@ bool SkalQueueIsFullOrMore(const SkalQueue* queue)
 }
 
 
-bool SkalQueueIsHalfFullOrMore(const SkalQueue* queue)
+bool SkalQueueIsOverLowThreshold(const SkalQueue* queue)
 {
     SKALASSERT(queue != NULL);
     SKALASSERT(queue->threshold > 0);

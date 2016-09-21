@@ -117,11 +117,11 @@ SkalMsg* SkalQueuePop(SkalQueue* queue, bool internalOnly);
 
 
 /** Check if the queue is full (or more than full) */
-bool SkalQueueIsFullOrMore(const SkalQueue* queue);
+bool SkalQueueIsOverHighThreshold(const SkalQueue* queue);
 
 
 /** Check if the queue is half-full (or more than half-full) */
-bool SkalQueueIsHalfFullOrMore(const SkalQueue* queue);
+bool SkalQueueIsOverLowThreshold(const SkalQueue* queue);
 
 
 

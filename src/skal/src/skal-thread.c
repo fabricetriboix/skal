@@ -360,7 +360,7 @@ static bool skalMsgSendPriv(SkalMsg* msg, bool failToMaster)
 
     if (recipient != NULL) {
         SkalQueuePush(recipient->queue, msg);
-        if (    SkalQueueIsFullOrMore(recipient->queue)
+        if (    SkalQueueIsOverHighThreshold(recipient->queue)
              && !(SkalMsgInternalFlags(msg) & SKAL_MSG_IFLAG_INTERNAL)) {
             // Recipient queue is full and we are not sending an internal msg
             //  => Enter XOFF mode by sending an xoff msg to myself
@@ -474,7 +474,7 @@ static void skalThreadRun(void* arg)
         }
 
         if (    !CdsMapIsEmpty(priv->ntfXon)
-             && !SkalQueueIsHalfFullOrMore(thread->queue) ) {
+             && !SkalQueueIsOverLowThreshold(thread->queue) ) {
             // Some threads are waiting for my queue not to be full anymore
             skalThreadSendXon(priv);
         }
