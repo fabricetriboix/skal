@@ -200,6 +200,94 @@ RTT_TEST_START(skal_should_have_no_more_msg_ref_1)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_msg_should_create_from_json)
+{
+    const char* json =
+        "{\n"
+        " \"type\": \"SomeType\",\n"
+        " \"sender\": \"SomeThread\",\n"
+        " \"reci\\pient\": \"you\",\n"
+        " \"marker\": \"Some\\\"Marker\",\n"
+        " \"flags\": 3,\n"
+        " \"iflags\": 128,\n"
+        " \"version\": 1,\n"
+        " \"fields\": [\n"
+        "  {\n"
+        "   \"name\": \"SomeDouble\",\n"
+        "   \"value\": 3.456779999999999972715e+02,\n"
+        "   \"type\": \"double\",\n"
+        "  },\n"
+        "  {\n"
+        "   \"value\": \"ESIzRA==\",\n"
+        "   \"name\": \"SomeMiniblob\",\n"
+        "   \"type\": \"miniblob\",\n"
+        "  },\n"
+        "  {\n"
+        "   \"name\": \"SomeInt\",\n"
+        "   \"type\": \"int\",\n"
+        "   \"value\": -1789\n"
+        "  },\n"
+        "  {\n"
+        "   \"name\": \"SomeString\",\n"
+        "   \"type\": \"string\",\n"
+        "   \"value\": \"This is a test string2\"\n"
+        "  }\n"
+        " ]\n"
+        "}\n";
+
+    SkalMsg* msg = SkalMsgCreateFromJson(json);
+    RTT_EXPECT(msg != NULL);
+
+    const char* s = SkalMsgType(msg);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "SomeType") == 0);
+
+    s = SkalMsgSender(msg);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "SomeThread") == 0);
+
+    s = SkalMsgRecipient(msg);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "you") == 0);
+
+    uint8_t i = SkalMsgFlags(msg);
+    RTT_EXPECT(SKAL_MSG_FLAG_UDP == i);
+
+    i = SkalMsgIFlags(msg);
+    RTT_EXPECT(SKAL_MSG_IFLAG_INTERNAL == i);
+
+    s = SkalMsgMarker(msg);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "Some\"Marker") == 0);
+
+    RTT_EXPECT(SkalMsgHasField(msg, "SomeDouble"));
+    double d = SkalMsgGetDouble(gMsg, "SomeDouble");
+    double diff = d - 345.678;
+    if (diff < 0) {
+        diff = -diff;
+    }
+    RTT_EXPECT(diff < 0.00001);
+
+    RTT_EXPECT(SkalMsgHasField(msg, "SomeMiniblob"));
+    int size_B;
+    const uint8_t* data = SkalMsgGetMiniblob(gMsg, "SomeMiniblob", &size_B);
+    RTT_EXPECT(data != NULL);
+    RTT_EXPECT(4 == size_B);
+    uint8_t expected[4] = { 0x11, 0x22, 0x33, 0x44 };
+    RTT_EXPECT(memcmp(data, expected, sizeof(expected)) == 0);
+
+    RTT_EXPECT(SkalMsgHasField(msg, "SomeInt"));
+    RTT_EXPECT(SkalMsgGetInt(msg, "SomeInt") == -1789);
+
+    RTT_EXPECT(SkalMsgHasField(msg, "SomeString"));
+    s = SkalMsgGetString(msg, "SomeString");
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "This is a test string2") == 0);
+
+    SkalMsgUnref(msg);
+}
+RTT_TEST_END
+
 RTT_GROUP_END(TestSkalMsg,
         skal_should_create_msg,
         skal_msg_should_have_correct_type,
@@ -216,4 +304,5 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_should_have_correct_miniblob,
         skal_msg_should_produce_correct_json,
         skal_msg_should_free,
-        skal_should_have_no_more_msg_ref_1)
+        skal_should_have_no_more_msg_ref_1,
+        skal_msg_should_create_from_json)

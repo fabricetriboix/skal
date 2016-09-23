@@ -243,7 +243,8 @@ int SkalBase64Decode3(const char** pBase64, uint8_t* data, int size_B);
  * @param size_B [out] Number of decoded bytes; must not be NULL
  *
  * @return The decoded bytes, or NULL if `base64` is not a valid base64 string
- *         (in which case `*size_B` won't be touched)
+ *         (in which case `*size_B` won't be touched); you must call `free()` on
+ *         the it when finished.
  */
 uint8_t* SkalBase64Decode(const char* base64, int* size_B);
 

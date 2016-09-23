@@ -100,7 +100,7 @@ void SkalQueuePush(SkalQueue* queue, SkalMsg* msg)
 
     SkalPlfMutexLock(queue->mutex);
     bool pushed;
-    if (SkalMsgInternalFlags(msg) & SKAL_MSG_IFLAG_INTERNAL) {
+    if (SkalMsgIFlags(msg) & SKAL_MSG_IFLAG_INTERNAL) {
         pushed = CdsListPushBack(queue->internal, (CdsListItem*)msg);
     } else if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_URGENT) {
         pushed = CdsListPushBack(queue->urgent, (CdsListItem*)msg);

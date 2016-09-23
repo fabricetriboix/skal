@@ -645,6 +645,14 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
 void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob);
 
 
+/** Check if a message has a field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasField(const SkalMsg* msg, const char* name);
+
+
 /** Get the value of an integer previously added to a message
  *
  * @param msg  [in] Message to query; must not be NULL
@@ -732,7 +740,14 @@ SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient);
 
 /** Send a message to its recipient
  *
- * You will lose ownership of the message.
+ * You will lose ownership of the message. Please note the message is *always*
+ * successfully sent. It might get lost in transit, though.
+ *
+ * Please note there is a slight chance this function might block. If the
+ * recipient is outside this process, the message is sent to skald through a
+ * UNIX socket. If skald is overloaded, sending the message might block until
+ * skald can receive messages again; skald is architectured to be very fast, so
+ * you should not be blocked for long.
  *
  * @param msg [in,out] Message to send
  */

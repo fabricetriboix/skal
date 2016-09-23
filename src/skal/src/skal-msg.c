@@ -20,6 +20,7 @@
 #include "cdsmap.h"
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <float.h>
 
 
@@ -34,6 +35,7 @@
 
 
 typedef enum {
+    SKAL_MSG_FIELD_TYPE_NOTHING,
     SKAL_MSG_FIELD_TYPE_INT,
     SKAL_MSG_FIELD_TYPE_DOUBLE,
     SKAL_MSG_FIELD_TYPE_STRING,
@@ -62,8 +64,9 @@ struct SkalMsg
 {
     CdsListItem item; // SKAL messages can be enqueued and dequeued
     int8_t      ref;
+    int         version;
     uint8_t     flags;
-    uint8_t     internalFlags;
+    uint8_t     iflags;
     char        type[SKAL_NAME_MAX];
     char        sender[SKAL_NAME_MAX];
     char        recipient[SKAL_NAME_MAX];
@@ -99,6 +102,57 @@ static void skalFieldToJson(SkalStringBuilder* sb,
         const char* name, const skalMsgField* field);
 
 
+/** Try to parse a JSON text into a message
+ *
+ * @param json [in]     JSON text to parse; must not be NULL
+ * @param msg  [in,out] SKAL msg to update
+ *
+ * @return `true` if OK, `false` if `json` is invalid or wrong version
+ */
+static bool skalMsgParseJson(const char* json, SkalMsg* msg);
+
+
+/** Try to parse the given JSON text as the `name` message field
+ *
+ * @param json [in]     JSON text to parse; must not be NULL
+ * @param name [in]     Name of the message field; must not be NULL
+ * @param msg  [in,out] SKAL msg to update; must not be NULL
+ *
+ * @return Pointer to the JSON text after the property value (and the comma if
+ *         present), or NULL if error
+ */
+static const char* skalMsgParseJsonProperty(const char* json,
+        const char* name, SkalMsg* msg);
+
+
+/** Try to parse the given JSON text as a message field
+ *
+ * @param json  [in]     JSON text to parse; must not be NULL
+ * @param field [in,out] Field to update; must not be NULL
+ *
+ * @return Pointer to the JSON text after the field sub-object (and the comma if
+ *         present), or NULL if error
+ */
+static const char* skalMsgParseJsonField(const char* json, skalMsgField* field);
+
+
+/** Parse a JSON string, taking care of escaped characters
+ *
+ * A JSON string is enclosed by double-quote characters, and characters escaped
+ * by the backslash character are reproduced verbatim (mainly useful to have
+ * double-quote characters in the string).
+ *
+ * @param json   [in]  JSON text to parse; must not be NULL
+ * @param buffer [out] Parse JSON string
+ * @param size_B [in]  Size of `buffer`, in characters
+ *
+ * @return Pointer to the JSON string after the closing double-quote, or NULL if
+ *         error or if the JSON string is too big for the supplied buffer
+ */
+static const char* skalMsgParseJsonString(const char* json,
+        char* buffer, int size_B);
+
+
 
 /*------------------+
  | Global variables |
@@ -132,6 +186,7 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
     unsigned long long n = ++gMsgCounter;
     SkalMsg* msg = SkalMallocZ(sizeof(*msg));
     msg->ref = 1;
+    msg->version = SKAL_MSG_VERSION;
     gMsgRefCount_DEBUG++;
     msg->flags = flags;
     strncpy(msg->type, type, sizeof(msg->type) - 1);
@@ -155,24 +210,24 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
 }
 
 
-void SkalMsgSetInternalFlags(SkalMsg* msg, uint8_t flags)
+void SkalMsgSetIFlags(SkalMsg* msg, uint8_t iflags)
 {
     SKALASSERT(msg != NULL);
-    msg->internalFlags |= flags;
+    msg->iflags |= iflags;
 }
 
 
-void SkalMsgResetInternalFlags(SkalMsg* msg, uint8_t flags)
+void SkalMsgResetIFlags(SkalMsg* msg, uint8_t iflags)
 {
     SKALASSERT(msg != NULL);
-    msg->internalFlags &= ~flags;
+    msg->iflags &= ~iflags;
 }
 
 
-uint8_t SkalMsgInternalFlags(const SkalMsg* msg)
+uint8_t SkalMsgIFlags(const SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
-    return msg->internalFlags;
+    return msg->iflags;
 }
 
 
@@ -305,6 +360,14 @@ void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
 }
 
 
+bool SkalMsgHasField(const SkalMsg* msg, const char* name)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    return CdsMapSearch(msg->fields, (void*)name) != NULL;
+}
+
+
 int64_t SkalMsgGetInt(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
@@ -422,7 +485,7 @@ char* SkalMsgToJson(const SkalMsg* msg)
             SkalMsgRecipient(msg),
             SkalMsgMarker(msg),
             (unsigned int)SkalMsgFlags(msg),
-            (unsigned int)SkalMsgInternalFlags(msg));
+            (unsigned int)SkalMsgIFlags(msg));
 
     CdsMapIteratorReset(msg->fields, true);
     void* key;
@@ -441,8 +504,22 @@ char* SkalMsgToJson(const SkalMsg* msg)
 
 SkalMsg* SkalMsgCreateFromJson(const char* json)
 {
-    // TODO: from here
-    return NULL;
+    SKALASSERT(json != NULL);
+
+    // Create an empty but coherent message
+    SkalMsg* msg = SkalMallocZ(sizeof(*msg));
+    msg->ref = 1;
+    // Leave `version` at 0
+    msg->fields = CdsMapCreate(NULL, SKAL_FIELDS_MAX,
+            SkalStringCompare, msg, NULL, skalFieldMapUnref);
+    gMsgRefCount_DEBUG++;
+
+    // Try to parse the JSON string
+    if (!skalMsgParseJson(json, msg)) {
+        SkalMsgUnref(msg);
+        msg = NULL;
+    }
+    return msg;
 }
 
 
@@ -570,4 +647,360 @@ static void skalFieldToJson(SkalStringBuilder* sb,
     default :
         SKALPANIC_MSG("Unknown message data type %d", (int)field->type);
     }
+}
+
+
+static const char* skalMsgSkipSpaces(const char* str)
+{
+    while ((*str != '\0') && isspace(*str)) {
+        str++;
+    }
+    return str;
+}
+
+static bool skalMsgParseJson(const char* json, SkalMsg* msg)
+{
+    // Find starting '{'
+    json = skalMsgSkipSpaces(json);
+    if (*json != '{') {
+        return false;
+    }
+    json++;
+    json = skalMsgSkipSpaces(json);
+
+    // Parse JSON object properties one after the other
+    char name[SKAL_NAME_MAX];
+    while ((*json != '\0') && (*json != '}')) {
+        json = skalMsgParseJsonString(json, name, sizeof(name));
+        if (NULL == json) {
+            return false;
+        }
+
+        json = skalMsgSkipSpaces(json);
+        if (*json != ':') {
+            return false;
+        }
+        json++;
+        json = skalMsgSkipSpaces(json);
+
+        json = skalMsgParseJsonProperty(json, name, msg);
+        json = skalMsgSkipSpaces(json);
+    } // For each JSON property
+
+    // Check all properties are there
+    if (    (msg->version != SKAL_MSG_VERSION)
+         || ('\0' == msg->type[0])
+         || ('\0' == msg->sender[0])
+         || ('\0' == msg->recipient[0])
+         || ('\0' == msg->marker[0]))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+
+static const char* skalMsgParseJsonProperty(const char* json,
+        const char* name, SkalMsg* msg)
+{
+    if (strcmp(name, "version") == 0) {
+        int tmp;
+        if (sscanf(json, "%d", &tmp) != 1) {
+            return NULL;
+        }
+        if (tmp != SKAL_MSG_VERSION) {
+            return NULL;
+        }
+        msg->version = SKAL_MSG_VERSION;
+        // Skip version number
+        while ((*json != '\0') && isdigit(*json)) {
+            json++;
+        }
+
+    } else if (strcmp(name, "type") == 0) {
+        json = skalMsgParseJsonString(json, msg->type, sizeof(msg->type));
+
+    } else if (strcmp(name, "sender") == 0) {
+        json = skalMsgParseJsonString(json, msg->sender, sizeof(msg->sender));
+
+    } else if (strcmp(name, "recipient") == 0) {
+        json = skalMsgParseJsonString(json,
+                msg->recipient, sizeof(msg->recipient));
+
+    } else if (strcmp(name, "marker") == 0) {
+        json = skalMsgParseJsonString(json, msg->marker, sizeof(msg->marker));
+
+    } else if (strcmp(name, "flags") == 0) {
+        unsigned int tmp;
+        if (sscanf(json, "%u", &tmp) != 1) {
+            return NULL;
+        }
+        msg->flags = tmp;
+        // Skip flags
+        while ((*json != '\0') && isdigit(*json)) {
+            json++;
+        }
+
+    } else if (strcmp(name, "iflags") == 0) {
+        unsigned int tmp;
+        if (sscanf(json, "%u", &tmp) != 1) {
+            return NULL;
+        }
+        msg->iflags = tmp;
+        // Skip flags
+        while ((*json != '\0') && isdigit(*json)) {
+            json++;
+        }
+
+    } else if (strcmp(name, "fields") == 0) {
+        if (*json != '[') {
+            return NULL;
+        }
+        json++;
+        json = skalMsgSkipSpaces(json);
+        while ((*json != '\0') && (*json != ']')) {
+            // Allocate an empty be coherent field
+            skalMsgField* field = SkalMallocZ(sizeof(*field));
+            field->ref = 1;
+            field->type = SKAL_MSG_FIELD_TYPE_INT;
+            json = skalMsgParseJsonField(json, field);
+            if (NULL == json) {
+                skalFieldMapUnref((CdsMapItem*)field);
+            } else {
+                SKALASSERT(CdsMapInsert(msg->fields,
+                            field->name, &field->item));
+            }
+            if (*json != '\0') {
+                json = skalMsgSkipSpaces(json);
+            }
+        }
+        if (*json != ']') {
+            return NULL;
+        }
+        json++;
+
+    } else {
+        // Unknown property
+        return NULL;
+    }
+
+    if (json != NULL) {
+        json = skalMsgSkipSpaces(json);
+        if (',' == *json) {
+            json++;
+        }
+    }
+    return json;
+}
+
+
+static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
+{
+    if (*json != '{') {
+        return NULL;
+    }
+    json++;
+    json = skalMsgSkipSpaces(json);
+
+    field->type = SKAL_MSG_FIELD_TYPE_NOTHING;
+    char buffer[SKAL_NAME_MAX];
+    const char* value = NULL;
+    int length = 0; // used only if the value is a string
+    while ((*json != '\0') && (*json != '}')) {
+        // Parse property name
+        json = skalMsgParseJsonString(json, buffer, sizeof(buffer));
+        if (NULL == json) {
+            return NULL;
+        }
+        json = skalMsgSkipSpaces(json);
+        if (*json != ':') {
+            return NULL;
+        }
+        json++;
+        json = skalMsgSkipSpaces(json);
+
+        // Parse property value
+        if (strcmp(buffer, "name") == 0) {
+            json = skalMsgParseJsonString(json,
+                    field->name, sizeof(field->name));
+            if (NULL == json) {
+                return NULL;
+            }
+
+        } else if (strcmp(buffer, "type") == 0) {
+            json = skalMsgParseJsonString(json, buffer, sizeof(buffer));
+            if (NULL == json) {
+                return NULL;
+            }
+            if (strcmp(buffer, "int") == 0) {
+                field->type = SKAL_MSG_FIELD_TYPE_INT;
+            } else if (strcmp(buffer, "double") == 0) {
+                field->type = SKAL_MSG_FIELD_TYPE_DOUBLE;
+            } else if (strcmp(buffer, "string") == 0) {
+                field->type = SKAL_MSG_FIELD_TYPE_STRING;
+            } else if (strcmp(buffer, "miniblob") == 0) {
+                field->type = SKAL_MSG_FIELD_TYPE_MINIBLOB;
+            } else if (strcmp(buffer, "blob") == 0) {
+                field->type = SKAL_MSG_FIELD_TYPE_BLOB;
+            } else {
+                return NULL;
+            }
+
+        } else if (strcmp(buffer, "value") == 0) {
+            // We will parse the field value later because we don't necessarily
+            // know its type yet (happens if "value" is defined before "type" in
+            // the JSON text). We memorise the start of the value string and
+            // then skip it.
+            value = json;
+            if (*json == '"') {
+                // The value is a string
+                json++;
+                while ((*json != '\0') && (*json != '"')) {
+                    if ('\\' == *json) {
+                        json++;
+                        if (*json != '\0') {
+                            json++;
+                        }
+                    } else {
+                        json++;
+                    }
+                }
+                if ('\0' == *json) {
+                    return NULL;
+                }
+                SKALASSERT('"' == *json);
+                length = json - value; // Includes backslashes, but that's OK
+                json++;
+
+            } else {
+                // Just skip until the comma or end of object
+                while ((*json != '\0') && (*json != ',') && (*json != '}')) {
+                    json++;
+                }
+                if ('\0' == *json) {
+                    return NULL;
+                }
+            }
+
+        } else {
+            return NULL; // Unknown property name
+        }
+
+        json = skalMsgSkipSpaces(json);
+        if (',' == *json) {
+            json++;
+        }
+        json = skalMsgSkipSpaces(json);
+    }
+
+    if ('\0' == *json) {
+        return NULL;
+    }
+    SKALASSERT('}' == *json);
+    json++;
+    json = skalMsgSkipSpaces(json);
+    if (',' == *json) {
+        json++;
+    }
+
+    // Check that we have all 3 properties necessary to define a field
+    if (    ('\0' == field->name[0])
+         || (SKAL_MSG_FIELD_TYPE_NOTHING == field->type)
+         || (NULL == value)) {
+        return NULL;
+    }
+
+    // Now we can parse the value
+    switch (field->type) {
+    case SKAL_MSG_FIELD_TYPE_INT :
+        {
+            long long tmp;
+            if (sscanf(value, "%lld", &tmp) != 1) {
+                return NULL;
+            }
+            field->i = tmp;
+        }
+        break;
+
+    case SKAL_MSG_FIELD_TYPE_DOUBLE :
+        if (sscanf(value, "%le", &field->d) != 1) {
+            return NULL;
+        }
+        break;
+
+    case SKAL_MSG_FIELD_TYPE_STRING :
+        {
+            field->size_B = length + 1;
+            field->s = SkalMalloc(field->size_B);
+            const char* tmp = skalMsgParseJsonString(value,
+                    field->s, field->size_B);
+            if (NULL == tmp) {
+                return NULL;
+            }
+        }
+        break;
+
+    case SKAL_MSG_FIELD_TYPE_MINIBLOB :
+        {
+            char* b64 = SkalMalloc(length + 1);
+            const char* tmp = skalMsgParseJsonString(value, b64, length + 1);
+            if (NULL == tmp) {
+                free(b64);
+                return NULL;
+            }
+            field->miniblob = SkalBase64Decode(b64, &field->size_B);
+            free(b64);
+            if (NULL == field->miniblob) {
+                return NULL;
+            }
+        }
+        break;
+
+    case SKAL_MSG_FIELD_TYPE_BLOB :
+        SKALPANIC_MSG("Blobs not yet supported");
+        break;
+
+    default :
+        SKALPANIC_MSG("Unknown field type: %d", (int)(field->type));
+        break;
+    }
+
+    return json;
+}
+
+
+static const char* skalMsgParseJsonString(const char* json,
+        char* buffer, int size_B)
+{
+    json = skalMsgSkipSpaces(json);
+    if (*json != '"') {
+        return NULL;
+    }
+    json++;
+
+    int count = 0;
+    while ((*json != '\0') && (*json != '"')) {
+        if ('\\' == *json) {
+            json++;
+            if ('\0' == *json) {
+                return NULL;
+            }
+        }
+        buffer[count] = *json;
+        count++;
+        json++;
+        if ((count >= size_B) && (*json != '"')) {
+            return NULL;
+        }
+    }
+
+    if ('\0' == *json) {
+        return NULL;
+    }
+    SKALASSERT('"' == *json);
+    json++;
+
+    buffer[count] = '\0';
+    return json;
 }

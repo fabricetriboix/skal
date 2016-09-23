@@ -54,14 +54,14 @@ void SkalMsgRef(SkalMsg* msg);
  *
  * @param msg [in,out] Message to manipulate; must not be NULL
  */
-void SkalMsgSetInternalFlags(SkalMsg* msg, uint8_t flags);
+void SkalMsgSetIFlags(SkalMsg* msg, uint8_t iflags);
 
 
 /** Reset a message's internal flags
  *
  * @param msg [in,out] Message to manipulate; must not be NULL
  */
-void SkalMsgResetInternalFlags(SkalMsg* msg, uint8_t flags);
+void SkalMsgResetIFlags(SkalMsg* msg, uint8_t iflags);
 
 
 /** Get a message's internal flags
@@ -70,7 +70,7 @@ void SkalMsgResetInternalFlags(SkalMsg* msg, uint8_t flags);
  *
  * @return The message internal flags
  */
-uint8_t SkalMsgInternalFlags(const SkalMsg* msg);
+uint8_t SkalMsgIFlags(const SkalMsg* msg);
 
 
 /** Encode a message in JSON

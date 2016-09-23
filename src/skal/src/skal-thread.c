@@ -292,7 +292,7 @@ void SkalThreadExit(void)
     SKALASSERT(gMaster != NULL);
     SkalMsg* msg = SkalMsgCreate("skal-master-terminate",
             "skal-master", 0, NULL);
-    SkalMsgSetInternalFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+    SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gMaster->queue, msg);
 
     SkalMsg* resp = SkalQueuePop_BLOCKING(gGlobalQueue, false);
@@ -361,7 +361,7 @@ static bool skalMsgSendPriv(SkalMsg* msg, bool failToMaster)
     if (recipient != NULL) {
         SkalQueuePush(recipient->queue, msg);
         if (    SkalQueueIsOverHighThreshold(recipient->queue)
-             && !(SkalMsgInternalFlags(msg) & SKAL_MSG_IFLAG_INTERNAL)) {
+             && !(SkalMsgIFlags(msg) & SKAL_MSG_IFLAG_INTERNAL)) {
             // Recipient queue is full and we are not sending an internal msg
             //  => Enter XOFF mode by sending an xoff msg to myself
             skalThreadPrivate* priv = SkalPlfThreadGetSpecific();
@@ -369,7 +369,7 @@ static bool skalMsgSendPriv(SkalMsg* msg, bool failToMaster)
             SKALASSERT(priv->thread != NULL);
             SkalMsg* msg3 = SkalMsgCreate("skal-xoff",
                     priv->thread->cfg.name, 0, NULL);
-            SkalMsgSetInternalFlags(msg3, SKAL_MSG_IFLAG_INTERNAL);
+            SkalMsgSetIFlags(msg3, SKAL_MSG_IFLAG_INTERNAL);
             SkalMsgAddString(msg3, "origin", SkalMsgRecipient(msg));
             SkalQueuePush(priv->thread->queue, msg3);
         }
@@ -467,7 +467,7 @@ static void skalThreadRun(void* arg)
         // TODO: Add timer to retry sending `skal-ntf-xon` messages
         SkalMsg* msg = SkalQueuePop_BLOCKING(thread->queue, inXoff);
 
-        if (SkalMsgInternalFlags(msg) & SKAL_MSG_IFLAG_INTERNAL) {
+        if (SkalMsgIFlags(msg) & SKAL_MSG_IFLAG_INTERNAL) {
             if (!skalThreadHandleInternalMsg(priv, msg)) {
                 stop = true;
             }
@@ -495,14 +495,14 @@ static void skalThreadRun(void* arg)
     if (isMasterThread) {
         // I am the master thread: unblock the global queue now
         SkalMsg* msg = SkalMsgCreate("skal-terminated", "skal-main", 0, NULL);
-        SkalMsgSetInternalFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+        SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
         SkalQueuePush(gGlobalQueue, msg);
 
     } else {
         // I am not the master thread: tell the master thread I'm finished
         skalThreadSendXon(priv); // free up any threads blocked on me
         SkalMsg* msg = SkalMsgCreate("skal-terminated", "skal-master", 0, NULL);
-        SkalMsgSetInternalFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+        SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
         SkalQueuePush(gMaster->queue, msg);
     }
 }
@@ -531,7 +531,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
         // Tell originating thread to notify me when I can send again
         SkalMsg* msg2 = SkalMsgCreate("skal-ntf-xon", origin, 0, NULL);
         SkalMsgAddString(msg2, "origin", priv->thread->cfg.name);
-        SkalMsgSetInternalFlags(msg2, SKAL_MSG_IFLAG_INTERNAL);
+        SkalMsgSetIFlags(msg2, SKAL_MSG_IFLAG_INTERNAL);
         SkalMsgSend(msg2);
 
     } else if (strcmp(type, "skal-xon") == 0) {
@@ -579,7 +579,7 @@ static void skalThreadSendXon(skalThreadPrivate* priv)
             ntfXonItem != NULL;
             ntfXonItem = (skalNtfXonItem*)CdsMapIteratorNext(priv->ntfXon, NULL) ) {
         SkalMsg* msg = SkalMsgCreate("skal-xon", ntfXonItem->origin, 0, NULL);
-        SkalMsgSetInternalFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+        SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
         SkalMsgAddString(msg, "origin", priv->thread->cfg.name);
         SkalMsgSend(msg);
     }
@@ -603,7 +603,7 @@ static void skalThreadRetryNtfXon(skalThreadPrivate* priv, int64_t now_us)
             SkalMsg* msg = SkalMsgCreate("skal-ntf-xon",
                     xoffItem->origin, 0, NULL);
             SkalMsgAddString(msg, "origin", priv->thread->cfg.name);
-            SkalMsgSetInternalFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+            SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
             SkalMsgSend(msg);
             xoffItem->lastNtfXonTime_us = now_us;
         }
@@ -641,7 +641,7 @@ static bool skalMasterProcessMsg(void* cookie, SkalMsg* msg)
                 SkalThread* thread = (SkalThread*)item;
                 SkalMsg* msg = SkalMsgCreate("skal-terminate",
                         thread->cfg.name, 0, NULL);
-                SkalMsgSetInternalFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+                SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
                 SkalQueuePush(thread->queue, msg);
             } // for each thread in this process
         }

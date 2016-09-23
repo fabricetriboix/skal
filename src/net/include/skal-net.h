@@ -309,7 +309,7 @@ void SkalNetDestroy(SkalNet* net);
  * @param sntype    [in]     Type of socket to create
  * @param localAddr [in]     Local address to listen to. If `type` is
  *                           `SKAL_NET_TYPE_PIPE`, this argument is ignored and
- *                           may be NULL. For all other `type`; must not be
+ *                           should be NULL. For all other `type`; must not be
  *                           NULL.
  * @param bufsize_B [in]     Buffer size for comm sockets created out of this
  *                           server socket, in bytes; <=0 for default value
