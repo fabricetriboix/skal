@@ -15,23 +15,80 @@
  */
 
 #include "skal-thread.h"
+#include "skal-net.h"
 #include "rttest.h"
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 
+#define SOCKPATH "pseudo-skald.sock"
+static SkalNet* gNet = NULL;
+static int gServerSockid = -1;
+static int gClientSockid = -1;
+static bool gHasConnected = false;
+static SkalPlfThread* gSkaldThread = NULL;
+
+static void pseudoSkald(void* arg)
+{
+    (void)arg;
+    bool stop = false;
+    while (!stop) {
+        SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+        if (event != NULL) {
+            switch (event->type) {
+            case SKAL_NET_EV_CONN :
+                SKALASSERT(-1 == gClientSockid);
+                gClientSockid = event->conn.commSockid;
+                gHasConnected = true;
+                break;
+            case SKAL_NET_EV_DISCONN :
+                {
+                    SKALASSERT(gClientSockid == event->sockid);
+                    bool destroyed = SkalNetSocketDestroy(gNet, gClientSockid);
+                    SKALASSERT(destroyed);
+                    gClientSockid = -1;
+                }
+                break;
+            default :
+                SKALPANIC_MSG("Pseudo-skald does not expect SkalNet of type %d",
+                        (int)event->type);
+                break;
+            }
+        }
+    }
+}
+
+
 static RTBool testThreadEnterGroup(void)
 {
+    gHasConnected = false;
     SkalPlfInit();
-    SkalThreadInit(NULL);
+    gNet = SkalNetCreate(0);
+    SkalNetAddr addr;
+    unlink(SOCKPATH);
+    snprintf(addr.unix.path, sizeof(addr.unix.path), SOCKPATH);
+    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_UNIX_SEQPACKET,
+                  &addr, 0, NULL, 0);
+    gSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
+    SkalThreadInit(SOCKPATH);
     return RTTrue;
 }
 
 static RTBool testThreadExitGroup(void)
 {
     SkalThreadExit();
+    usleep(5000); // Wait for `skal-master` etc. to die
+    SkalPlfThreadCancel(gSkaldThread);
+    SkalPlfThreadJoin(gSkaldThread);
+    gSkaldThread = NULL;
+    SkalNetDestroy(gNet);
+    gNet = NULL;
+    gServerSockid = -1;
+    gClientSockid = -1;
+    unlink(SOCKPATH);
     SkalPlfExit();
+    SKALASSERT(gHasConnected);
     return RTTrue;
 }
 
@@ -86,7 +143,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_simple_should_receive_ping_msg)
 {
-    usleep(1000); // give time to thread to receive and deal with ping msg
+    usleep(5000); // give time to thread to receive and deal with ping msg
     RTT_EXPECT(0 == gError);
     RTT_EXPECT(1 == gResult);
 }

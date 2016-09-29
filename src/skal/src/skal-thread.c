@@ -348,16 +348,25 @@ void SkalThreadInit(const char* skaldPath)
                             NULL,              // keyUnref
                             (void(*)(CdsMapItem*))skalThreadUnref); // itemUnref
 
-    // Create UNIX socket and pipe
+    // Create UNIX socket and connect to skald
     gNet = SkalNetCreate(0);
     SkalNetAddr addr;
     SKALASSERT(strlen(skaldPath) < sizeof(addr.unix.path));
     strcpy(addr.unix.path, skaldPath);
-    gSockid = SkalNetServerCreate(gNet,
-            SKAL_NET_TYPE_UNIX_SEQPACKET, &addr, 0, NULL, 0);
+    gSockid = SkalNetCommCreate(gNet, SKAL_NET_TYPE_UNIX_SEQPACKET,
+            NULL, &addr, 0, NULL, 0);
+    SkalNetEvent* event = NULL;
+    while (NULL == event) {
+        event = SkalNetPoll_BLOCKING(gNet);
+    }
+    SKALASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
+    SKALASSERT(gSockid == event->sockid);
+    SkalNetEventUnref(event);
+
+    // Create pipe
     gPipeServerId = SkalNetServerCreate(gNet,
             SKAL_NET_TYPE_PIPE, NULL, 0, NULL, 0);
-    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
     SKALASSERT(SKAL_NET_EV_CONN == event->type);
     gPipeClientId = event->conn.commSockid;
@@ -405,6 +414,7 @@ void SkalThreadExit(void)
     gGlobalQueue = NULL;
 
     SkalNetDestroy(gNet);
+    gNet = NULL;
 
     SkalPlfMutexDestroy(gMutex);
     gMutex = NULL;
@@ -712,13 +722,10 @@ static void skalThreadRetryNtfXon(skalThreadPrivate* priv, int64_t now_us)
 
 static void skalMasterThreadRun(void* arg)
 {
-    SKALASSERT(arg != NULL);
-    SkalThread* thread = (SkalThread*)arg;
-    SKALASSERT(strcmp(thread->cfg.name, "skal-master") == 0);
-    SkalPlfThreadSetName(thread->cfg.name);
+    SkalPlfThreadSetName("skal-master");
 
     skalThreadPrivate* priv = SkalMallocZ(sizeof(*priv));
-    priv->thread = thread;
+    priv->thread = gMaster;
     SkalPlfThreadSetSpecific(priv);
 
     SkalMsg* msg;
@@ -751,7 +758,7 @@ static void skalMasterThreadRun(void* arg)
             } else {
                 // This is a message sent to us from within this process
                 SKALASSERT(gPipeServerId == event->sockid);
-                msg = SkalQueuePop(thread->queue, false);
+                msg = SkalQueuePop(gMaster->queue, false);
                 SKALASSERT(msg != NULL);
                 if (!skalMasterProcessMsg(msg)) {
                     stop = true;
