@@ -24,7 +24,7 @@
 static RTBool testThreadEnterGroup(void)
 {
     SkalPlfInit();
-    SkalThreadInit();
+    SkalThreadInit(NULL);
     return RTTrue;
 }
 

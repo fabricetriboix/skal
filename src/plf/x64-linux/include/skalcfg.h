@@ -64,6 +64,10 @@
 #define SKAL_DEFAULT_QUEUE_THRESHOLD 100
 
 
+/** Default path to skald UNIX socket */
+#define SKAL_DEFAULT_SKALD_PATH "/tmp/skald.sock"
+
+
 /** Default backlog value for server sockets */
 #define SKAL_NET_DEFAULT_BACKLOG 20
 

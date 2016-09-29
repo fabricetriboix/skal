@@ -36,8 +36,11 @@ typedef struct SkalThread SkalThread;
  +------------------------------*/
 
 
-/** Initialise the thread module & create the master thread */
-void SkalThreadInit(void);
+/** Initialise the thread module & create the master thread
+ *
+ * @param skaldPath [in] Path to skald socket, or NULL for default
+ */
+void SkalThreadInit(const char* skaldPath);
 
 
 /** Terminate all threads and free up all resources
