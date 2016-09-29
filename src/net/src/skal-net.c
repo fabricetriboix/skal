@@ -1022,16 +1022,22 @@ static void skalNetSelect(SkalNet* net)
     // sure we always access it directly.
     for (int sockid = 0; (sockid < net->nsockets) && (count > 0); sockid++) {
         if (net->sockets[sockid].fd >= 0) {
+            bool marked = false;
             if (FD_ISSET(net->sockets[sockid].fd, &readfds)) {
                 skalNetHandleIn(net, sockid);
+                marked = true;
             }
             if (FD_ISSET(net->sockets[sockid].fd, &writefds)) {
                 skalNetHandleOut(net, sockid);
+                marked = true;
             }
             if (FD_ISSET(net->sockets[sockid].fd, &exceptfds)) {
                 skalNetHandleExcept(net, sockid);
+                marked = true;
             }
-            count--;
+            if (marked) {
+                count--;
+            }
         }
     }
 }
