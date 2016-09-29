@@ -17,6 +17,11 @@
 #ifndef SKAL_QUEUE_h_
 #define SKAL_QUEUE_h_
 
+/** skal-queue
+ *
+ * Please note all calls related to `SkalQueue` are MT-safe.
+ */
+
 #include "skal.h"
 
 
@@ -28,6 +33,10 @@
 
 /** Opaque type to a message queue */
 typedef struct SkalQueue SkalQueue;
+
+
+/** Prototype for a hook function */
+typedef void (*SkalQueueHook)(void* cookie);
 
 
 
@@ -46,6 +55,17 @@ typedef struct SkalQueue SkalQueue;
  * @return The created message queue; this function never returns NULL
  */
 SkalQueue* SkalQueueCreate(const char* name, int64_t threshold);
+
+
+/** Attach a hook to `SkalQueuePush()`
+ *
+ * Any previous hook will be overwritten.
+ *
+ * @param queue  [in,out] Queue to attach the hook to; must not be NULL
+ * @param hook   [in]     Hook callback; may be NULL to cancel any hook
+ * @param cookie [in]     Cookie for the previous callback
+ */
+void SkalQueueSetPushHook(SkalQueue* queue, SkalQueueHook hook, void* cookie);
 
 
 /** Get the queue name

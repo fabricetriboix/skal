@@ -40,6 +40,8 @@ struct SkalQueue
     CdsList*        internal;
     CdsList*        urgent;
     CdsList*        regular;
+    SkalQueueHook   hook;
+    void*           cookie;
 };
 
 
@@ -69,6 +71,16 @@ SkalQueue* SkalQueueCreate(const char* name, int64_t threshold)
     queue->regular =CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
 
     return queue;
+}
+
+
+void SkalQueueSetPushHook(SkalQueue* queue, SkalQueueHook hook, void* cookie)
+{
+    SKALASSERT(queue != NULL);
+    SkalPlfMutexLock(queue->mutex);
+    queue->hook = hook;
+    queue->cookie = cookie;
+    SkalPlfMutexUnlock(queue->mutex);
 }
 
 
@@ -108,6 +120,9 @@ void SkalQueuePush(SkalQueue* queue, SkalMsg* msg)
         pushed = CdsListPushBack(queue->regular, (CdsListItem*)msg);
     }
     SKALASSERT(pushed);
+    if (queue->hook != NULL) {
+        queue->hook(queue->cookie);
+    }
     SkalPlfCondVarSignal(queue->condvar);
     SkalPlfMutexUnlock(queue->mutex);
 }
