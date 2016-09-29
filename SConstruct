@@ -34,7 +34,7 @@ if not tgtplf:
     tgtplf = autoplf
     print("--target not set, using auto-detected: " + tgtplf)
 
-path = os.path.join("src", "plf", tgtplf)
+path = os.path.join("lib", "plf", tgtplf)
 if not os.path.isdir(path) or not os.access(path, os.R_OK):
     print("ERROR: target platform not found: " + path)
 
@@ -137,7 +137,7 @@ for v in variantNames:
 
 # Include SConscript for each variant
 for v in variantNames:
-    SConscript(os.path.join("src", "SConscript"),
+    SConscript(os.path.join("lib", "SConscript"),
             variant_dir=variants[v]['build_root'],
             duplicate=0, exports={'variant': variants[v]})
 
