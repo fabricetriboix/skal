@@ -1,4 +1,17 @@
 
+Assumptions
+-----------
+
+The following assumptions are made in order to simplify things:
+ - skald always perform its tasks according to requirements and in a
+   timely manner
+ - skald is always on, available and never crashes
+ - The links between skald and its processes never drop packets and
+   never re-order packets (these are UNIX sockets or equivalent)
+ - When a process crashes, the link between it and skald behaves like
+   the process has closed the link
+
+
 Xon/xoff mechanism
 ------------------
 
