@@ -69,7 +69,7 @@ static RTBool testThreadEnterGroup(void)
 {
     gHasConnected = false;
     SkalPlfInit();
-    gNet = SkalNetCreate(0);
+    gNet = SkalNetCreate(0, NULL);
     SkalNetAddr addr;
     unlink(SOCKPATH);
     snprintf(addr.unix.path, sizeof(addr.unix.path), SOCKPATH);

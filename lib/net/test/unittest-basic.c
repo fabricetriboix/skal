@@ -58,7 +58,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_basic_should_create_set)
 {
-    gNet = SkalNetCreate(0);
+    gNet = SkalNetCreate(0, NULL);
     RTT_ASSERT(gNet != NULL);
 }
 RTT_TEST_END
@@ -85,7 +85,7 @@ static int gClientSockid = -1;
 
 RTT_TEST_START(skal_net_pipe_should_create_set)
 {
-    gNet = SkalNetCreate(0);
+    gNet = SkalNetCreate(0, NULL);
     RTT_ASSERT(gNet != NULL);
 }
 RTT_TEST_END
@@ -168,10 +168,10 @@ static int gCommSockid = -1;
 
 RTT_TEST_START(skal_net_unix_stream_should_create_sets)
 {
-    gNet = SkalNetCreate(0);
+    gNet = SkalNetCreate(0, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(0);
+    gCommNet = SkalNetCreate(0, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
@@ -302,10 +302,10 @@ RTT_GROUP_START(TestNetUnixDgram, 0x00110004u,
 
 RTT_TEST_START(skal_net_unix_dgram_should_create_sets)
 {
-    gNet = SkalNetCreate(0);
+    gNet = SkalNetCreate(0, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(-1);
+    gCommNet = SkalNetCreate(-1, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
@@ -459,10 +459,10 @@ RTT_GROUP_START(TestNetUnixSeqpkt, 0x00110005u,
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_create_sets)
 {
-    gNet = SkalNetCreate(0);
+    gNet = SkalNetCreate(0, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(-1);
+    gCommNet = SkalNetCreate(-1, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
@@ -618,10 +618,10 @@ RTT_GROUP_START(TestNetTcp, 0x00110006u,
 
 RTT_TEST_START(skal_net_tcp_should_create_sets)
 {
-    gNet = SkalNetCreate(0);
+    gNet = SkalNetCreate(0, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(0);
+    gCommNet = SkalNetCreate(0, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
@@ -754,10 +754,10 @@ RTT_GROUP_START(TestNetUdp, 0x00110007u,
 
 RTT_TEST_START(skal_net_udp_should_create_sets)
 {
-    gNet = SkalNetCreate(0);
+    gNet = SkalNetCreate(0, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(-1);
+    gCommNet = SkalNetCreate(-1, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END

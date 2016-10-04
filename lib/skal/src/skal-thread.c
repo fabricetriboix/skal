@@ -349,7 +349,7 @@ void SkalThreadInit(const char* skaldPath)
                             (void(*)(CdsMapItem*))skalThreadUnref); // itemUnref
 
     // Create UNIX socket and connect to skald
-    gNet = SkalNetCreate(0);
+    gNet = SkalNetCreate(0, NULL);
     SkalNetAddr addr;
     SKALASSERT(strlen(skaldPath) < sizeof(addr.unix.path));
     strcpy(addr.unix.path, skaldPath);

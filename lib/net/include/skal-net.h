@@ -230,6 +230,10 @@ typedef enum
 } SkalNetSendResult;
 
 
+/** Prototype of a function to free a socket context */
+typedef void (*SkalNetFreeContext)(void* context);
+
+
 
 /*------------------------------+
  | Public function declarations |
@@ -271,10 +275,12 @@ void SkalNetEventUnref(SkalNetEvent* event);
 /** Create a socket set
  *
  * @param pollTimeout_us [in] Polling timeout, in us; <=0 for default value
+ * @param freeContext    [in] Function to call to free a socket context; may be
+ *                            NULL if not needed
  *
  * @return A newly created socket set; this function never returns NULL
  */
-SkalNet* SkalNetCreate(int64_t pollTimeout_us);
+SkalNet* SkalNetCreate(int64_t pollTimeout_us, SkalNetFreeContext freeContext);
 
 
 /** Destroy a socket set
