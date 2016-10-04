@@ -399,7 +399,7 @@ void SkalThreadExit(void)
 
     SkalMsg* resp = SkalQueuePop_BLOCKING(gGlobalQueue, false);
     SKALASSERT(strcmp(SkalMsgSender(resp), "skal-master") == 0);
-    SKALASSERT(strcmp(SkalMsgType(resp), "skal-terminated") == 0);
+    SKALASSERT(strcmp(SkalMsgType(resp), "skal-master-terminated") == 0);
 
     skalThreadUnref(gMaster);
     SKALASSERT(CdsMapIsEmpty(gThreads)); // All threads must have terminated now
@@ -781,7 +781,7 @@ static void skalMasterThreadRun(void* arg)
     } // Thread loop
 
     // This thread is now terminated
-    msg = SkalMsgCreate("skal-terminated", "skal-main", 0, NULL);
+    msg = SkalMsgCreate("skal-master-terminated", "skal-main", 0, NULL);
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gGlobalQueue, msg);
 }
