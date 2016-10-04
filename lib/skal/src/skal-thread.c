@@ -574,7 +574,11 @@ static void skalThreadRun(void* arg)
 
     SkalPlfThreadSetSpecific(priv);
 
-    SkalMsg* msg;
+    // Inform skald that this thread is born
+    SkalMsg* msg = SkalMsgCreate("skal-born", "skald", 0, NULL);
+    SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+    SkalMsgSend(msg);
+
     bool stop = false;
     while (!stop) {
         // If I have some pending `xoff`, I should only process internal
@@ -609,11 +613,18 @@ static void skalThreadRun(void* arg)
         SkalMsgUnref(msg);
     } // Thread loop
 
-    // This thread is now terminated => Notify `skal-master`
-    skalThreadSendXon(priv); // free up any threads blocked on me
+    // This thread is now terminated
+    // Free up any threads blocked on me
+    skalThreadSendXon(priv);
+
+    // Notify skal-master
     msg = SkalMsgCreate("skal-terminated", "skal-master", 0, NULL);
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gMaster->queue, msg);
+
+    // Notify skald
+    msg = SkalMsgCreate("skal-died", "skald", 0, NULL);
+    SkalMsgSend(msg);
 }
 
 

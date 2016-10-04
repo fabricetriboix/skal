@@ -50,12 +50,17 @@ static void pseudoSkald(void* arg)
                     gClientSockid = -1;
                 }
                 break;
+            case SKAL_NET_EV_IN :
+                // Just discard any incoming messages, such as `skal-born`,
+                // `skal-died`, etc.
+                break;
             default :
                 SKALPANIC_MSG("Pseudo-skald does not expect SkalNet of type %d",
                         (int)event->type);
                 break;
             }
         }
+        SkalNetEventUnref(event);
     }
 }
 
