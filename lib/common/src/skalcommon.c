@@ -158,6 +158,32 @@ char* SkalSPrintf(const char* format, ...)
 }
 
 
+char* SkalVSPrintf(const char* format, va_list ap)
+{
+    va_list ap1;
+    va_copy(ap1, ap);
+
+    // NB: `vsnprintf()` will modify `ap1`, so we need to make a copy beforehand
+    // if we want to call `vsnprintf()` a 2nd time.
+    va_list ap2;
+    va_copy(ap2, ap1);
+
+    int capacity = SKAL_INITIAL_STRING_CAPACITY;
+    char* str = SkalMalloc(capacity);
+    int n = vsnprintf(str, capacity, format, ap1);
+    if (n >= capacity) {
+        capacity = n + 1;
+        str = SkalRealloc(str, capacity);
+        n = vsnprintf(str, capacity, format, ap2);
+        SKALASSERT(n < capacity);
+    }
+
+    va_end(ap2);
+    va_end(ap1);
+    return str;
+}
+
+
 SkalStringBuilder* SkalStringBuilderCreate(int initialCapacity)
 {
     SkalStringBuilder* sb = SkalMalloc(sizeof(*sb));

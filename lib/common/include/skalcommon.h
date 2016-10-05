@@ -25,6 +25,7 @@
  */
 
 #include "skalplf.h"
+#include <stdarg.h>
 
 
 
@@ -122,6 +123,17 @@ void* _SkalCalloc(const char* file, int line, int nItems, int itemSize_B);
  */
 char* SkalSPrintf(const char* format, ...)
     __attribute__(( format(printf, 1, 2) ));
+
+
+/** Helper function to vsprintf a string
+ *
+ * @param format [in]     A printf-like format string
+ * @param ap     [in,out] stdarg arguments
+ *
+ * @return The formatted string, never NULL; please release with `free()` when
+ *         you no longer need it
+ */
+char* SkalVSPrintf(const char* format, va_list ap);
 
 
 /** Create a string builder
