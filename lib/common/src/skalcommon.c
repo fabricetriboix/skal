@@ -29,6 +29,10 @@
 #define SKAL_INITIAL_STRING_CAPACITY 256
 
 
+/** Maximum size of a log message */
+#define SKAL_LOG_MAX 1024
+
+
 struct SkalStringBuilder
 {
     char* str;
@@ -79,8 +83,10 @@ static uint8_t base64CharToByte(char c);
  +---------------------------------*/
 
 
-void* SkalMalloc(int size_B)
+void* _SkalMalloc(const char* file, int line, int size_B)
 {
+    (void)file;
+    (void)line;
     SKALASSERT(size_B > 0);
     void* ptr = malloc(size_B);
     SKALASSERT(ptr != NULL);
@@ -88,8 +94,10 @@ void* SkalMalloc(int size_B)
 }
 
 
-void* SkalMallocZ(int size_B)
+void* _SkalMallocZ(const char* file, int line, int size_B)
 {
+    (void)file;
+    (void)line;
     SKALASSERT(size_B > 0);
     void* ptr = malloc(size_B);
     SKALASSERT(ptr != NULL);
@@ -98,8 +106,10 @@ void* SkalMallocZ(int size_B)
 }
 
 
-void* SkalRealloc(void* ptr, int size_B)
+void* _SkalRealloc(const char* file, int line, void* ptr, int size_B)
 {
+    (void)file;
+    (void)line;
     SKALASSERT(size_B > 0);
     void* newptr = realloc(ptr, size_B);
     if (newptr == NULL) {
@@ -110,8 +120,10 @@ void* SkalRealloc(void* ptr, int size_B)
 }
 
 
-void* SkalCalloc(int nItems, int itemSize_B)
+void* _SkalCalloc(const char* file, int line, int nItems, int itemSize_B)
 {
+    (void)file;
+    (void)line;
     SKALASSERT(nItems > 0);
     SKALASSERT(itemSize_B > 0);
     void* ptr = calloc(nItems, itemSize_B);
@@ -421,6 +433,19 @@ uint8_t* SkalBase64Decode(const char* base64, int* size_B)
         }
     }
     return data;
+}
+
+
+void _SkalLog(const char* file, int line, const char* format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+    char* msg = malloc(SKAL_LOG_MAX);
+    SKALASSERT(msg != NULL);
+    vsnprintf(msg, SKAL_LOG_MAX, format, ap);
+    fprintf(stderr, "SKAL ERROR [%s:%d] %s\n", file, line, msg);
+    free(msg);
+    va_end(ap);
 }
 
 

@@ -62,7 +62,8 @@ typedef struct SkalStringBuilder SkalStringBuilder;
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-void* SkalMalloc(int size_B);
+#define SkalMalloc(_size_B) _SkalMalloc(__FILE__, __LINE__, (_size_B))
+void* _SkalMalloc(const char* file, int line, int size_B);
 
 
 /** Allocate memory and initialises it to zero
@@ -75,7 +76,8 @@ void* SkalMalloc(int size_B);
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-void* SkalMallocZ(int size_B);
+#define SkalMallocZ(_size_B) _SkalMallocZ(__FILE__, __LINE__, (_size_B))
+void* _SkalMallocZ(const char* file, int line, int size_B);
 
 
 /** `realloc()` replacement
@@ -89,7 +91,9 @@ void* SkalMallocZ(int size_B);
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-void* SkalRealloc(void* ptr, int size_B);
+#define SkalRealloc(_ptr, _size_B) \
+    _SkalRealloc(__FILE__, __LINE__, (_ptr), (_size_B))
+void* _SkalRealloc(const char* file, int line, void* ptr, int size_B);
 
 
 /** `calloc()` replacement
@@ -103,7 +107,9 @@ void* SkalRealloc(void* ptr, int size_B);
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-void* SkalCalloc(int nItems, int itemSize_B);
+#define SkalCalloc(_nItems, _itemSize_B) \
+    _SkalCalloc(__FILE__, __LINE__, (_nItems), (_itemSize_B))
+void* _SkalCalloc(const char* file, int line, int nItems, int itemSize_B);
 
 
 /** Helper function to sprintf a string
@@ -247,6 +253,19 @@ int SkalBase64Decode3(const char** pBase64, uint8_t* data, int size_B);
  *         the it when finished.
  */
 uint8_t* SkalBase64Decode(const char* base64, int* size_B);
+
+
+/** Log an error string
+ *
+ * The use of this function is highly discouraged. Alarms should be used
+ * whenever possible, including signalling of internal errors. In short, this
+ * function is to be used only for very low level errors that need to be somehow
+ * logged or reported, but alarms are not available for one reason or another.
+ */
+#define SkalLog(_format, ...) \
+    _SkalLog(__FILE__, __LINE__, (_format), ## __VA_ARGS__)
+void _SkalLog(const char* file, int line, const char* format, ...)
+    __attribute__(( format(printf, 3, 4) ));
 
 
 
