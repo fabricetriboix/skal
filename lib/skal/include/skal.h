@@ -226,6 +226,27 @@ typedef struct
 } SkalAllocator;
 
 
+/** Opaque type to an alarm
+ *
+ * An alarm is information destined for the operator about an important
+ * condition within the SKAL application.
+ *
+ * An alarm can either be on or off. It is normally turned on by SKAL when the
+ * condition is detected. It can be turned off either by SKAL if it can
+ * automatically detect that the condition is over, or it can be turned off by
+ * the operator
+ */
+typedef struct SkalAlarm SkalAlarm;
+
+
+/** Alarm severities */
+typedef enum {
+    SKAL_ALARM_NOTICE,
+    SKAL_ALARM_WARNING,
+    SKAL_ALARM_ERROR
+} SkalAlarmSeverity;
+
+
 /** Opaque type to a blob
  *
  * A blob is an arbitrary chunk of binary data. A blob is usually "large", from
@@ -369,6 +390,122 @@ void SkalThreadUnsubscribe(const char* group);
  * not return.
  */
 void SkalLoop(void) __attribute__((noreturn));
+
+
+/** Create an alarm object
+ *
+ * The current time will be assigned to the alarm object as its timestamp.
+ *
+ * The current thread will be used as the origin, provided the thread is managed
+ * by SKAL. If not, no origin will be set.
+ *
+ * The alarm comment can be a UTF-8 string.
+ *
+ * @param type     [in] Alarm type; must not be NULL; alarm types starting with
+ *                      "skal-" are reserved for SKAL
+ * @param severity [in] Alarm severity
+ * @param isOn     [in] Whether the condition related to the alarm started or
+ *                      finished
+ * @param autoOff  [in] Whether the alarm will be turned off automatically, or
+ *                      would require external action (i.e. the operator will
+ *                      have to turn it off); ignored if `isOn` is `false`
+ * @param format   [in] Free-form comment: printf-style format; may be NULL if
+ *                      you don't want to add a comment
+ * @param ...      [in] Printf-style arguments
+ */
+SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverity severity,
+        bool isOn, bool autoOff, const char* format, ...)
+    __attribute__(( format(printf, 5, 6) ));
+
+
+/** Add a reference to an alarm
+ *
+ * This will increment the alarm reference counter by one.
+ *
+ * @param alarm [in,out] Alarm to reference; must not be NULL
+ */
+void SkalAlarmRef(SkalAlarm* alarm);
+
+
+/** Remove a reference from an alarm
+ *
+ * This will decrement the alarm reference counter by one.
+ *
+ * If the alarm reference counter reaches zero, the alarm is freed. Therefore,
+ * always assumes you are the last one to call `SkalAlarmUnref()` and that the
+ * alarm has been freed and is no longer available when this function returns.
+ *
+ * @param alarm [in,out] Alarm to de-reference; must not be NULL; might be freed
+ *                       by this call
+ */
+void SkalAlarmUnref(SkalAlarm* alarm);
+
+
+/** Get the alarm type
+ *
+ * @param alarm [in] Alarm to query; must not be NULL
+ *
+ * @return The alarm type; never NULL
+ */
+const char* SkalAlarmType(const SkalAlarm* alarm);
+
+
+/** Get the alarm severity
+ *
+ * @param alarm [in] Alarm to query; must not be NULL
+ *
+ * @return Alarm severity
+ */
+SkalAlarmSeverity SkalAlarmGetSeverity(const SkalAlarm* alarm);
+
+
+/** Get the alarm origin
+ *
+ * @param alarm [in] Alarm to query; must not be NULL
+ *
+ * @return Name of thread that sent the alarm; will be NULL if alarm is created
+ *         from a non-SKAL thread
+ */
+const char* SkalAlarmOrigin(const SkalAlarm* alarm);
+
+
+/** Get whether the alarm is on or off
+ *
+ * @param alarm [in] Alarm to query; must not be NULL
+ *
+ * @return `true` if the alarm is on, `false` if it is off
+ */
+bool SkalAlarmIsOn(const SkalAlarm* alarm);
+
+
+/** Check whether the alarm can be automatically turned off
+ *
+ * @param alarm [in] Alarm to query; must not be NULL
+ *
+ * @return `true` if the alarm can be turned off automatically, `false` if it
+ *         has to be turned off by the operator
+ */
+bool SkalAlarmAutoOff(const SkalAlarm* alarm);
+
+
+/** Get alarm timestamp
+ *
+ * This is the number of micro-seconds since the Epoch.
+ *
+ * @param alarm [in] Alarm to query; must not be NULL
+ *
+ * @return Alarm timestamp (us since Epoch)
+ */
+int64_t SkalAlarmTimestamp_us(const SkalAlarm* alarm);
+
+
+/** Get the alarm comment
+ *
+ * @param alarm [in] Alarm to query; must not be NULL
+ *
+ * @return Alarm comment, or NULL if no comment
+ */
+const char* SkalAlarmComment(const SkalAlarm* alarm);
 
 
 /** Create a blob
@@ -526,6 +663,16 @@ int64_t SkalBlobSize_B(const SkalBlob* blob);
  */
 SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
         uint8_t flags, const char* marker);
+
+
+/** Add a reference to a message
+ *
+ * This will increment the message reference counter by one. If blobs are
+ * attached to the message, their reference counters are also incremented.
+ *
+ * @param msg [in,out] Message to reference; must not be NULL
+ */
+void SkalMsgRef(SkalMsg* msg);
 
 
 /** Remove a reference from a message
