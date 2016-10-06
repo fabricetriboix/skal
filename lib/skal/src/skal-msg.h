@@ -40,16 +40,6 @@
  +------------------------------*/
 
 
-/** Add a reference to a message
- *
- * This will increment the message reference counter by one. If blobs are
- * attached to the message, their reference counters are also incremented.
- *
- * @param msg [in,out] Message to reference; must not be NULL
- */
-void SkalMsgRef(SkalMsg* msg);
-
-
 /** Set a message's internal flags
  *
  * @param msg [in,out] Message to manipulate; must not be NULL
