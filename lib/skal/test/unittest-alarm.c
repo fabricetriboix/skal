@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "skal.h"
+#include "skal-alarm.h"
 #include "rttest.h"
 #include <stdlib.h>
 #include <string.h>
@@ -100,9 +100,65 @@ RTT_TEST_START(skal_alarm_should_have_correct_comment)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_alarm_should_convert_to_json)
+{
+    char* expected = SkalSPrintf(
+        "  {\n"
+        "   \"type\": \"total-meltdown\",\n"
+        "   \"severity\": \"warning\",\n"
+        "   \"origin\": \"TestThreadA\",\n"
+        "   \"isOn\": true,\n"
+        "   \"autoOff\": false,\n"
+        "   \"timestamp_us\": %lld,\n"
+        "   \"comment\": \"Hello, world! 9\"\n"
+        "  }",
+        (long long)SkalAlarmTimestamp_us(gAlarm));
+    char* json = SkalAlarmToJson(gAlarm, 2);
+    RTT_EXPECT(json != NULL);
+    RTT_EXPECT(strcmp(json, expected) == 0);
+    free(expected);
+    free(json);
+}
+RTT_TEST_END
+
 RTT_TEST_START(skal_alarm_should_free)
 {
     SkalAlarmUnref(gAlarm);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_alarm_should_parse_json)
+{
+    const char* json =
+        "  {\n"
+        "   \"severity\": \"err\\or\","
+        "   \"isOn\": false,\n"
+        "   \"comment\": \"this is\\ a test\",\n"
+        "   \"autoOff\": true,\n"
+        "     \"timestamp\\_us\": 1234567,\n"
+        "   \"type\": \"Bla bla bla\"\n"
+        "  },\n";
+
+    SkalAlarm* alarm = SkalAlarmCreateFromJson(&json);
+    RTT_EXPECT(alarm != NULL);
+
+    const char* s = SkalAlarmType(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "Bla bla bla") == 0);
+
+    RTT_EXPECT(SkalAlarmGetSeverity(alarm) == SKAL_ALARM_ERROR);
+    RTT_EXPECT(SkalAlarmOrigin(alarm) == NULL);
+    RTT_EXPECT(!SkalAlarmIsOn(alarm));
+    RTT_EXPECT(SkalAlarmAutoOff(alarm));
+    RTT_EXPECT(SkalAlarmTimestamp_us(alarm) == 1234567);
+
+    s = SkalAlarmComment(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "this is a test") == 0);
+
+    SkalAlarmUnref(alarm);
+
+    RTT_EXPECT(',' == *json);
 }
 RTT_TEST_END
 
@@ -115,4 +171,6 @@ RTT_GROUP_END(TestSkalAlarm,
         skal_alarm_should_have_correct_autooff,
         skal_alarm_should_have_correct_timestamp,
         skal_alarm_should_have_correct_comment,
-        skal_alarm_should_free)
+        skal_alarm_should_convert_to_json,
+        skal_alarm_should_free,
+        skal_alarm_should_parse_json)
