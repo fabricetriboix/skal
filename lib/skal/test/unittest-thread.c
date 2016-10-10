@@ -59,9 +59,9 @@ static void pseudoSkald(void* arg)
                         (int)event->type);
                 break;
             }
+            SkalNetEventUnref(event);
         }
-        SkalNetEventUnref(event);
-    }
+    } // loop
 }
 
 
