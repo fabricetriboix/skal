@@ -234,7 +234,9 @@ typedef struct
  * An alarm can either be on or off. It is normally turned on by SKAL when the
  * condition is detected. It can be turned off either by SKAL if it can
  * automatically detect that the condition is over, or it can be turned off by
- * the operator
+ * the operator.
+ *
+ * Alarms can be pushed into and popped from `CdsList` lists.
  */
 typedef struct SkalAlarm SkalAlarm;
 
@@ -244,7 +246,7 @@ typedef enum {
     SKAL_ALARM_NOTICE,
     SKAL_ALARM_WARNING,
     SKAL_ALARM_ERROR
-} SkalAlarmSeverity;
+} SkalAlarmSeverityE;
 
 
 /** Opaque type to a blob
@@ -413,7 +415,7 @@ void SkalLoop(void) __attribute__((noreturn));
  *                      you don't want to add a comment
  * @param ...      [in] Printf-style arguments
  */
-SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverity severity,
+SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverityE severity,
         bool isOn, bool autoOff, const char* format, ...)
     __attribute__(( format(printf, 5, 6) ));
 
@@ -456,7 +458,7 @@ const char* SkalAlarmType(const SkalAlarm* alarm);
  *
  * @return Alarm severity
  */
-SkalAlarmSeverity SkalAlarmGetSeverity(const SkalAlarm* alarm);
+SkalAlarmSeverityE SkalAlarmSeverity(const SkalAlarm* alarm);
 
 
 /** Get the alarm origin
@@ -667,8 +669,8 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
 
 /** Add a reference to a message
  *
- * This will increment the message reference counter by one. If blobs are
- * attached to the message, their reference counters are also incremented.
+ * This will increment the message reference counter by one. If blobs or alarms
+ * are attached to the message, their reference counters are also incremented.
  *
  * @param msg [in,out] Message to reference; must not be NULL
  */
@@ -787,9 +789,21 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
  *
  * @param msg  [in,out] Message to modify; must not be NULL
  * @param name [in]     Name of the blob; must not be NULL
- * @param blob [in]     Blob to attach; must not be NULL
+ * @param blob [in,out] Blob to attach; must not be NULL
  */
 void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob);
+
+
+/** Attach an alarm to a message
+ *
+ * The ownership of the alarm is transferred to the `msg`. If you want to
+ * continue accessing the alarm after this call, you need to take a reference
+ * first, by calling `SkalAlarmRef(alarm)`.
+ *
+ * @param msg   [in,out] Message to modify; must not be NULL
+ * @param alarm [in,out] Alarm to attached; must not be NULL
+ */
+void SkalMsgAttachAlarm(SkalMsg* msg, SkalAlarm* alarm);
 
 
 /** Check if a message has a field with the given name
@@ -869,6 +883,18 @@ SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name);
  * @return The found blob; this function never returns NULL
  */
 SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name);
+
+
+/** Detach an alarm from a message
+ *
+ * You can call this function multiple times to extract all the alarms of the
+ * message. The ownership of the alarm is transferred to you.
+ *
+ * @param msg [in,out] Message to manipulate; must not be NULL
+ *
+ * @return The next alarm, or NULL if no more alarm
+ */
+SkalAlarm* SkalMsgDetachAlarm(SkalMsg* msg);
 
 
 /** Make a copy of a message

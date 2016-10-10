@@ -28,15 +28,15 @@
 
 
 struct SkalAlarm {
-    CdsListItem       item;
-    int               ref;
-    char              type[SKAL_NAME_MAX];
-    SkalAlarmSeverity severity;
-    char              origin[SKAL_NAME_MAX];
-    bool              isOn;
-    bool              autoOff;
-    int64_t           timestamp_us;
-    char*             comment;
+    CdsListItem        item;
+    int                ref;
+    char               type[SKAL_NAME_MAX];
+    SkalAlarmSeverityE severity;
+    char               origin[SKAL_NAME_MAX];
+    bool               isOn;
+    bool               autoOff;
+    int64_t            timestamp_us;
+    char*              comment;
 };
 
 
@@ -103,7 +103,7 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm);
  +---------------------------------*/
 
 
-SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverity severity,
+SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverityE severity,
         bool isOn, bool autoOff, const char* format, ...)
 {
     SKALASSERT(SkalIsAsciiString(type, SKAL_NAME_MAX));
@@ -154,7 +154,7 @@ const char* SkalAlarmType(const SkalAlarm* alarm)
 }
 
 
-SkalAlarmSeverity SkalAlarmGetSeverity(const SkalAlarm* alarm)
+SkalAlarmSeverityE SkalAlarmSeverity(const SkalAlarm* alarm)
 {
     SKALASSERT(alarm != NULL);
     return alarm->severity;
@@ -214,19 +214,19 @@ char* SkalAlarmToJson(const SkalAlarm* alarm, int nindent)
     indent[nindent] = '\0';
 
     const char* severity = NULL;
-    switch (SkalAlarmGetSeverity(alarm)) {
+    switch (alarm->severity) {
     case SKAL_ALARM_NOTICE  : severity = "notice";  break;
     case SKAL_ALARM_WARNING : severity = "warning"; break;
     case SKAL_ALARM_ERROR   : severity = "error";   break;
     }
     SKALASSERT(severity != NULL);
 
-    const char* origin = SkalAlarmOrigin(alarm);
+    const char* origin = alarm->origin;
     if (NULL == origin) {
         origin = "";
     }
 
-    const char* comment = SkalAlarmComment(alarm);
+    const char* comment = alarm->comment;
     if (NULL == comment) {
         comment = "";
     }
@@ -242,12 +242,12 @@ char* SkalAlarmToJson(const SkalAlarm* alarm, int nindent)
             "%s \"comment\": \"%s\"\n"
             "%s}",
             indent,
-            indent, SkalAlarmType(alarm),
+            indent, alarm->type,
             indent, severity,
             indent, origin,
-            indent, SkalAlarmIsOn(alarm) ? "true" : "false",
-            indent, SkalAlarmAutoOff(alarm) ? "true" : "false",
-            indent, (long long)SkalAlarmTimestamp_us(alarm),
+            indent, alarm->isOn ? "true" : "false",
+            indent, alarm->autoOff ? "true" : "false",
+            indent, (long long)alarm->timestamp_us,
             indent, comment,
             indent);
 

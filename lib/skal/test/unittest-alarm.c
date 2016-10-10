@@ -61,7 +61,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_alarm_should_have_correct_severity)
 {
-    RTT_EXPECT(SkalAlarmGetSeverity(gAlarm) == SKAL_ALARM_WARNING);
+    RTT_EXPECT(SkalAlarmSeverity(gAlarm) == SKAL_ALARM_WARNING);
 }
 RTT_TEST_END
 
@@ -146,7 +146,7 @@ RTT_TEST_START(skal_alarm_should_parse_json)
     RTT_EXPECT(s != NULL);
     RTT_EXPECT(strcmp(s, "Bla bla bla") == 0);
 
-    RTT_EXPECT(SkalAlarmGetSeverity(alarm) == SKAL_ALARM_ERROR);
+    RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_ERROR);
     RTT_EXPECT(SkalAlarmOrigin(alarm) == NULL);
     RTT_EXPECT(!SkalAlarmIsOn(alarm));
     RTT_EXPECT(SkalAlarmAutoOff(alarm));

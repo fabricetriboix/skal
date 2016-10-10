@@ -15,6 +15,7 @@
  */
 
 #include "skal-msg.h"
+#include "skal-alarm.h"
 #include "rttest.h"
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +35,8 @@ static RTBool testMsgGroupExit(void)
 
 
 static SkalMsg* gMsg = NULL;
+static SkalAlarm* gAlarm1 = NULL;
+static SkalAlarm* gAlarm2 = NULL;
 
 RTT_GROUP_START(TestSkalMsg, 0x00040001u, testMsgGroupEnter, testMsgGroupExit)
 
@@ -143,13 +146,28 @@ RTT_TEST_START(skal_msg_should_have_correct_miniblob)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_msg_should_attach_alarms)
+{
+    gAlarm1 = SkalAlarmCreate("alarm1", SKAL_ALARM_NOTICE, true, true, NULL);
+    RTT_ASSERT(gAlarm1 != NULL);
+    SkalAlarmRef(gAlarm1);
+    SkalMsgAttachAlarm(gMsg, gAlarm1);
+
+    gAlarm2 = SkalAlarmCreate("alarm2", SKAL_ALARM_ERROR, false, false,
+            "This is a %s", "test");
+    RTT_ASSERT(gAlarm2 != NULL);
+    SkalAlarmRef(gAlarm2);
+    SkalMsgAttachAlarm(gMsg, gAlarm2);
+}
+RTT_TEST_END
+
 RTT_TEST_START(skal_msg_should_produce_correct_json)
 {
     char* json = SkalMsgToJson(gMsg);
     RTT_ASSERT(json != NULL);
 
     // NB: Fields will be ordered by name
-    const char* expected =
+    char* expected = SkalSPrintf(
         "{\n"
         " \"version\": 1,\n"
         " \"type\": \"TestType\",\n"
@@ -179,11 +197,81 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         "   \"type\": \"string\",\n"
         "   \"value\": \"This is a test string\"\n"
         "  }\n"
+        " ],\n"
+        " \"alarms\": [\n"
+        "  {\n"
+        "   \"type\": \"alarm1\",\n"
+        "   \"severity\": \"notice\",\n"
+        "   \"origin\": \"TestThread\",\n"
+        "   \"isOn\": true,\n"
+        "   \"autoOff\": true,\n"
+        "   \"timestamp_us\": %lld,\n"
+        "   \"comment\": \"\"\n"
+        "  },\n"
+        "  {\n"
+        "   \"type\": \"alarm2\",\n"
+        "   \"severity\": \"error\",\n"
+        "   \"origin\": \"TestThread\",\n"
+        "   \"isOn\": false,\n"
+        "   \"autoOff\": false,\n"
+        "   \"timestamp_us\": %lld,\n"
+        "   \"comment\": \"This is a test\"\n"
+        "  }\n"
         " ]\n"
-        "}\n";
+        "}\n",
+        (long long)SkalAlarmTimestamp_us(gAlarm1),
+        (long long)SkalAlarmTimestamp_us(gAlarm2));
 
     RTT_EXPECT(strcmp(json, expected) == 0);
     free(json);
+
+    SkalAlarmUnref(gAlarm1);
+    SkalAlarmUnref(gAlarm2);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_msg_should_detach_alarm1)
+{
+    SkalAlarm* alarm = SkalMsgDetachAlarm(gMsg);
+    RTT_EXPECT(alarm != NULL);
+    const char* s = SkalAlarmType(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "alarm1") == 0);
+    RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_NOTICE);
+    s = SkalAlarmOrigin(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "TestThread") == 0);
+    RTT_EXPECT(SkalAlarmIsOn(alarm));
+    RTT_EXPECT(SkalAlarmAutoOff(alarm));
+    RTT_EXPECT(SkalAlarmComment(alarm) == NULL);
+    SkalAlarmUnref(alarm);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_msg_should_detach_alarm2)
+{
+    SkalAlarm* alarm = SkalMsgDetachAlarm(gMsg);
+    RTT_EXPECT(alarm != NULL);
+    const char* s = SkalAlarmType(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "alarm2") == 0);
+    RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_ERROR);
+    s = SkalAlarmOrigin(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "TestThread") == 0);
+    RTT_EXPECT(!SkalAlarmIsOn(alarm));
+    RTT_EXPECT(!SkalAlarmAutoOff(alarm));
+    s = SkalAlarmComment(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "This is a test") == 0);
+    SkalAlarmUnref(alarm);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_msg_should_have_no_more_alarms)
+{
+    SkalAlarm* alarm = SkalMsgDetachAlarm(gMsg);
+    RTT_EXPECT(NULL == alarm);
 }
 RTT_TEST_END
 
@@ -231,6 +319,24 @@ RTT_TEST_START(skal_msg_should_create_from_json)
         "   \"name\": \"SomeString\",\n"
         "   \"type\": \"string\",\n"
         "   \"value\": \"This is a test string2\"\n"
+        "  }\n"
+        " ],\n"
+        " \"alarms\": [\n"
+        "  {\n"
+        "   \"timestamp_us\": 1234567890,\n"
+        "   \"severity\": \"notice\",\n"
+        "   \"origin\": \"PanicAttak\",\n"
+        "   \"isOn\": true,\n"
+        "   \"type\": \"AlarmTypeA\",\n"
+        "   \"autoOff\": false\n"
+        "  },\n"
+        "  {\n"
+        "   \"timestamp_us\": 987654321,\n"
+        "   \"severity\": \"warning\",\n"
+        "   \"isOn\": false,\n"
+        "   \"type\": \"AlarmTypeB\",\n"
+        "   \"autoOff\": true,\n"
+        "   \"comment\": \"This is a \\fake alarm\"\n"
         "  }\n"
         " ]\n"
         "}\n";
@@ -284,6 +390,39 @@ RTT_TEST_START(skal_msg_should_create_from_json)
     RTT_EXPECT(s != NULL);
     RTT_EXPECT(strcmp(s, "This is a test string2") == 0);
 
+    SkalAlarm* alarm = SkalMsgDetachAlarm(msg);
+    RTT_EXPECT(alarm != NULL);
+    s = SkalAlarmType(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "AlarmTypeA") == 0);
+    RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_NOTICE);
+    s = SkalAlarmOrigin(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "PanicAttak") == 0);
+    RTT_EXPECT(SkalAlarmIsOn(alarm));
+    RTT_EXPECT(!SkalAlarmAutoOff(alarm));
+    RTT_EXPECT(SkalAlarmTimestamp_us(alarm) == 1234567890LL);
+    RTT_EXPECT(SkalAlarmComment(alarm) == NULL);
+    SkalAlarmUnref(alarm);
+
+    alarm = SkalMsgDetachAlarm(msg);
+    RTT_EXPECT(alarm != NULL);
+    s = SkalAlarmType(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "AlarmTypeB") == 0);
+    RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_WARNING);
+    RTT_EXPECT(SkalAlarmOrigin(alarm) == NULL);
+    RTT_EXPECT(!SkalAlarmIsOn(alarm));
+    RTT_EXPECT(SkalAlarmAutoOff(alarm));
+    RTT_EXPECT(SkalAlarmTimestamp_us(alarm) == 987654321LL);
+    s = SkalAlarmComment(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "This is a fake alarm") == 0);
+    SkalAlarmUnref(alarm);
+
+    alarm = SkalMsgDetachAlarm(msg);
+    RTT_EXPECT(NULL == alarm);
+
     SkalMsgUnref(msg);
 }
 RTT_TEST_END
@@ -302,7 +441,11 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_should_have_correct_double,
         skal_msg_should_have_correct_string,
         skal_msg_should_have_correct_miniblob,
+        skal_msg_should_attach_alarms,
         skal_msg_should_produce_correct_json,
+        skal_msg_should_detach_alarm1,
+        skal_msg_should_detach_alarm2,
+        skal_msg_should_have_no_more_alarms,
         skal_msg_should_free,
         skal_should_have_no_more_msg_ref_1,
         skal_msg_should_create_from_json)

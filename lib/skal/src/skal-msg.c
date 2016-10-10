@@ -16,6 +16,7 @@
 
 #include "skal-msg.h"
 #include "skal-blob.h"
+#include "skal-alarm.h"
 #include "cdslist.h"
 #include "cdsmap.h"
 #include <stdlib.h>
@@ -44,9 +45,13 @@ typedef enum {
 } skalMsgFieldType;
 
 
+/** Item of map `SkalMsg.fields`
+ *
+ * We do not keep track of reference count, because a field is only ever
+ * reference by one message.
+ */
 typedef struct {
     CdsMapItem       item;
-    int8_t           ref;
     skalMsgFieldType type;
     int              size_B; // Used only for strings and miniblobs
     char             name[SKAL_NAME_MAX];
@@ -60,10 +65,9 @@ typedef struct {
 } skalMsgField;
 
 
-struct SkalMsg
-{
+struct SkalMsg {
     CdsListItem item; // SKAL messages can be enqueued and dequeued
-    int8_t      ref;
+    int         ref;
     int         version;
     uint8_t     flags;
     uint8_t     iflags;
@@ -72,6 +76,7 @@ struct SkalMsg
     char        recipient[SKAL_NAME_MAX];
     char        marker[SKAL_NAME_MAX];
     CdsMap*     fields; // Map of `skalMsgField`, indexed by field name
+    CdsList*    alarms; // List of `SkalAlarm`
 };
 
 
@@ -100,6 +105,10 @@ static void skalFieldMapUnref(CdsMapItem* item);
 /** Function to append a field to a JSON string representing a message */
 static void skalFieldToJson(SkalStringBuilder* sb,
         const char* name, const skalMsgField* field);
+
+
+/** Function to append an alarm to a JSON string representing a message */
+static void skalAlarmToJson(SkalStringBuilder* sb, SkalAlarm* alarm);
 
 
 /** Try to parse a JSON text into a message
@@ -205,6 +214,8 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
     }
     msg->fields = CdsMapCreate(NULL, SKAL_FIELDS_MAX,
             SkalStringCompare, msg, NULL, skalFieldMapUnref);
+    msg->alarms = CdsListCreate(NULL, SKAL_FIELDS_MAX,
+            (void(*)(CdsListItem*))SkalAlarmUnref);
 
     return msg;
 }
@@ -234,41 +245,18 @@ uint8_t SkalMsgIFlags(const SkalMsg* msg)
 void SkalMsgRef(SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
-    msg->ref++;
-
-    // Reference attached blobs, if any
-    CdsMapIteratorReset(msg->fields, true);
-    for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, NULL);
-            item != NULL;
-            item = CdsMapIteratorNext(msg->fields, NULL) ) {
-        skalMsgField* field = (skalMsgField*)item;
-        if (SKAL_MSG_FIELD_TYPE_BLOB == field->type) {
-            SkalBlobRef(field->blob);
-        }
-    }
-
     gMsgRefCount_DEBUG++;
+    msg->ref++;
 }
 
 
 void SkalMsgUnref(SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
-    msg->ref--;
-
-    // Unreference attached blobs, if any
-    CdsMapIteratorReset(msg->fields, true);
-    for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, NULL);
-            item != NULL;
-            item = CdsMapIteratorNext(msg->fields, NULL) ) {
-        skalMsgField* field = (skalMsgField*)item;
-        if (SKAL_MSG_FIELD_TYPE_BLOB == field->type) {
-            SkalBlobUnref(field->blob);
-        }
-    }
-
     gMsgRefCount_DEBUG--;
+    msg->ref--;
     if (msg->ref <= 0) {
+        CdsListDestroy(msg->alarms);
         CdsMapDestroy(msg->fields);
         free(msg);
     }
@@ -357,6 +345,15 @@ void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
     field->blob = blob;
     SkalBlobRef(blob);
     SKALPANIC_MSG("Attaching blobs is not yet supported"); // TODO
+}
+
+
+void SkalMsgAttachAlarm(SkalMsg* msg, SkalAlarm* alarm)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(alarm != NULL);
+    bool inserted = CdsListPushBack(msg->alarms, (CdsListItem*)alarm);
+    SKALASSERT(inserted);
 }
 
 
@@ -458,6 +455,14 @@ SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name)
 }
 
 
+SkalAlarm* SkalMsgDetachAlarm(SkalMsg* msg)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(msg->alarms != NULL);
+    return (SkalAlarm*)CdsListPopFront(msg->alarms);
+}
+
+
 // TODO
 #if 0
 SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient)
@@ -495,8 +500,21 @@ char* SkalMsgToJson(const SkalMsg* msg)
         skalFieldToJson(sb, (const char*)key, (skalMsgField*)item);
     }
 
-    SkalStringBuilderTrim(sb, 2);
-    SkalStringBuilderAppend(sb, "\n ]\n}\n");
+    if (!CdsMapIsEmpty(msg->fields)) {
+        SkalStringBuilderTrim(sb, 2); // Remove final ",\n"
+    }
+    SkalStringBuilderAppend(sb, "\n ]");
+
+    if (CdsListIsEmpty(msg->alarms)) {
+        SkalStringBuilderAppend(sb, "\n}\n");
+    } else {
+        SkalStringBuilderAppend(sb, ",\n \"alarms\": [\n");
+        CDSLIST_FOREACH(msg->alarms, SkalAlarm, alarm) {
+            skalAlarmToJson(sb, alarm);
+        }
+        SkalStringBuilderTrim(sb, 2); // Remove final ",\n"
+        SkalStringBuilderAppend(sb, "\n ]\n}\n");
+    }
 
     return SkalStringBuilderFinish(sb);
 }
@@ -512,6 +530,8 @@ SkalMsg* SkalMsgCreateFromJson(const char* json)
     // Leave `version` at 0
     msg->fields = CdsMapCreate(NULL, SKAL_FIELDS_MAX,
             SkalStringCompare, msg, NULL, skalFieldMapUnref);
+    msg->alarms = CdsListCreate(NULL, SKAL_FIELDS_MAX,
+            (void(*)(CdsListItem*))SkalAlarmUnref);
     gMsgRefCount_DEBUG++;
 
     // Try to parse the JSON string
@@ -541,7 +561,6 @@ static skalMsgField* skalAllocMsgField(SkalMsg* msg,
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
     skalMsgField* field = SkalMallocZ(sizeof(*field));
-    field->ref = 1;
     field->type = type;
     strncpy(field->name, name, sizeof(field->name) - 1);
     SKALASSERT(CdsMapInsert(msg->fields, field->name, &field->item));
@@ -552,23 +571,20 @@ static skalMsgField* skalAllocMsgField(SkalMsg* msg,
 static void skalFieldMapUnref(CdsMapItem* item)
 {
     skalMsgField* field = (skalMsgField*)item;
-    field->ref--;
-    if (field->ref <= 0) {
-        switch (field->type) {
-        case SKAL_MSG_FIELD_TYPE_STRING :
-            free(field->s);
-            break;
-        case SKAL_MSG_FIELD_TYPE_MINIBLOB :
-            free(field->miniblob);
-            break;
-        case SKAL_MSG_FIELD_TYPE_BLOB :
-            SkalBlobUnref(field->blob);
-            break;
-        default :
-            break; // nothing to do
-        }
-        free(field);
+    switch (field->type) {
+    case SKAL_MSG_FIELD_TYPE_STRING :
+        free(field->s);
+        break;
+    case SKAL_MSG_FIELD_TYPE_MINIBLOB :
+        free(field->miniblob);
+        break;
+    case SKAL_MSG_FIELD_TYPE_BLOB :
+        SkalBlobUnref(field->blob);
+        break;
+    default :
+        break; // nothing to do
     }
+    free(field);
 }
 
 
@@ -647,6 +663,16 @@ static void skalFieldToJson(SkalStringBuilder* sb,
     default :
         SKALPANIC_MSG("Unknown message data type %d", (int)field->type);
     }
+}
+
+
+static void skalAlarmToJson(SkalStringBuilder* sb, SkalAlarm* alarm)
+{
+    SKALASSERT(alarm != NULL);
+    char* json = SkalAlarmToJson(alarm, 2);
+    SKALASSERT(json != NULL);
+    SkalStringBuilderAppend(sb, "%s,\n", json);
+    free(json);
 }
 
 
@@ -762,7 +788,6 @@ static const char* skalMsgParseJsonProperty(const char* json,
         while ((*json != '\0') && (*json != ']')) {
             // Allocate an empty be coherent field
             skalMsgField* field = SkalMallocZ(sizeof(*field));
-            field->ref = 1;
             field->type = SKAL_MSG_FIELD_TYPE_INT;
             json = skalMsgParseJsonField(json, field);
             if (NULL == json) {
@@ -772,6 +797,29 @@ static const char* skalMsgParseJsonProperty(const char* json,
                             field->name, &field->item));
             }
             if (*json != '\0') {
+                json = skalMsgSkipSpaces(json);
+            }
+        }
+        if (*json != ']') {
+            return NULL;
+        }
+        json++;
+
+    } else if (strcmp(name, "alarms") == 0) {
+        if (*json != '[') {
+            return NULL;
+        }
+        json++;
+        json = skalMsgSkipSpaces(json);
+        while ((*json != '\0') && (*json != ']')) {
+            SkalAlarm* alarm = SkalAlarmCreateFromJson(&json);
+            if (NULL == alarm) {
+                return NULL;
+            }
+            SkalMsgAttachAlarm(msg, alarm);
+            json = skalMsgSkipSpaces(json);
+            if (',' == *json) {
+                json++;
                 json = skalMsgSkipSpaces(json);
             }
         }
