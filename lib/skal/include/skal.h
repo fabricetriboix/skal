@@ -120,7 +120,7 @@ typedef void* (*SkalAllocateF)(void* cookie, const char* id, int64_t size_B);
  *
  * **This function is not allowed to block!**
  */
-typedef void (*SkalFreeF)(void* cookie, void* obj);
+typedef void (*SkalDeallocateF)(void* cookie, void* obj);
 
 
 /** Prototype to map a custom memory area
@@ -212,8 +212,8 @@ typedef struct
     /** Allocate a memory area; NULL not allowed */
     SkalAllocateF allocate;
 
-    /** Free a memory area; NULL not allowed */
-    SkalFreeF free;
+    /** Deallocate a memory area; NULL not allowed */
+    SkalDeallocateF deallocate;
 
     /** Map a memory area into the process memory space; NULL not allowed */
     SkalMapF map;

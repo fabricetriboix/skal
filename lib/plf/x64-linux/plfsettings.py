@@ -32,6 +32,7 @@ def GetPlfSettings(variantNames):
 
         # Customisation per variant
         if v == "debug":
+            settings[v]['cppdefines'].append({'SKAL_WITH_FLLOC': '1'})
             settings[v]['ccflags'].extend(['-O0', '-g'])
             settings[v]['cxxflags'].extend(['-O0', '-g'])
         elif v == "release":

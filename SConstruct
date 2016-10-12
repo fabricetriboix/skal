@@ -23,6 +23,9 @@ AddOption("--libdir", dest='libdirs', action='append', default=[],
 AddOption("--no-ccache", dest='use_ccache', action='store_false', default=True,
         help="Do not use ccache")
 
+AddOption("--flloc", dest='use_flloc', action='store_true', default=False,
+        help="Check for memory leaks using flloc")
+
 AddOption("--mkdoc", dest='make_doc', action='store_true', default=False,
         help="Also build the documentation for all variants")
 

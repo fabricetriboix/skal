@@ -63,8 +63,8 @@ typedef struct SkalStringBuilder SkalStringBuilder;
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-#define SkalMalloc(_size_B) _SkalMalloc(__FILE__, __LINE__, (_size_B))
-void* _SkalMalloc(const char* file, int line, int size_B);
+#define SkalMalloc(_size_B) _SkalMalloc((_size_B), __FILE__, __LINE__)
+void* _SkalMalloc(int size_B, const char* file, int line);
 
 
 /** Allocate memory and initialises it to zero
@@ -77,8 +77,8 @@ void* _SkalMalloc(const char* file, int line, int size_B);
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-#define SkalMallocZ(_size_B) _SkalMallocZ(__FILE__, __LINE__, (_size_B))
-void* _SkalMallocZ(const char* file, int line, int size_B);
+#define SkalMallocZ(_size_B) _SkalMallocZ((_size_B), __FILE__, __LINE__)
+void* _SkalMallocZ(int size_B, const char* file, int line);
 
 
 /** `realloc()` replacement
@@ -93,8 +93,8 @@ void* _SkalMallocZ(const char* file, int line, int size_B);
  *         release with `free()` when you no longer need it
  */
 #define SkalRealloc(_ptr, _size_B) \
-    _SkalRealloc(__FILE__, __LINE__, (_ptr), (_size_B))
-void* _SkalRealloc(const char* file, int line, void* ptr, int size_B);
+    _SkalRealloc((_ptr), (_size_B), __FILE__, __LINE__)
+void* _SkalRealloc(void* ptr, int size_B, const char* file, int line);
 
 
 /** `calloc()` replacement
@@ -109,8 +109,8 @@ void* _SkalRealloc(const char* file, int line, void* ptr, int size_B);
  *         release with `free()` when you no longer need it
  */
 #define SkalCalloc(_nItems, _itemSize_B) \
-    _SkalCalloc(__FILE__, __LINE__, (_nItems), (_itemSize_B))
-void* _SkalCalloc(const char* file, int line, int nItems, int itemSize_B);
+    _SkalCalloc((_nItems), (_itemSize_B), __FILE__, __LINE__)
+void* _SkalCalloc(int nItems, int itemSize_B, const char* file, int line);
 
 
 /** Helper function to sprintf a string

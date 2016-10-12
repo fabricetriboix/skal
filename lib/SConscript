@@ -61,5 +61,7 @@ if variant['env'].GetOption('make_doc') and variant['env']['HAS_DOXYGEN'] == "ye
 if len(testsrcs) > 0:
     testobjs = [variant['env'].StaticObject(src) for src in testsrcs]
     testobjs.append(rttestmainobj)
-    variant['env'].Program("skal_unit_tests", testobjs,
-            LIBS=['skal', 'cds', 'rttest', 'rtsys'])
+    libs = ['skal', 'cds', 'rttest', 'rtsys']
+    if GetOption('use_flloc'):
+        libs.append('flloc')
+    variant['env'].Program("skal_unit_tests", testobjs, LIBS=libs)

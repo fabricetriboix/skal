@@ -33,11 +33,10 @@
 #define SKAL_LOG_MAX 1024
 
 
-struct SkalStringBuilder
-{
+struct SkalStringBuilder {
     char* str;
-    int capacity;
-    int index;
+    int   capacity;
+    int   index;
 };
 
 
@@ -83,36 +82,48 @@ static uint8_t base64CharToByte(char c);
  +---------------------------------*/
 
 
-void* _SkalMalloc(const char* file, int line, int size_B)
+void* _SkalMalloc(int size_B, const char* file, int line)
 {
+    SKALASSERT(size_B > 0);
+#ifdef SKAL_WITH_FLLOC
+    void* ptr = FllocMalloc(size_B, file, line);
+#else
     (void)file;
     (void)line;
-    SKALASSERT(size_B > 0);
     void* ptr = malloc(size_B);
+#endif
     SKALASSERT(ptr != NULL);
     return ptr;
 }
 
 
-void* _SkalMallocZ(const char* file, int line, int size_B)
+void* _SkalMallocZ(int size_B, const char* file, int line)
 {
+    SKALASSERT(size_B > 0);
+#ifdef SKAL_WITH_FLLOC
+    void* ptr = FllocMalloc(size_B, file, line);
+#else
     (void)file;
     (void)line;
-    SKALASSERT(size_B > 0);
     void* ptr = malloc(size_B);
+#endif
     SKALASSERT(ptr != NULL);
     memset(ptr, 0, size_B);
     return ptr;
 }
 
 
-void* _SkalRealloc(const char* file, int line, void* ptr, int size_B)
+void* _SkalRealloc(void* ptr, int size_B, const char* file, int line)
 {
+    SKALASSERT(size_B > 0);
+#ifdef SKAL_WITH_FLLOC
+    void* newptr = FllocRealloc(ptr, size_B, file, line);
+#else
     (void)file;
     (void)line;
-    SKALASSERT(size_B > 0);
     void* newptr = realloc(ptr, size_B);
-    if (newptr == NULL) {
+#endif
+    if (NULL == newptr) {
         free(ptr);
     }
     SKALASSERT(newptr != NULL);
@@ -120,13 +131,17 @@ void* _SkalRealloc(const char* file, int line, void* ptr, int size_B)
 }
 
 
-void* _SkalCalloc(const char* file, int line, int nItems, int itemSize_B)
+void* _SkalCalloc(int nItems, int itemSize_B, const char* file, int line)
 {
-    (void)file;
-    (void)line;
     SKALASSERT(nItems > 0);
     SKALASSERT(itemSize_B > 0);
+#ifdef SKAL_WITH_FLLOC
+    void* ptr = FllocCalloc(nItems, itemSize_B, file, line);
+#else
+    (void)file;
+    (void)line;
     void* ptr = calloc(nItems, itemSize_B);
+#endif
     SKALASSERT(ptr != NULL);
     return ptr;
 }

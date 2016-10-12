@@ -30,6 +30,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#ifdef SKAL_WITH_FLLOC
+#include <flloc.h>
+#endif
+
 
 
 /*----------------+
