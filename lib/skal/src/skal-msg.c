@@ -191,7 +191,6 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
         SKALASSERT(SkalIsAsciiString(marker, SKAL_NAME_MAX));
     }
 
-    // FIXME: potential race condition on gMsgCounter... fix that.
     unsigned long long n = ++gMsgCounter;
     SkalMsg* msg = SkalMallocZ(sizeof(*msg));
     msg->ref = 1;
@@ -463,7 +462,7 @@ SkalAlarm* SkalMsgDetachAlarm(SkalMsg* msg)
 }
 
 
-// TODO
+// TODO: Implement SkalMsgCopy
 #if 0
 SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient)
 {
@@ -689,6 +688,7 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
     // Find starting '{'
     json = skalMsgSkipSpaces(json);
     if (*json != '{') {
+        SkalLog("SkalMsg: Invalid JSON: Expected '{'");
         return false;
     }
     json++;
@@ -704,6 +704,7 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
 
         json = skalMsgSkipSpaces(json);
         if (*json != ':') {
+            SkalLog("SkalMsg: Invalid JSON: Expected ':'");
             return false;
         }
         json++;
@@ -714,12 +715,24 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
     } // For each JSON property
 
     // Check all properties are there
-    if (    (msg->version != SKAL_MSG_VERSION)
-         || ('\0' == msg->type[0])
-         || ('\0' == msg->sender[0])
-         || ('\0' == msg->recipient[0])
-         || ('\0' == msg->marker[0]))
-    {
+    if (msg->version != SKAL_MSG_VERSION) {
+        SkalLog("SkalMsg: Invalid JSON: 'version' is required");
+        return false;
+    }
+    if ('\0' == msg->type[0]) {
+        SkalLog("SkalMsg: Invalid JSON: 'type' is required");
+        return false;
+    }
+    if ('\0' == msg->sender[0]) {
+        SkalLog("SkalMsg: Invalid JSON: 'sender' is required");
+        return false;
+    }
+    if ('\0' == msg->recipient[0]) {
+        SkalLog("SkalMsg: Invalid JSON: 'recipient' is required");
+        return false;
+    }
+    if ('\0' == msg->marker[0]) {
+        SkalLog("SkalMsg: Invalid JSON: 'marker' is required");
         return false;
     }
 
@@ -733,9 +746,12 @@ static const char* skalMsgParseJsonProperty(const char* json,
     if (strcmp(name, "version") == 0) {
         int tmp;
         if (sscanf(json, "%d", &tmp) != 1) {
+            SkalLog("SkalMsg: Invalid JSON: Can't parse integer for 'version'");
             return NULL;
         }
         if (tmp != SKAL_MSG_VERSION) {
+            SkalLog("SkalMsg: Invalid JSON: Wrong version %d, expected %d",
+                    msg->version, SKAL_MSG_VERSION);
             return NULL;
         }
         msg->version = SKAL_MSG_VERSION;
@@ -760,6 +776,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
     } else if (strcmp(name, "flags") == 0) {
         unsigned int tmp;
         if (sscanf(json, "%u", &tmp) != 1) {
+            SkalLog("SkalMsg: Invalid JSON: Can't parse unsigned integer for 'flags'");
             return NULL;
         }
         msg->flags = tmp;
@@ -771,6 +788,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
     } else if (strcmp(name, "iflags") == 0) {
         unsigned int tmp;
         if (sscanf(json, "%u", &tmp) != 1) {
+            SkalLog("SkalMsg: Invalid JSON: Can't parse unsigned integer for 'iflags'");
             return NULL;
         }
         msg->iflags = tmp;
@@ -781,6 +799,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
 
     } else if (strcmp(name, "fields") == 0) {
         if (*json != '[') {
+            SkalLog("SkalMsg: Invalid JSON: Expected '['");
             return NULL;
         }
         json++;
@@ -793,20 +812,23 @@ static const char* skalMsgParseJsonProperty(const char* json,
             if (NULL == json) {
                 skalFieldMapUnref((CdsMapItem*)field);
             } else {
-                SKALASSERT(CdsMapInsert(msg->fields,
-                            field->name, &field->item));
+                bool inserted = CdsMapInsert(msg->fields,
+                            field->name, &field->item);
+                SKALASSERT(inserted);
             }
             if (*json != '\0') {
                 json = skalMsgSkipSpaces(json);
             }
         }
         if (*json != ']') {
+            SkalLog("SkalMsg: Invalid JSON: Expected ']'");
             return NULL;
         }
         json++;
 
     } else if (strcmp(name, "alarms") == 0) {
         if (*json != '[') {
+            SkalLog("SkalMsg: Invalid JSON: Expected '['");
             return NULL;
         }
         json++;
@@ -824,12 +846,15 @@ static const char* skalMsgParseJsonProperty(const char* json,
             }
         }
         if (*json != ']') {
+            SkalLog("SkalMsg: Invalid JSON: Expected ']'");
             return NULL;
         }
         json++;
 
     } else {
         // Unknown property
+        SkalLog("SkalMsg: Invalid JSON: Unknown property '%s'",
+                name);
         return NULL;
     }
 
@@ -846,6 +871,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
 static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
 {
     if (*json != '{') {
+        SkalLog("SkalMsg: Invalid JSON: Expected '{'");
         return NULL;
     }
     json++;
@@ -863,6 +889,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
         }
         json = skalMsgSkipSpaces(json);
         if (*json != ':') {
+            SkalLog("SkalMsg: Invalid JSON: Expected ':'");
             return NULL;
         }
         json++;
@@ -892,6 +919,8 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
             } else if (strcmp(buffer, "blob") == 0) {
                 field->type = SKAL_MSG_FIELD_TYPE_BLOB;
             } else {
+                SkalLog("SkalMsg: Invalid JSON: Unknown field type '%s'",
+                        buffer);
                 return NULL;
             }
 
@@ -915,6 +944,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
                     }
                 }
                 if ('\0' == *json) {
+                    SkalLog("SkalMsg: Invalid JSON: Unexpected end of string");
                     return NULL;
                 }
                 SKALASSERT('"' == *json);
@@ -927,11 +957,14 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
                     json++;
                 }
                 if ('\0' == *json) {
+                    SkalLog("SkalMsg: Invalid JSON: Unexpected end of string");
                     return NULL;
                 }
             }
 
         } else {
+            SkalLog("SkalMsg: Invalid JSON: Unknown field property '%s'",
+                    buffer);
             return NULL; // Unknown property name
         }
 
@@ -943,6 +976,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
     }
 
     if ('\0' == *json) {
+        SkalLog("SkalMsg: Invalid JSON: Unexpected end of string");
         return NULL;
     }
     SKALASSERT('}' == *json);
@@ -953,9 +987,16 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
     }
 
     // Check that we have all 3 properties necessary to define a field
-    if (    ('\0' == field->name[0])
-         || (SKAL_MSG_FIELD_TYPE_NOTHING == field->type)
-         || (NULL == value)) {
+    if ('\0' == field->name[0]) {
+        SkalLog("SkalMsg: Invalid JSON: Field requires 'name'");
+        return NULL;
+    }
+    if (SKAL_MSG_FIELD_TYPE_NOTHING == field->type) {
+        SkalLog("SkalMsg: Invalid JSON: Field requires 'type'");
+        return NULL;
+    }
+    if (NULL == value) {
+        SkalLog("SkalMsg: Invalid JSON: Field requires 'value'");
         return NULL;
     }
 
@@ -965,6 +1006,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
         {
             long long tmp;
             if (sscanf(value, "%lld", &tmp) != 1) {
+                SkalLog("SkalMsg: Invalid JSON: Can't parse integer value");
                 return NULL;
             }
             field->i = tmp;
@@ -973,6 +1015,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
 
     case SKAL_MSG_FIELD_TYPE_DOUBLE :
         if (sscanf(value, "%le", &field->d) != 1) {
+            SkalLog("SkalMsg: Invalid JSON: Can't parse double value");
             return NULL;
         }
         break;
@@ -1000,6 +1043,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
             field->miniblob = SkalBase64Decode(b64, &field->size_B);
             free(b64);
             if (NULL == field->miniblob) {
+                SkalLog("SkalMsg: Invalid JSON: Failed to base64-decode miniblob");
                 return NULL;
             }
         }
@@ -1032,6 +1076,7 @@ static const char* skalMsgParseJsonString(const char* json,
         if ('\\' == *json) {
             json++;
             if ('\0' == *json) {
+                SkalLog("SkalMsg: Invalid JSON: Lone \\");
                 return NULL;
             }
         }
@@ -1039,11 +1084,13 @@ static const char* skalMsgParseJsonString(const char* json,
         count++;
         json++;
         if ((count >= size_B) && (*json != '"')) {
+            SkalLog("SkalMsg: Invalid JSON: String too long");
             return NULL;
         }
     }
 
     if ('\0' == *json) {
+        SkalLog("SkalMsg: Invalid JSON: Unterminated string");
         return NULL;
     }
     SKALASSERT('"' == *json);

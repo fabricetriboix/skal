@@ -297,7 +297,7 @@ static const char* skalAlarmParseJsonString(const char* json,
 {
     json = skalAlarmSkipSpaces(json);
     if (*json != '"') {
-        SkalLog("Invalid JSON alarm object: expected '\"' character");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: expected '\"' character");
         return NULL;
     }
     json++;
@@ -307,7 +307,7 @@ static const char* skalAlarmParseJsonString(const char* json,
         if ('\\' == *json) {
             json++;
             if ('\0' == *json) {
-                SkalLog("Invalid JSON alarm object: null character after \\");
+                SkalLog("SkalAlarm: Invalid JSON alarm object: null character after \\");
                 return NULL;
             }
         }
@@ -315,14 +315,14 @@ static const char* skalAlarmParseJsonString(const char* json,
         count++;
         json++;
         if ((count >= size_B) && (*json != '"')) {
-            SkalLog("Invalid JSON alarm object: string too long (expected max %d chars)",
+            SkalLog("SkalAlarm: Invalid JSON alarm object: string too long (expected max %d chars)",
                     size_B);
             return NULL;
         }
     }
 
     if ('\0' == *json) {
-        SkalLog("Invalid JSON alarm object: no '\"' character terminating a string");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: no '\"' character terminating a string");
         return NULL;
     }
     SKALASSERT('"' == *json);
@@ -337,7 +337,7 @@ static int skalAlarmGetJsonStringLength(const char* json)
 {
     json = skalAlarmSkipSpaces(json);
     if (*json != '"') {
-        SkalLog("Invalid JSON alarm object: expected '\"' character");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: expected '\"' character");
         return -1;
     }
     json++;
@@ -347,7 +347,7 @@ static int skalAlarmGetJsonStringLength(const char* json)
         if ('\\' == *json) {
             json++;
             if ('\0' == *json) {
-                SkalLog("Invalid JSON alarm object: null character after \\");
+                SkalLog("SkalAlarm: Invalid JSON alarm object: null character after \\");
                 return -1;
             }
         }
@@ -356,7 +356,7 @@ static int skalAlarmGetJsonStringLength(const char* json)
     }
 
     if ('\0' == *json) {
-        SkalLog("Invalid JSON alarm object: no '\"' character terminating a string");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: no '\"' character terminating a string");
         return -1;
     }
     SKALASSERT('"' == *json);
@@ -374,7 +374,7 @@ static const char* skalAlarmParseJsonBool(const char* json, bool* b)
         *b = false;
         json += 5;
     } else {
-        SkalLog("Invalid JSON alarm object: expected 'true' or 'false'");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: expected 'true' or 'false'");
         return NULL;
     }
     return json;
@@ -384,7 +384,7 @@ static const char* skalAlarmParseJsonBool(const char* json, bool* b)
 static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
 {
     if (*json != '{') {
-        SkalLog("Invalid JSON alarm object: expected '{' character");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: expected '{' character");
         return NULL;
     }
     json++;
@@ -404,7 +404,7 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
         }
         json = skalAlarmSkipSpaces(json);
         if (*json != ':') {
-            SkalLog("Invalid JSON: expected ':' character");
+            SkalLog("SkalAlarm: Invalid JSON: expected ':' character");
             return NULL;
         }
         json++;
@@ -427,7 +427,7 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
             } else if (strcmp(buffer, "error") == 0) {
                 alarm->severity = SKAL_ALARM_ERROR;
             } else {
-                SkalLog("Invalid JSON alarm object: unknown alarm severity: \"%s\"", buffer);
+                SkalLog("SkalAlarm: Invalid JSON alarm object: unknown alarm severity: \"%s\"", buffer);
                 return NULL;
             }
             severityParsed = true;
@@ -454,7 +454,7 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
                 json++;
             }
             if ('\0' == *json) {
-                SkalLog("Invalid JSON alarm object: expected ',' or '}' after number");
+                SkalLog("SkalAlarm: Invalid JSON alarm object: expected ',' or '}' after number");
                 return NULL;
             }
             timestampParsed = true;
@@ -473,7 +473,7 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
             alarm->comment[length] = '\0';
 
         } else {
-            SkalLog("Invalid JSON alarm object: Unknown alarm object property: \"%s\"",
+            SkalLog("SkalAlarm: Invalid JSON alarm object: Unknown alarm object property: \"%s\"",
                     buffer);
             return NULL;
         }
@@ -490,7 +490,7 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
     }
 
     if ('\0' == *json) {
-        SkalLog("Invalid JSON alarm object: expected '}'");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: expected '}'");
         return NULL;
     }
     SKALASSERT('}' == *json);
@@ -498,23 +498,23 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
 
     // Check that we have all properties required to define an alarm
     if ('\0' == alarm->type[0]) {
-        SkalLog("Invalid JSON alarm object: \"type\" required");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: \"type\" required");
         return NULL;
     }
     if (!severityParsed) {
-        SkalLog("Invalid JSON alarm object: \"severity\" required");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: \"severity\" required");
         return NULL;
     }
     if (!isOnParsed) {
-        SkalLog("Invalid JSON alarm object: \"isOn\" required");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: \"isOn\" required");
         return NULL;
     }
     if (!autoOffParsed) {
-        SkalLog("Invalid JSON alarm object: \"autoOff\" required");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: \"autoOff\" required");
         return NULL;
     }
     if (!timestampParsed) {
-        SkalLog("Invalid JSON alarm object: \"timestamp_us\" required");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: \"timestamp_us\" required");
         return NULL;
     }
 
