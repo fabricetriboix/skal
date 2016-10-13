@@ -16,6 +16,7 @@
 
 #include "skal-thread.h"
 #include "skal-net.h"
+#include "skal-msg.h"
 #include "rttest.h"
 #include <stdlib.h>
 #include <string.h>
@@ -51,8 +52,21 @@ static void pseudoSkald(void* arg)
                 }
                 break;
             case SKAL_NET_EV_IN :
-                // Just discard any incoming messages, such as `skal-born`,
-                // `skal-died`, etc.
+                {
+                    // Just discard any incoming messages, such as `skal-born`,
+                    // `skal-died`, etc.
+                    const char* json = (const char*)(event->in.data);
+                    bool hasnull = false;
+                    for (int i = 0; (i < event->in.size_B) && !hasnull; i++) {
+                        if ('\0' == json[i]) {
+                            hasnull = true;
+                        }
+                    }
+                    SKALASSERT(hasnull);
+                    SkalMsg* msg = SkalMsgCreateFromJson(json);
+                    SKALASSERT(msg != NULL);
+                    SkalMsgUnref(msg);
+                }
                 break;
             default :
                 SKALPANIC_MSG("Pseudo-skald does not expect SkalNet of type %d",

@@ -400,6 +400,7 @@ void SkalThreadExit(void)
     SkalMsg* resp = SkalQueuePop_BLOCKING(gGlobalQueue, false);
     SKALASSERT(strcmp(SkalMsgSender(resp), "skal-master") == 0);
     SKALASSERT(strcmp(SkalMsgType(resp), "skal-master-terminated") == 0);
+    SkalMsgUnref(resp);
 
     skalThreadUnref(gMaster);
     SKALASSERT(CdsMapIsEmpty(gThreads)); // All threads must have terminated now
@@ -617,14 +618,16 @@ static void skalThreadRun(void* arg)
     // Free up any threads blocked on me
     skalThreadSendXon(priv);
 
+    // Notify skald
+    msg = SkalMsgCreate("skal-died", "skald", 0, NULL);
+    SkalMsgSend(msg);
+
     // Notify skal-master
     msg = SkalMsgCreate("skal-terminated", "skal-master", 0, NULL);
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gMaster->queue, msg);
 
-    // Notify skald
-    msg = SkalMsgCreate("skal-died", "skald", 0, NULL);
-    SkalMsgSend(msg);
+    free(priv);
 }
 
 
@@ -795,6 +798,7 @@ static void skalMasterThreadRun(void* arg)
     msg = SkalMsgCreate("skal-master-terminated", "skal-main", 0, NULL);
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gGlobalQueue, msg);
+    free(priv);
 }
 
 
@@ -842,6 +846,7 @@ static bool skalMasterProcessMsg(SkalMsg* msg)
             } // for each thread in this process
         }
         SkalPlfMutexUnlock(gMutex);
+        SkalMsgUnref(msg);
 
     } else if (strcmp(type, "skal-terminated") == 0) {
         // A thread is telling me it just finished
@@ -851,6 +856,7 @@ static bool skalMasterProcessMsg(SkalMsg* msg)
             ok = false;
         }
         SkalPlfMutexUnlock(gMutex);
+        SkalMsgUnref(msg);
     }
 
     return ok;

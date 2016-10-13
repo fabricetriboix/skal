@@ -103,6 +103,7 @@ RTT_TEST_START(skal_sb_should_finish)
     char* str = SkalStringBuilderFinish(gSB);
     gSB = NULL;
     RTT_EXPECT(strcmp(str, "18Hello world!?") == 0);
+    free(str);
 }
 RTT_TEST_END
 

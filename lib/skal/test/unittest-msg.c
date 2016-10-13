@@ -224,6 +224,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
 
     RTT_EXPECT(strcmp(json, expected) == 0);
     free(json);
+    free(expected);
 
     SkalAlarmUnref(gAlarm1);
     SkalAlarmUnref(gAlarm2);
