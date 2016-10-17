@@ -198,7 +198,17 @@ bool SkalIsAsciiString(const char* str, int maxlen);
 bool SkalIsUtf8String(const char* str, int maxlen);
 
 
-/** Standard string comparison function suitable for CdsMap */
+/** Standard string comparison function suitable for CdsMap
+ *
+ * @param leftkey  [in] LHS token; must not be NULL, must be a null-terminated
+ *                      UTF-8 string
+ * @param rightkey [in] RHS token; must not be NULL, must be a null-terminated
+ *                      UTF-8 string
+ * @param cookie   [in] Unused
+ *
+ * @return -1 if `leftkey` < `rightkey`, 0 if `leftkey` == `rightkey`,
+ *         +1 if `leftkey` > `rightkey`
+ */
 int SkalStringCompare(void* lefykey, void* rightkey, void* cookie);
 
 

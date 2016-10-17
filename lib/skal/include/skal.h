@@ -461,7 +461,7 @@ const char* SkalAlarmType(const SkalAlarm* alarm);
 SkalAlarmSeverityE SkalAlarmSeverity(const SkalAlarm* alarm);
 
 
-/** Get the alarm origin
+/** Get the alarm origin (i.e. the thread that raised the alarm)
  *
  * @param alarm [in] Alarm to query; must not be NULL
  *

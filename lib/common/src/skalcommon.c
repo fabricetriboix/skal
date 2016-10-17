@@ -320,6 +320,7 @@ bool SkalIsUtf8String(const char* str, int maxlen)
 
 int SkalStringCompare(void* leftkey, void* rightkey, void* cookie)
 {
+    (void)cookie;
     return strncmp((const char*)leftkey, (const char*)rightkey, SKAL_NAME_MAX);
 }
 
