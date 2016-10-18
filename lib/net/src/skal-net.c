@@ -70,11 +70,11 @@ typedef struct {
 
 
 struct SkalNet {
-    int64_t        pollTimeout_us;
-    int            nsockets;
-    skalNetSocket* sockets;
-    CdsList*       events; // List of `SkalNetEvent`
-    SkalNetFreeContext freeContext;
+    int64_t         pollTimeout_us;
+    int             nsockets;
+    skalNetSocket*  sockets;
+    CdsList*        events; // List of `SkalNetEvent`
+    SkalNetCtxUnref ctxUnref;
 };
 
 
@@ -364,7 +364,7 @@ void SkalNetEventUnref(SkalNetEvent* event)
 }
 
 
-SkalNet* SkalNetCreate(int64_t pollTimeout_us, SkalNetFreeContext freeContext)
+SkalNet* SkalNetCreate(int64_t pollTimeout_us, SkalNetCtxUnref ctxUnref)
 {
     SkalNet* net = malloc(sizeof(*net));
     SKALASSERT(net != NULL);
@@ -376,7 +376,7 @@ SkalNet* SkalNetCreate(int64_t pollTimeout_us, SkalNetFreeContext freeContext)
     } else {
         net->pollTimeout_us = SKAL_NET_DEFAULT_POLL_TIMEOUT_us;
     }
-    net->freeContext = freeContext;
+    net->ctxUnref = ctxUnref;
     return net;
 }
 
@@ -704,8 +704,8 @@ bool SkalNetSocketDestroy(SkalNet* net, int sockid)
             }
         }
 
-        if ((net->freeContext != NULL) && (s->context != NULL)) {
-            net->freeContext(s->context);
+        if ((net->ctxUnref != NULL) && (s->context != NULL)) {
+            net->ctxUnref(s->context);
         }
 
         s->fd = -1;
