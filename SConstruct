@@ -107,6 +107,10 @@ for v in variantNames:
     for d in GetOption('libdirs'):
         variants[v]['env'].Append(LIBPATH = os.path.abspath(d))
 
+    # Add defines for flloc
+    if GetOption('use_flloc'):
+        variants[v]['env'].Append(CPPDEFINES = {'SKAL_WITH_FLLOC': '1'})
+
     # Autoconf-like stuff
     if not GetOption('clean') and not GetOption('help'):
         conf = Configure(variants[v]['env'])
