@@ -396,6 +396,16 @@ SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net);
 bool SkalNetSetContext(SkalNet* net, int sockid, void* context);
 
 
+/** Get the context associated with a socket
+ *
+ * @param net     [in] Socket set to query; must not be NULL
+ * @param sockid  [in] Id of the socket to query
+ *
+ * @return The associated context, or NULL if `sockid` is not valid
+ */
+void* SkalNetGetContext(const SkalNet* net, int sockid);
+
+
 /** Mark/unmark a comm socket as having data to be sent through it
  *
  * Calling this function will mark the given comm socket as having data to be

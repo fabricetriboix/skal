@@ -640,6 +640,20 @@ bool SkalNetSetContext(SkalNet* net, int sockid, void* context)
 }
 
 
+void* SkalNetGetContext(const SkalNet* net, int sockid)
+{
+    SKALASSERT(net != NULL);
+
+    void* context = NULL;
+    if (    (sockid >= 0)
+         && (sockid < net->nsockets)
+         && (net->sockets[sockid].fd >= 0)) {
+        context = net->sockets[sockid].context;
+    }
+    return context;
+}
+
+
 bool SkalNetWantToSend(SkalNet* net, int sockid, bool flag)
 {
     SKALASSERT(net != NULL);
