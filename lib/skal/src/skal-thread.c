@@ -254,6 +254,10 @@ static void skalMasterPushHook(void* cookie);
  +------------------*/
 
 
+/** Name of this process */
+static char gProcessName[SKAL_NAME_MAX] = "";
+
+
 /** Mutex to protect the `gThreads` map */
 static SkalPlfMutex* gMutex = NULL;
 
@@ -326,6 +330,8 @@ void SkalThreadInit(const char* skaldPath)
     SKALASSERT(NULL == gGlobalQueue);
     SKALASSERT(NULL == gNet);
 
+    SkalPlfThreadGetName(gProcessName, sizeof(gProcessName));
+
     if (NULL == skaldPath) {
         skaldPath = SKAL_DEFAULT_SKALD_PATH;
     }
@@ -334,13 +340,11 @@ void SkalThreadInit(const char* skaldPath)
 
     gMutex = SkalPlfMutexCreate();
 
-    char threadName[SKAL_NAME_MAX];
-    SkalPlfThreadGetName(threadName, sizeof(threadName));
     char name[SKAL_NAME_MAX];
-    snprintf(name, sizeof(name), "%s-queue", threadName);
+    snprintf(name, sizeof(name), "%s-queue", gProcessName);
     gGlobalQueue = SkalQueueCreate(name, SKAL_THREADS_MAX);
 
-    snprintf(name, sizeof(name), "%s-threads", threadName);
+    snprintf(name, sizeof(name), "%s-threads", gProcessName);
     gThreads = CdsMapCreate(name,              // name
                             SKAL_THREADS_MAX,  // capacity
                             SkalStringCompare, // compare
@@ -460,6 +464,8 @@ static bool skalMsgSendPriv(SkalMsg* msg, bool fallBackToSkald)
     SkalThread* recipient;
     if (strcmp(dst, "skal-master") == 0) {
         recipient = gMaster;
+    } else if (strcmp(dst, "skald") == 0) {
+        recipient = NULL;
     } else {
         recipient = (SkalThread*)CdsMapSearch(gThreads, (void*)dst);
     }
@@ -742,7 +748,11 @@ static void skalMasterThreadRun(void* arg)
     priv->thread = gMaster;
     SkalPlfThreadSetSpecific(priv);
 
-    SkalMsg* msg;
+    SkalMsg* msg = SkalMsgCreate("skal-master-born", "skald", 0, NULL);
+    SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+    SkalMsgAddString(msg, "name", gProcessName);
+    SkalMsgSend(msg);
+
     bool stop = false;
     while (!stop) {
         // `skal-master` may receive messages from either its queue or the

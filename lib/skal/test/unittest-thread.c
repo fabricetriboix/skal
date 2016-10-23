@@ -65,6 +65,12 @@ static void pseudoSkald(void* arg)
                     SKALASSERT(hasnull);
                     SkalMsg* msg = SkalMsgCreateFromJson(json);
                     SKALASSERT(msg != NULL);
+#if 0
+                    if (strcmp(SkalMsgType(msg), "skal-master-born") == 0) {
+                        fprintf(stderr, "XXX skal-master-born: %s\n",
+                                SkalMsgGetString(msg, "name"));
+                    }
+#endif
                     SkalMsgUnref(msg);
                 }
                 break;
