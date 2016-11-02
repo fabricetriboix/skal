@@ -33,6 +33,8 @@ static SkalPlfThread* gSkaldThread = NULL;
 static void pseudoSkald(void* arg)
 {
     (void)arg;
+    SkalPlfThreadSetName("skald");
+    SkalPlfThreadSetSpecific((void*)0xcafedeca); // to fool skal-msg
     bool stop = false;
     while (!stop) {
         SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
@@ -53,8 +55,6 @@ static void pseudoSkald(void* arg)
                 break;
             case SKAL_NET_EV_IN :
                 {
-                    // Just discard any incoming messages, such as `skal-born`,
-                    // `skal-died`, etc.
                     const char* json = (const char*)(event->in.data);
                     bool hasnull = false;
                     for (int i = 0; (i < event->in.size_B) && !hasnull; i++) {
@@ -65,12 +65,23 @@ static void pseudoSkald(void* arg)
                     SKALASSERT(hasnull);
                     SkalMsg* msg = SkalMsgCreateFromJson(json);
                     SKALASSERT(msg != NULL);
-#if 0
                     if (strcmp(SkalMsgType(msg), "skal-master-born") == 0) {
+#if 0
                         fprintf(stderr, "XXX skal-master-born: %s\n",
                                 SkalMsgGetString(msg, "name"));
-                    }
 #endif
+                        SkalMsg* resp = SkalMsgCreate("skal-domain",
+                                "skal-master", 0, NULL);
+                        SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
+                        SkalMsgAddString(resp, "domain", "local");
+                        char* respjson = SkalMsgToJson(resp);
+                        SkalMsgUnref(resp);
+                        SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
+                                event->sockid, respjson, strlen(respjson) + 1);
+                        SKALASSERT(SKAL_NET_SEND_OK == result);
+                        free(respjson);
+                    }
+                    // else: discard all other messages
                     SkalMsgUnref(msg);
                 }
                 break;

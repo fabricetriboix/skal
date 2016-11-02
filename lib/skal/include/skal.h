@@ -927,6 +927,16 @@ SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient);
 void SkalMsgSend(SkalMsg* msg);
 
 
+/** Get the current domain name
+ *
+ * The domain name is sent by skald immediately after we connect to it. Shortly
+ * after `SkalInit()` returns, the domain will have its definitive value.
+ *
+ * @return The current domain name, or NULL if not known yet
+ */
+const char* SkalDomain(void);
+
+
 
 /* @} */
 #endif /* SKAL_h_ */

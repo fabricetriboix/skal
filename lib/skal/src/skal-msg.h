@@ -93,6 +93,13 @@ char* SkalMsgToJson(const SkalMsg* msg);
 SkalMsg* SkalMsgCreateFromJson(const char* json);
 
 
+/** Set the domain name for this process
+ *
+ * @param domain [in] Domain name; must not be NULL
+ */
+void SkalSetDomain(const char* domain);
+
+
 /** DEBUG: Get the number of message references in this process
  *
  * This is a debug/testing function.

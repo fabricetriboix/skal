@@ -172,6 +172,10 @@ static const char* skalMsgParseJsonString(const char* json,
 static uint64_t gMsgCounter = 0;
 
 
+/** Domain name */
+static char gSkalDomain[SKAL_NAME_MAX];
+
+
 /** Number of message references in this process */
 static int64_t gMsgRefCount_DEBUG = 0;
 
@@ -539,6 +543,22 @@ SkalMsg* SkalMsgCreateFromJson(const char* json)
         msg = NULL;
     }
     return msg;
+}
+
+
+void SkalSetDomain(const char* domain)
+{
+    SKALASSERT(SkalIsAsciiString(domain, sizeof(gSkalDomain)));
+    snprintf(gSkalDomain, sizeof(gSkalDomain), "%s", domain);
+}
+
+
+const char* SkalDomain(void)
+{
+    if ('\0' == gSkalDomain[0]) {
+        return NULL;
+    }
+    return gSkalDomain;
 }
 
 

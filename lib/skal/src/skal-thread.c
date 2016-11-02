@@ -385,6 +385,12 @@ void SkalThreadInit(const char* skaldPath)
     SkalQueueSetPushHook(gMaster->queue, skalMasterPushHook, NULL);
     gMaster->thread = SkalPlfThreadCreate(gMaster->cfg.name,
             skalMasterThreadRun, NULL);
+
+    // Wait for master thread to finish initialisation
+    SkalMsg* msg = SkalQueuePop_BLOCKING(gGlobalQueue, false);
+    SKALASSERT(strcmp(SkalMsgSender(msg), "skal-master") == 0);
+    SKALASSERT(strcmp(SkalMsgType(msg), "skal-master-init-done") == 0);
+    SkalMsgUnref(msg);
 }
 
 
@@ -748,10 +754,33 @@ static void skalMasterThreadRun(void* arg)
     priv->thread = gMaster;
     SkalPlfThreadSetSpecific(priv);
 
+    // Tell skald the master thread for this process is starting
     SkalMsg* msg = SkalMsgCreate("skal-master-born", "skald", 0, NULL);
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalMsgAddString(msg, "name", gProcessName);
     SkalMsgSend(msg);
+
+    // Wait for skald to tell us what is its domain name
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    SKALASSERT(event != NULL);
+    SKALASSERT(SKAL_NET_EV_IN == event->type);
+    SKALASSERT(event->in.data != NULL);
+    SKALASSERT(event->in.size_B > 0);
+    char* json = (char*)(event->in.data);
+    json[event->in.size_B - 1] = '\0';
+    msg = SkalMsgCreateFromJson(json);
+    if (NULL == msg) {
+        SKALPANIC_MSG("Invalid message received from skald; wrong message format version?");
+    }
+    SKALASSERT(strcmp(SkalMsgType(msg), "skal-domain") == 0);
+    SkalSetDomain(SkalMsgGetString(msg, "domain"));
+    SkalMsgUnref(msg);
+    SkalNetEventUnref(event);
+
+    // Unblock `SkalThreadInit()`
+    msg = SkalMsgCreate("skal-master-init-done", "skal-main", 0, NULL);
+    SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+    SkalQueuePush(gGlobalQueue, msg);
 
     bool stop = false;
     while (!stop) {
@@ -773,7 +802,11 @@ static void skalMasterThreadRun(void* arg)
             if (gSockid == event->sockid) {
                 // This is a message that has been routed to this process by the
                 // local skald
-                msg = SkalMsgCreateFromJson((const char*)(event->in.data));
+                SKALASSERT(event->in.data != NULL);
+                SKALASSERT(event->in.size_B > 0);
+                json = (char*)(event->in.data);
+                json[event->in.size_B - 1] = '\0';
+                msg = SkalMsgCreateFromJson(json);
                 if (NULL == msg) {
                     SKALPANIC_MSG("Invalid message received from skald; wrong message format version?");
                 }
