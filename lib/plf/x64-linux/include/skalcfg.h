@@ -36,6 +36,20 @@
 #define SKAL_NAME_MAX 128
 
 
+/** Maximum length of a thread name, in chars
+ *
+ * That includes the terminated null character. Do not modify.
+ */
+#define SKAL_THREAD_NAME_MAX (SKAL_NAME_MAX / 2)
+
+
+/** Maximum length of a domain name, in chars
+ *
+ * That includes the terminated null character. Do not modify.
+ */
+#define SKAL_DOMAIN_NAME_MAX (SKAL_NAME_MAX / 2)
+
+
 /** Maximum number of custom allocators */
 #define SKAL_ALLOCATORS_MAX 500
 

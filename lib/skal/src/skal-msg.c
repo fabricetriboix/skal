@@ -177,7 +177,7 @@ static uint64_t gMsgCounter = 0;
 
 
 /** Domain name */
-static char gDomain[(SKAL_NAME_MAX / 2) - 1] = "#INVAL#";
+static char gDomain[SKAL_DOMAIN_NAME_MAX] = "#INVAL#";
 
 
 /** Number of message references in this process */

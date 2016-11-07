@@ -290,7 +290,7 @@ typedef struct
      * This must be unique within this process. This must not be an empty
      * string.
      */
-    char name[SKAL_NAME_MAX];
+    char name[SKAL_THREAD_NAME_MAX];
 
     /** Message processing function; must not be NULL */
     SkalProcessMsgF processMsg;
