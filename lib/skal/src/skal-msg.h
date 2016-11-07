@@ -40,16 +40,30 @@
  +------------------------------*/
 
 
+/** Set the message sender
+ *
+ * You should use this function with extreme caution, as the sender is set
+ * automatically when the message is created. Calling this function essentially
+ * makes the message pretends it has been sent by other thread.
+ *
+ * @param msg    [in,out] Message to manipulate; must not be NULL
+ * @param sender [in]     New sender value; must not be NULL
+ */
+void SkalMsgSetSender(SkalMsg* msg, const char* sender);
+
+
 /** Set a message's internal flags
  *
- * @param msg [in,out] Message to manipulate; must not be NULL
+ * @param msg    [in,out] Message to manipulate; must not be NULL
+ * @param iflags [in]     Internal flags to set
  */
 void SkalMsgSetIFlags(SkalMsg* msg, uint8_t iflags);
 
 
 /** Reset a message's internal flags
  *
- * @param msg [in,out] Message to manipulate; must not be NULL
+ * @param msg    [in,out] Message to manipulate; must not be NULL
+ * @param iflags [in]     Internal flags to reset
  */
 void SkalMsgResetIFlags(SkalMsg* msg, uint8_t iflags);
 

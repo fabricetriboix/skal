@@ -23,11 +23,13 @@
 static RTBool testAlarmGroupEnter(void)
 {
     SkalPlfInit();
+    SkalPlfThreadMakeSkal_DEBUG("TestThreadA");
     return RTTrue;
 }
 
 static RTBool testAlarmGroupExit(void)
 {
+    SkalPlfThreadUnmakeSkal_DEBUG();
     SkalPlfExit();
     return RTTrue;
 }
@@ -40,8 +42,6 @@ RTT_GROUP_START(TestSkalAlarm, 0x00050001u,
 
 RTT_TEST_START(skal_should_create_alarm)
 {
-    SkalPlfThreadSetName("TestThreadA");
-
     // Fool skal-alarm into thinking this thread is managed by SKAL
     SkalPlfThreadSetSpecific((void*)0xcafedeca);
 

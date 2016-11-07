@@ -24,11 +24,13 @@
 static RTBool testMsgGroupEnter(void)
 {
     SkalPlfInit();
+    SkalPlfThreadMakeSkal_DEBUG("TestQueue");
     return RTTrue;
 }
 
 static RTBool testMsgGroupExit(void)
 {
+    SkalPlfThreadUnmakeSkal_DEBUG();
     SkalPlfExit();
     return RTTrue;
 }

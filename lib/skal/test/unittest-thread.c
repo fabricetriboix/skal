@@ -66,10 +66,6 @@ static void pseudoSkald(void* arg)
                     SkalMsg* msg = SkalMsgCreateFromJson(json);
                     SKALASSERT(msg != NULL);
                     if (strcmp(SkalMsgType(msg), "skal-master-born") == 0) {
-#if 0
-                        fprintf(stderr, "XXX skal-master-born: %s\n",
-                                SkalMsgGetString(msg, "name"));
-#endif
                         SkalMsg* resp = SkalMsgCreate("skal-domain",
                                 "skal-master", 0, NULL);
                         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
@@ -100,6 +96,7 @@ static RTBool testThreadEnterGroup(void)
 {
     gHasConnected = false;
     SkalPlfInit();
+    SkalPlfThreadMakeSkal_DEBUG("TestThread");
     gNet = SkalNetCreate(0, NULL);
     SkalNetAddr addr;
     unlink(SOCKPATH);
@@ -123,6 +120,7 @@ static RTBool testThreadExitGroup(void)
     gServerSockid = -1;
     gClientSockid = -1;
     unlink(SOCKPATH);
+    SkalPlfThreadUnmakeSkal_DEBUG();
     SkalPlfExit();
     SKALASSERT(gHasConnected);
     return RTTrue;
@@ -144,9 +142,9 @@ static bool testSimpleProcessMsg(void* cookie, SkalMsg* msg)
         gError = 1;
     } else if (strcmp(SkalMsgType(msg), "ping") != 0) {
         gError = 2;
-    } else if (strcmp(SkalMsgSender(msg), "skal-external")!=0) {
+    } else if (strcmp(SkalMsgSender(msg), "skal-external@local")!=0) {
         gError = 3;
-    } else if (strcmp(SkalMsgRecipient(msg), "simple") != 0) {
+    } else if (strcmp(SkalMsgRecipient(msg), "simple@local") != 0) {
         gError = 4;
     } else {
         gError = 0;

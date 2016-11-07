@@ -44,13 +44,13 @@ static void* gThreadSpecific = NULL;
 
 static void testSkalPlfThreadFn(void* arg)
 {
-    SkalPlfThreadSetSpecific((void*)0xdeadbeef);
+    SkalPlfThreadSetSpecific((void*)0xdeadbabe);
     SkalPlfMutexLock(gMutex);
     while (!gGoAhead) {
         SkalPlfCondVarWait(gCondVar, gMutex);
     }
     gThreadArg = arg;
-    SkalPlfThreadGetName(gThreadName, sizeof(gThreadName));
+    snprintf(gThreadName, sizeof(gThreadName), "%s", SkalPlfThreadGetName());
     SkalPlfMutexUnlock(gMutex);
     gThreadSpecific = SkalPlfThreadGetSpecific();
 }
@@ -126,7 +126,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_plf_thread_specific_should_be_correct)
 {
-    RTT_EXPECT((void*)0xdeadbeef == gThreadSpecific);
+    RTT_EXPECT((void*)0xdeadbabe == gThreadSpecific);
 }
 RTT_TEST_END
 

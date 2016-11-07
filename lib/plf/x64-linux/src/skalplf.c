@@ -52,8 +52,32 @@ struct SkalPlfCondVar {
 
 
 struct SkalPlfThread {
-    pthread_t id;
+    char                  name[SKAL_NAME_MAX];
+    SkalPlfThreadFunction func;
+    void*                 arg;
+    pthread_t             id;
+    void*                 specific;
+    bool                  debug;
 };
+
+
+
+/*-------------------------------+
+ | Private function declarations |
+ +-------------------------------*/
+
+
+/** Free a thread-specific data */
+static void skalPlfThreadSpecificFree(void* arg);
+
+
+/** Entry point for a POSIX thread
+ *
+ * @param arg [in] Argument; actually a `SkalPlfThread*`
+ *
+ * @return Always NULL
+ */
+static void* skalPlfThreadRun(void* arg);
 
 
 
@@ -85,7 +109,7 @@ void SkalPlfInit(void)
     int ret = sigaction(SIGPIPE, &sa, NULL);
     SKALASSERT(0 == ret);
 
-    ret = pthread_key_create(&gKey, NULL);
+    ret = pthread_key_create(&gKey, &skalPlfThreadSpecificFree);
     SKALASSERT(0 == ret);
 
     gRandomFd = open("/dev/urandom", O_RDONLY);
@@ -208,8 +232,17 @@ void SkalPlfCondVarSignal(SkalPlfCondVar* condvar)
 SkalPlfThread* SkalPlfThreadCreate(const char* name,
         SkalPlfThreadFunction threadfn, void* arg)
 {
+    SKALASSERT(name != NULL);
+    SKALASSERT(threadfn != NULL);
+
     SkalPlfThread* thread = malloc(sizeof(*thread));
     SKALASSERT(thread != NULL);
+    memset(thread, 0, sizeof(*thread));
+
+    int n = snprintf(thread->name, sizeof(thread->name), "%s", name);
+    SKALASSERT(n < (int)sizeof(thread->name));
+    thread->func = threadfn;
+    thread->arg  = arg;
 
     pthread_attr_t attr;
     int ret = pthread_attr_init(&attr);
@@ -217,16 +250,11 @@ SkalPlfThread* SkalPlfThreadCreate(const char* name,
     ret = pthread_attr_setguardsize(&attr, SKAL_GUARD_SIZE_B);
     SKALASSERT(ret == 0);
 
-    ret = pthread_create(&thread->id, &attr, (void* (*)(void*))threadfn, arg);
+    ret = pthread_create(&thread->id, &attr, skalPlfThreadRun, thread);
     SKALASSERT(ret == 0);
 
     ret = pthread_attr_destroy(&attr);
     SKALASSERT(ret == 0);
-
-    if ((name != NULL) && (name[0] != '\0')) {
-        ret = pthread_setname_np(thread->id, name);
-        SKALASSERT(ret == 0);
-    }
 
     return thread;
 }
@@ -252,32 +280,40 @@ void SkalPlfThreadJoin(SkalPlfThread* thread)
 void SkalPlfThreadSetName(const char* name)
 {
     SKALASSERT(name != NULL);
-    int ret = pthread_setname_np(pthread_self(), name);
-    SKALASSERT(ret == 0);
+
+    SkalPlfThread* thread = pthread_getspecific(gKey);
+    SKALASSERT(thread != NULL);
+    int n = snprintf(thread->name, sizeof(thread->name), "%s", name);
+    SKALASSERT(n < (int)sizeof(thread->name));
+
+    char tmp[16];
+    snprintf(tmp, sizeof(tmp), "%s", name);
+    int ret = pthread_setname_np(pthread_self(), tmp);
+    SKALASSERT(0 == ret);
 }
 
 
-void SkalPlfThreadGetName(char* buffer, int size)
+const char* SkalPlfThreadGetName(void)
 {
-    SKALASSERT(buffer != NULL);
-    SKALASSERT(size > 0);
-    int ret = pthread_getname_np(pthread_self(), buffer, size);
-    if (ret != 0) {
-        snprintf(buffer, size, "%d", SkalPlfTid());
-    }
+    SkalPlfThread* thread = pthread_getspecific(gKey);
+    SKALASSERT(thread != NULL);
+    return thread->name;
 }
 
 
 void SkalPlfThreadSetSpecific(void* value)
 {
-    int ret = pthread_setspecific(gKey, value);
-    SKALASSERT(0 == ret);
+    SkalPlfThread* thread = pthread_getspecific(gKey);
+    SKALASSERT(thread != NULL);
+    thread->specific = value;
 }
 
 
 void* SkalPlfThreadGetSpecific(void)
 {
-    return pthread_getspecific(gKey);
+    SkalPlfThread* thread = pthread_getspecific(gKey);
+    SKALASSERT(thread != NULL);
+    return thread->specific;
 }
 
 
@@ -296,4 +332,71 @@ const char* SkalPlfTmpDir(void)
 char SkalPlfDirSep(void)
 {
     return '/';
+}
+
+
+void SkalPlfThreadMakeSkal_DEBUG(const char* name)
+{
+    SKALASSERT(name != NULL);
+
+    SkalPlfThread* thread = pthread_getspecific(gKey);
+    SKALASSERT(NULL == thread);
+
+    thread = malloc(sizeof(*thread));
+    SKALASSERT(thread != NULL);
+    memset(thread, 0, sizeof(*thread));
+    int n = snprintf(thread->name, sizeof(thread->name), "%s", name);
+    SKALASSERT(n < (int)sizeof(thread->name));
+    thread->id = pthread_self();
+    thread->debug = true;
+
+    int ret = pthread_setspecific(gKey, thread);
+    SKALASSERT(0 == ret);
+}
+
+
+void SkalPlfThreadUnmakeSkal_DEBUG(void)
+{
+    SkalPlfThread* thread = pthread_getspecific(gKey);
+    SKALASSERT(thread != NULL);
+    free(thread);
+
+    int ret = pthread_setspecific(gKey, NULL);
+    SKALASSERT(0 == ret);
+}
+
+
+
+/*----------------------------------+
+ | Private function implementations |
+ +----------------------------------*/
+
+
+static void skalPlfThreadSpecificFree(void* arg)
+{
+    SkalPlfThread* thread = arg;
+    if ((thread != NULL) && thread->debug) {
+        free(thread);
+    }
+}
+
+
+static void* skalPlfThreadRun(void* arg)
+{
+    SkalPlfThread* thread = (SkalPlfThread*)arg;
+    SKALASSERT(thread != NULL);
+    SKALASSERT(thread->func != NULL);
+
+    int ret = pthread_setspecific(gKey, thread);
+    SKALASSERT(0 == ret);
+
+    // NB: Avoid both writing and reading `thread->name` at the same time
+    char* tmp = strdup(thread->name);
+    SKALASSERT(tmp != NULL);
+    SkalPlfThreadSetName(tmp);
+    free(tmp);
+
+    thread->func(thread->arg);
+
+    return NULL;
 }

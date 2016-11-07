@@ -273,11 +273,9 @@ void SkalPlfThreadSetName(const char* name);
 
 /** Get the name of the current thread
  *
- * @param buffer [out] Where to write the current thread's name; must not be
- *                     NULL
- * @param size   [in]  Size of the above buffer, in chars
+ * @return The thread name, or NULL if no name has been set
  */
-void SkalPlfThreadGetName(char* buffer, int size);
+const char* SkalPlfThreadGetName(void);
 
 
 /** Set the thread-specific value
@@ -311,6 +309,20 @@ const char* SkalPlfTmpDir(void);
 
 /** Directory separator character */
 char SkalPlfDirSep(void);
+
+
+/** Make the current thread "SKAL-compliant"
+ *
+ * This is a debug function intended only for unit tests.
+ */
+void SkalPlfThreadMakeSkal_DEBUG(const char* name);
+
+
+/** Un-make the current thread "SKAL-compliant"
+ *
+ * This is a debug function intended only for unit tests.
+ */
+void SkalPlfThreadUnmakeSkal_DEBUG(void);
 
 
 

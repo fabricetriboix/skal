@@ -114,7 +114,8 @@ SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverityE severity,
     alarm->severity = severity;
     if (SkalPlfThreadGetSpecific() != NULL) {
         // The current thread is managed by SKAL
-        SkalPlfThreadGetName(alarm->origin, sizeof(alarm->origin));
+        snprintf(alarm->origin, sizeof(alarm->origin),
+                "%s", SkalPlfThreadGetName());
     }
     alarm->isOn = isOn;
     alarm->autoOff = autoOff;

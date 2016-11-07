@@ -86,6 +86,10 @@ struct SkalMsg {
  +-------------------------------*/
 
 
+/** Set a thread name, appending the local domain if no domain is specified */
+static void skalSetThreadName(char* buffer, int size_B, const char* t);
+
+
 /** Allocate a message field and add it to the `msg`
  *
  * @param msg  [in,out] Message the field will be added to
@@ -173,7 +177,7 @@ static uint64_t gMsgCounter = 0;
 
 
 /** Domain name */
-static char gSkalDomain[SKAL_NAME_MAX];
+static char gDomain[(SKAL_NAME_MAX / 2) - 1] = "#INVAL#";
 
 
 /** Number of message references in this process */
@@ -204,12 +208,13 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
     strncpy(msg->type, type, sizeof(msg->type) - 1);
     if (SkalPlfThreadGetSpecific() != NULL) {
         // The current thread is managed by SKAL
-        SkalPlfThreadGetName(msg->sender, sizeof(msg->sender));
+        const char* name = SkalPlfThreadGetName();
+        skalSetThreadName(msg->sender, sizeof(msg->sender), name);
     } else {
         // The current thread is not managed by SKAL
-        strncpy(msg->sender, "skal-external", sizeof(msg->sender) - 1);
+        skalSetThreadName(msg->sender, sizeof(msg->sender), "skal-external");
     }
-    strncpy(msg->recipient, recipient, sizeof(msg->recipient) - 1);
+    skalSetThreadName(msg->recipient, sizeof(msg->recipient), recipient);
     if (marker != NULL) {
         strncpy(msg->marker, marker, sizeof(msg->marker) - 1);
     } else {
@@ -221,6 +226,13 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
             (void(*)(CdsListItem*))SkalAlarmUnref);
 
     return msg;
+}
+
+
+void SkalMsgSetSender(SkalMsg* msg, const char* sender)
+{
+    SKALASSERT(msg != NULL);
+    skalSetThreadName(msg->sender, sizeof(msg->sender), sender);
 }
 
 
@@ -548,17 +560,17 @@ SkalMsg* SkalMsgCreateFromJson(const char* json)
 
 void SkalSetDomain(const char* domain)
 {
-    SKALASSERT(SkalIsAsciiString(domain, sizeof(gSkalDomain)));
-    snprintf(gSkalDomain, sizeof(gSkalDomain), "%s", domain);
+    SKALASSERT(SkalIsAsciiString(domain, sizeof(gDomain)));
+    snprintf(gDomain, sizeof(gDomain), "%s", domain);
 }
 
 
 const char* SkalDomain(void)
 {
-    if ('\0' == gSkalDomain[0]) {
+    if ('\0' == gDomain[0]) {
         return NULL;
     }
-    return gSkalDomain;
+    return gDomain;
 }
 
 
@@ -572,6 +584,20 @@ int64_t SkalMsgRefCount_DEBUG(void)
 /*----------------------------------+
  | Private function implementations |
  +----------------------------------*/
+
+
+static void skalSetThreadName(char* buffer, int size_B, const char* t)
+{
+    SKALASSERT(buffer != NULL);
+    SKALASSERT(size_B > 0);
+    SKALASSERT(SkalIsAsciiString(t, SKAL_NAME_MAX));
+    if (strchr(t, '@') != NULL) {
+        snprintf(buffer, size_B, "%s", t);
+    } else {
+        int n = snprintf(buffer, size_B, "%s@%s", t, gDomain);
+        SKALASSERT(n < size_B);
+    }
+}
 
 
 static skalMsgField* skalAllocMsgField(SkalMsg* msg,

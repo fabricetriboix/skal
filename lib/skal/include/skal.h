@@ -326,7 +326,7 @@ typedef struct
 /** Initialise SKAL for this process
  *
  * A skald daemon should be running on the same computer before this call is
- * made.
+ * made. You must call this function before any other function in this module.
  *
  * @param skaldUrl   [in] URL to connect to skald. This may be NULL. Actually,
  *                        this should be NULL unless you really know what you
@@ -359,6 +359,8 @@ void SkalExit(void);
 
 
 /** Create a thread
+ *
+ * You must have called `SkalInit()` first.
  *
  * NB: The only way to terminate a thread is for its `processMsg` callback to
  * return `false`, or for the process itself to be terminated.
