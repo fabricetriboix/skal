@@ -604,7 +604,8 @@ static void skalThreadRun(void* arg)
         // If I have some pending `xoff`, I should only process internal
         // messages and leave all other messages pending in the queue.
         bool internalOnly = !CdsMapIsEmpty(priv->xoff);
-        // TODO: Add timer to periodically retry sending `skal-ntf-xon` messages
+        // TODO: Add timer to periodically retry sending `skal-ntf-xon`
+        // messages instead of hoping for spurious interruptions
         msg = SkalQueuePop_BLOCKING(thread->queue, internalOnly);
         SKALASSERT(msg != NULL);
 

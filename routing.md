@@ -3,13 +3,28 @@ Assumptions
 -----------
 
 The following assumptions are made in order to simplify things:
- - skald always perform its tasks according to requirements and in a
-   timely manner
+ - skald (the SKAL daemon) always perform its tasks according to
+   requirements and in a timely manner
  - skald is always on, available and never crashes
  - The links between skald and its processes never drop packets and
    never re-order packets (these are UNIX sockets or equivalent)
  - When a process crashes, the link between it and skald behaves like
    the process has closed the link
+
+
+Limits
+------
+
+The SKAL framework has been designed to cope with thread crashing,
+although it assumes such an event is infrequent and that delays
+resulting from such a crash are acceptable. After all, you probably want
+to develop an application that doesn't ever crash!
+
+In practice, this means a thread blocked on another thread that just
+crashed might have to wait for a few dozens of milli-seconds before it
+is notified it can resume its work. In actually real practice, this
+probably means the thread that has just been unblocked will not be able
+to perform its normal function because its chat buddy is no more.
 
 
 Xon/xoff mechanism
@@ -34,15 +49,14 @@ This is done by throttling the sender thread in the following way:
    sending any message to thread B.
  - The code sends to thread B an 'ntf-xon' message; this tells thread B
    to send an 'xon' message to thread A when its queue is not full
-   anymore; thread B mainains a list of other threads waiting for such
+   anymore; thread B maintains a list of other threads waiting for such
    an 'xon' message.
  - When thread B's queue is not full anymore, it sends 'xon' messages to
    all threads blocked on itself.
  - Thread A keeps track of how many 'xoff' messages it received from any
-   other thread; every time an 'xon' message is received, a
-   corresponding 'xoff' message is decremented; while the count is
-   positive, thread A will not process any user message (but will still
-   process SKAL messages, such as 'xon')
+   other thread; as long as an 'xoff' message has not been cancelled by
+   a corresponding 'xon' message, thread A will not process any user
+   message (but will still process SKAL messages, such as 'xon')
 
 Note: SKAL messages never cause an xon/xoff trigger.
 
