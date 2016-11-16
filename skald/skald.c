@@ -14,18 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** skald daemon
- *
- * The jobs of the skald daemon are the following:
- *  - Route messages between threads
- *  - Monitor which thread is blocked on what thread
- *  - Unblock blocked thread when the blocking thread crashed
- *  - Maintain a register of alarms
- *
- * Please note that references to "threads" are for threads in other processes.
- * The skald daemon does not run any application threads.
- */
-
+#include "skald.h"
 #include "skal.h"
 #include "skal-msg.h"
 #include "skal-net.h"
@@ -47,7 +36,7 @@
  */
 typedef struct {
     CdsMapItem item;
-    char       key[SKAL_NAME_MAX * 2]; /**< "alarm-origin:alarm-type" */
+    char       key[SKAL_NAME_MAX * 2]; /**< "alarm-type#alarm-origin" */
     SkalAlarm* alarm;
 } skaldAlarm;
 
@@ -60,80 +49,117 @@ typedef enum {
     /** Pipe client - to tell skald to terminate itself */
     SKALD_SOCKET_PIPE_CLIENT,
 
-    /** Peer - TODO */
-    SKALD_SOCKET_PEER,
+    /** Domain peers - other skald's in the same domain */
+    SKALD_SOCKET_DOMAIN_PEER,
+
+    /** Foreign peers - skald's in other domains (only for the gateway) */
+    SKALD_SOCKET_FOREIGN_PEER,
 
     /** Local server - for processes to connect to me */
-    SKALD_SOCKET_LOCAL_SERVER,
+    SKALD_SOCKET_SERVER,
 
     /** Local comm - one per process */
-    SKALD_SOCKET_LOCAL_COMM
+    SKALD_SOCKET_PROCESS
 } skaldSocketType;
 
 
-/** Structure that represents an item of `skaldThread.blocking`
+/** Structure that represents a map item that only contains a name
+ *
+ * This is used in various places to keep track of the names of certain threads.
+ */
+typedef struct {
+    CdsMapItem item;
+    int        ref;
+    char       name[SKAL_NAME_MAX];
+} skaldNameMapItem;
+
+
+/** Structure that holds information about a managed or domain thread
+ *
+ * This goes into the `gThreads` map.
  *
  * Because we know there is only ever going to be only one reference to this
  * structure, we don't keep track of the reference count.
  */
 typedef struct {
     CdsMapItem item;
-    char       name[SKAL_NAME_MAX];
-} skaldBlocked;
+
+    /** Socket id of the process/skald this thread is part of */
+    int sockid;
+
+    /** Name of the thread in question - this is also the map key */
+    char name[SKAL_NAME_MAX];
+
+    /** Map of threads blocked by this thread; made of `skaldNameMapItem` */
+    CdsMap* blockedByMe;
+
+    /** Map of threads blocking this thread; made of `skaldNameMapItem` */
+    CdsMap* blockingMe;
+} skaldThread;
 
 
-/** Structure that holds information about a thread in our cluster
+/** Structure that holds information related to a socket
  *
- * This goes into the `gThreads`, `skaldProcess.threads` and
- * `skaldThread.blocked` maps.
+ * NB: We do not keep track of reference count, because such a structure is only
+ * referenced by one and only one skal-net socket.
+ */
+typedef struct {
+    /** What type of socket it is */
+    skaldSocketType type;
+
+    /** Name representative of that socket */
+    char name[SKAL_NAME_MAX];
+
+    /** Map of threads - made of `skaldNameMapItem`
+     *
+     * These are the threads that live on the other side of this socket. They
+     * may be in a process or in a skald in the same domain.
+     *
+     * This map remains empty for a foreign peer.
+     */
+    CdsMap* threadNames;
+} skaldSocketCtx;
+
+
+/** Structure that holds information about a route
+ *
+ * This goes into the `gRoutingTable` map.
+ *
+ * Because we know there is only ever going to be only one reference to this
+ * structure, we don't keep track of the reference count.
  */
 typedef struct {
     CdsMapItem item;
 
-    /** Reference count */
-    int ref;
+    /** Name of the domain in question - this is also the map key */
+    char domain[SKAL_NAME_MAX];
 
-    /** Name of the thread in question */
-    char name[SKAL_NAME_MAX];
-
-    /** Map of threads blocked by this thread; made of `skaldThread` */
-    CdsMap* blocked;
-} skaldThread;
-
-
-/** Structure that holds information about a process under our management */
-typedef struct {
-    /** Name of the process in question */
-    char name[SKAL_NAME_MAX];
-
-    /** Map of threads in this process
+    /** Socket id of gateway
      *
-     * Items are of type `skaldThread`, the key is `skaldThread.name`.
+     * All messages where the recipient is in the `domain` listed above will be
+     * sent through this socket.
      */
-    CdsMap* threads;
-} skaldProcess;
-
-
-/** Structure that holds information related to a remote skald */
-typedef struct {
-    int TODO;
-} skaldPeer;
-
-
-/** Structure that holds information related to a socket */
-typedef struct {
-    skaldSocketType type;
-    union {
-        skaldPeer    peer;    /**< For `SKALD_SOCKET_PEER` */
-        skaldProcess process; /**< For `SKALD_SOCKET_LOCAL_COMM` */
-    };
-} skaldSocketCtx;
+    int sockid;
+} skaldRoute;
 
 
 
 /*-------------------------------+
  | Private function declarations |
  +-------------------------------*/
+
+
+/** Get the domain name out of a thread name
+ *
+ * @param threadName [in] Thread name; must not be NULL
+ *
+ * @return The domain name, or NULL if no domain name
+ */
+static const char* skaldDomain(const char* threadName);
+
+
+/** Insert a name in a map */
+static void skaldInsertName(CdsMap* map, const char* name);
 
 
 /** Insert/remove an alarm from the alarm map
@@ -147,12 +173,16 @@ typedef struct {
 static void skaldAlarmProcess(SkalAlarm* alarm);
 
 
-/** Unref an item in the alarm map */
+/** De-reference a name item */
+static void skaldNameMapItemUnref(CdsMapItem* item);
+
+
+/** De-reference an item from the alarm map */
 static void skaldAlarmUnref(CdsMapItem* item);
 
 
 /** Function to de-reference a skal-net socket context */
-static void skaldSocketFree(void* context);
+static void skaldCtxUnref(void* context);
 
 
 /** Create a new process following a connection request
@@ -164,21 +194,35 @@ static void skaldHandleProcessConnection(int commSockid);
 
 /** Handle the disconnection of a process
  *
- * A process would normally disconnect because it crashed. The main task of this
- * skald in this case is to wake up any thread from other processes blocked on a
- * thread of the crashed process.
+ * The main task of skald when a process disconnects is to essentially act as if
+ * all threads in this process died. In particular it must wake up other threads
+ * currently blocked in any thread of the crashed process.
  *
- * @param sockid  [in]     Id of the skal-net socket that disconnected
- * @param process [in,out] Socket structure of process that just disconnected
+ * @param ctx [in,out] Context for that socket; must not be NULL; must be of
+ *                     type `SKALD_SOCKET_PROCESS`
  */
-static void skaldHandleProcessDisconnection(int sockid, skaldProcess* process);
+static void skaldHandleProcessDisconnection(skaldSocketCtx* ctx);
 
 
-/** Function to take a reference to a `skaldThread` item */
-static void skaldThreadRef(skaldThread* thread);
+/** Handle the death of a managed or domain thread
+ *
+ * This function does the following:
+ *  - Unblock any thread still blocked on it by an XOFF
+ *  - Remove all reference to that thread from its parent process/peer and other
+ *    threads
+ *
+ * In most likelyhood, `thread` will be freed in the course of this function.
+ *
+ * @param threadName [in] Name of thread that just died; must not be NULL
+ */
+static void skaldHandleThreadDeath(const char* threadName);
 
 
-/** Function to free a `skaldThread` */
+/** Function to de-reference a `skaldThread`
+ *
+ * If the last reference is taken out, any thread blocked on the de-referenced
+ * thread will be sent a `skal-xon` message to be unblocked.
+ */
 static void skaldThreadUnref(CdsMapItem* item);
 
 
@@ -192,17 +236,36 @@ static void skaldThreadUnref(CdsMapItem* item);
 static void skaldThreadSendXon(const skaldThread* thread);
 
 
-/** Send a message to the correct recipient
+/** Send a message through the given socket
  *
+ * This function takes ownership of `msg`.
+ *
+ * @param msg    [in,out] Message to send; must not be NULL
+ * @param sockid [in]     On which socket to send this message through
  */
-static void skaldMsgSend(SkalMsg* msg);
+static void skaldMsgSend(SkalMsg* msg, int sockid);
+
+
+/** Handle error condition where a message is received from an unexpected socket
+ *
+ * This function raises the appropriate alarm and closes the `sockid` socket.
+ *
+ * @param sockid  [in] Id of socket that received the message
+ * @param ctx     [in] Context of same socket
+ * @param msgtype [in] Type of received message
+ * @param extra   [in] Extra message (goes in alarm message)
+ */
+static void skaldWrongSocketType(int sockid, const skaldSocketCtx* ctx,
+        const char* msgtype, const char* extra);
 
 
 /** Process an incoming messge
  *
- * @param msg [in] Message to process
+ * @param sockid [in]     skal-net socket that received this message
+ * @param ctx    [in,out] Context of socket that received this message
+ * @param msg    [in]     Message to process; must not be NULL
  */
-static void skaldHandleMsg(const SkalMsg* msg);
+static void skaldHandleMsg(int sockid, skaldSocketCtx* ctx, const SkalMsg* msg);
 
 
 
@@ -210,9 +273,6 @@ static void skaldHandleMsg(const SkalMsg* msg);
  | Global variables |
  +------------------*/
 
-
-/** Domain managed by this skald */
-static const char* gDomain = NULL;
 
 /** Sockets
  *
@@ -222,17 +282,43 @@ static const char* gDomain = NULL;
  *  - Sockets that link to another skald
  *
  * We use the skal-net ability to hold cookies for each socket to store
- * information related to each one of those sockets.
+ * information related to each one of those sockets; cookie are thus of type
+ * `skaldSocketCtx`.
  */
 static SkalNet* gNet = NULL;
 
 
+/** Repeat pipe server sockid for easy termination */
+static int gPipeServerSockid = -1;
+
+
+/** Information about all managed and domain threads
+ *
+ * Map is made of `skaldThread`, and the key is the thread name.
+ */
+static CdsMap* gThreads = NULL;
+
+
 /** Alarms currently active */
-static CdsMap gAlarms = NULL;
+static CdsMap* gAlarms = NULL;
 
 
-/** Threads directly or indirectly connected to this skald */
-static CdsMap gThreads = NULL;
+/** Domain this skald manages */
+static char gDomain[SKAL_DOMAIN_NAME_MAX] = "local";
+
+
+/** Routing table
+ *
+ * If this skald is the designated gateway for its domain, this table lists all
+ * the other getways for other domains. Items are of type `skaldRoute`.
+ *
+ * If this skald is not a designated gateway, this table remains empty.
+ */
+static CdsMap* gRoutingTable = NULL;
+
+
+/** Is this skald the gateway for this domain? */
+static bool gIsGateway = false;
 
 
 
@@ -241,18 +327,20 @@ static CdsMap gThreads = NULL;
  +---------------------------------*/
 
 
-void SkaldRun(const char* domain, const SkalNetAddr* localAddr,
-        int npeers, const SkalNetAddr* peers, int pollTimeout_us)
+void SkaldRun(const SkaldParams* params)
 {
-    SKALASSERT(SkalIsAsciiString(domain, SKAL_NAME_MAX));
-    SKALASSERT(localAddr != NULL);
-    SKALASSERT(localAddr->unix.path[0] != '\0');
-    SKALASSERT(SkalIsAsciiString(localAddr->unix.path,
-                sizeof(localAddr->unix.path)));
+    SKALASSERT(params != NULL);
+    if (params->domain != NULL) {
+        SKALASSERT(SkalIsAsciiString(params->domain, SKAL_DOMAIN_NAME_MAX));
+        int n = snprintf(gDomain, sizeof(gDomain), "%s", params->domain);
+        SKALASSERT(n < (int)sizeof(gDomain));
+    }
+    SKALASSERT(params->localAddr.unix.path[0] != '\0');
+    SKALASSERT(SkalIsAsciiString(params->localAddr.unix.path,
+                sizeof(params->localAddr.unix.path)));
 
-    gDomain = domain;
-
-    gNet = SkalNetCreate(pollTimeout_us, skaldSocketFree);
+    gNet = SkalNetCreate(params->pollTimeout_us, skaldCtxUnref);
+    gIsGateway = params->isGateway;
 
     gAlarms = CdsMapCreate( "alarms",           // name
                             0,                  // capacity
@@ -261,23 +349,19 @@ void SkaldRun(const char* domain, const SkalNetAddr* localAddr,
                             NULL,               // keyUnref
                             skaldAlarmUnref);   // itemUnref
 
-    gThreads = CdsMapCreate("threads",          // name
-                            0,                  // capacity
-                            SkalStringCompare,  // compare
-                            NULL,               // cookie
-                            NULL,               // keyUnref
-                            skaldThreadUnref);  // itemUnref
-
     // Create pipe to allow skald to terminate cleanly
     skaldSocketCtx* ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_PIPE_SERVER;
+    snprintf(ctx->name, sizeof(ctx->name), "pipe-server");
     int sockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_PIPE, NULL, 0, ctx, 0);
+    gPipeServerSockid = sockid;
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
     SKALASSERT(SKAL_NET_EV_CONN == event->type);
     SKALASSERT(sockid == event->sockid);
     ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_PIPE_CLIENT;
+    snprintf(ctx->name, sizeof(ctx->name), "pipe-client");
     bool contextSet = SkalNetSetContext(gNet, event->conn.commSockid, ctx);
     SKALASSERT(contextSet);
     SkalNetEventUnref(event);
@@ -288,10 +372,12 @@ void SkaldRun(const char* domain, const SkalNetAddr* localAddr,
 
     // Create skald local socket
     ctx = SkalMallocZ(sizeof(*ctx));
-    ctx->type = SKALD_SOCKET_LOCAL_SERVER;
+    ctx->type = SKALD_SOCKET_SERVER;
+    snprintf(ctx->name, sizeof(ctx->name), "local-server");
     (void)SkalNetServerCreate(gNet,
             SKAL_NET_TYPE_UNIX_SEQPACKET, &localAddr, 0, ctx, 0);
 
+    // Infinite loop: process events on sockets
     bool stop = false;
     while (!stop) {
         event = SkalNetPoll_BLOCKING(gNet);
@@ -321,11 +407,12 @@ void SkaldRun(const char* domain, const SkalNetAddr* localAddr,
                     (int)event->type);
             break;
 
-        case SKALD_SOCKET_PEER :
+        case SKALD_SOCKET_DOMAIN_PEER :
+        case SKALD_SOCKET_FOREIGN_PEER :
             SKALPANIC_MSG("Not yet implemented");
             break;
 
-        case SKALD_SOCKET_LOCAL_SERVER :
+        case SKALD_SOCKET_SERVER :
             switch (event->type) {
             case SKAL_NET_EV_CONN :
                 // A process is connecting to us
@@ -338,11 +425,15 @@ void SkaldRun(const char* domain, const SkalNetAddr* localAddr,
             }
             break;
 
-        case SKALD_SOCKET_LOCAL_COMM :
+        case SKALD_SOCKET_PROCESS :
             switch (event->type) {
+            case SKAL_NET_EV_ERROR :
+                SkalLog("SKALD: Error reported on socket '%s'", ctx->name);
+                // fallthrough
             case SKAL_NET_EV_DISCONN :
                 // This process is disconnecting from us
-                skaldHandleProcessDisconnection(event->sockid, &ctx->process);
+                skaldHandleProcessDisconnection(ctx);
+                SkalNetSocketDestroy(gNet, event->sockid);
                 break;
             case SKAL_NET_EV_IN :
                 {
@@ -356,11 +447,10 @@ void SkaldRun(const char* domain, const SkalNetAddr* localAddr,
                     if (NULL == msg) {
                         SkalAlarm* alarm = SkalAlarmCreate(
                                 "skal-invalid-json", SKAL_SEVERITY_ERROR,
-                                true, false,
-                                "From process '%s'", ctx->process.name);
+                                true, false, "From process '%s'", ctx->name);
                         skaldAlarmProcess(alarm);
                     } else {
-                        skaldHandleMsg(msg);
+                        skaldHandleMsg(event->sockid, ctx, msg);
                         SkalMsgUnref(msg);
                     }
                 }
@@ -378,8 +468,15 @@ void SkaldRun(const char* domain, const SkalNetAddr* localAddr,
     } // infinite loop
 
     SkalNetDestroy(gNet);
-    CdsMapDestroy(gThreads);
     CdsMapDestroy(gAlarm);
+}
+
+
+static void SkaldTerminate(void)
+{
+    char c = 'x';
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
+            gPipeServerSockid, &c, 1);
 }
 
 
@@ -387,6 +484,31 @@ void SkaldRun(const char* domain, const SkalNetAddr* localAddr,
 /*----------------------------------+
  | Private function implementations |
  +----------------------------------*/
+
+
+static const char* skaldDomain(const char* threadName)
+{
+    SKALASSERT(threadName != NULL);
+    char* ptr = strchr(threadName, '@');
+    if (ptr != NULL) {
+        ptr++; // skip '@' character
+    }
+    return ptr;
+}
+
+
+static void skaldInsertName(CdsMap* map, const char* name)
+{
+    SKALASSERT(map != NULL);
+    SKALASSERT(SkalIsUtf8String(name, SKAL_NAME_MAX));
+
+    skaldNameMapItem* item = SkalMallocZ(sizeof(*item));
+    item->ref = 1;
+    snprintf(item->name, sizeof(item->name), "%s", name);
+
+    bool inserted = CdsMapInsert(map, &item->item);
+    SKALASSERT(inserted);
+}
 
 
 static void skaldAlarmProcess(SkalAlarm* alarm)
@@ -397,7 +519,7 @@ static void skaldAlarmProcess(SkalAlarm* alarm)
         origin = "";
     }
     snprintf(item->key, sizeof(item->key),
-            "%s:%s", origin, SkalAlarmType(alarm));
+            "%s#%s", origin, SkalAlarmType(alarm));
     item->alarm = alarm;
 
     if (SkalAlarmIsOn(alarm)) {
@@ -406,6 +528,17 @@ static void skaldAlarmProcess(SkalAlarm* alarm)
     } else {
         (void)CdsMapRemove(gAlarms, item->key);
         skaldAlarmUnref(&item->item);
+    }
+}
+
+
+static void skaldNameMapItemUnref(CdsMapItem* item)
+{
+    skaldNameMapItem* n = (skaldNameMapItem*)item;
+    SKALASSERT(n != NULL);
+    (n->ref)--;
+    if (n->ref <= 0) {
+        free(n);
     }
 }
 
@@ -420,18 +553,13 @@ static void skaldAlarmUnref(CdsMapItem* item)
 }
 
 
-static void skaldSocketFree(void* context)
+static void skaldCtxUnref(void* context)
 {
+    SKALASSERT(context != NULL);
     skaldSocketCtx* ctx = (skaldSocketCtx*)context;
-
-    switch (ctx->type) {
-    case SKALD_SOCKET_LOCAL_COMM :
-        CdsMapDestroy(ctx->peer.threads);
-        break;
-    default :
-        break;
+    if (ctx->threadNames != NULL) {
+        CdsMapDestroy(ctx->threadNames);
     }
-
     free(ctx);
 }
 
@@ -439,28 +567,111 @@ static void skaldSocketFree(void* context)
 static void skaldHandleProcessConnection(int commSockid)
 {
     skaldSocketCtx* ctx = SkalMallocZ(sizeof(*ctx));
-    ctx->type = SKALD_SOCKET_LOCAL_COMM;
-    ctx->process.threads = CdsMapCreate(NULL,               // name
-                                        0,                  // capacity
-                                        SkalStringCompare,  // compare
-                                        NULL,               // cookie
-                                        NULL,               // keyUnref
-                                        skaldThreadUnref);  // itemUnref
-    bool ok = SkalNetSetContext(gNet, commSockid, ctx);
-    SKALASSERT(ok);
+    ctx->type = SKALD_SOCKET_PROCESS;
+    snprintf(ctx->name, sizeof(ctx->name), "process (%d)", commSockid);
+    ctx->threads = CdsMapCreate(NULL,                   // name
+                                0,                      // capacity
+                                SkalStringCompare,      // compare
+                                NULL,                   // cookie
+                                NULL,                   // keyUnref
+                                skaldNameMapItemUnref); // itemUnref
+    bool contextSet = SkalNetSetContext(gNet, commSockid, ctx);
+    SKALASSERT(contextSet);
 }
 
 
-static void skaldHandleProcessDisconnection(int sockid, skaldSocket* s)
+static void skaldHandleProcessDisconnection(skaldSocketCtx* ctx)
 {
-    // TODO
+    SKALASSERT(ctx != NULL);
+    SKALASSERT(SKALD_SOCKET_PROCESS == ctx->type);
+    SKALASSERT(ctx->threadNames != NULL);
+
+    CdsMapIteratorReset(ctx->threadNames, true);
+    for (   CdsMapItem* item = CdsMapIteratorNext(ctx->threadNames, NULL);
+            item != NULL;
+            item = CdsMapIteratorNext(ctx->threadNames, NULL)) {
+        skaldNameMapItem* nameitem = (skaldNameMapItem*)item;
+        skaldHandleThreadDeath(nameitem->name);
+    }
+    SKALASSERT(CdsMapIsEmpty(ctx->threadNames));
 }
 
 
-static void skaldThreadRef(skaldThread* thread)
+static void skaldHandleThreadDeath(const char* threadName)
 {
-    SKALASSERT(thread != NULL);
-    thread->ref++;
+    // Look up thread structure based on thread name
+    SKALASSERT(threadName != NULL);
+    skaldThread* thread = (skaldThread*)CdsMapSearch(gThreads, threadName);
+    if (NULL == thread) {
+        SkalAlarm* alarm = SkalAlarmCreate("skal-unknown-thread",
+                SKAL_SEVERITY_WARNING, true, false, NULL);
+        skaldAlarmProcess(alarm);
+        return;
+    }
+
+    // Unblock any thread still blocked by the thread that just died
+    CdsMapIteratorReset(thread->blockedByMe, true);
+    for (   CdsMapItem* item = CdsMapIteratorNext(thread->blockedByMe, NULL);
+            item != NULL;
+            item = CdsMapIteratorNext(thread->blockedByMe, NULL)) {
+        skaldNameMapItem* nameitem = (skaldNameMapItem*)item;
+        skaldThread* blocked = CdsMapSearch(gThreads, nameitem->name);
+        if (NULL == blocked) {
+            SkalAlarm* alarm = SkalAlarmCreate("skal-bug-blockedbyme",
+                    SKAL_SEVERITY_WARNING, true, false,
+                    "Thread '%s' says it blocks '%s', but '%s' does not exist",
+                    threadName, nameitem->name, nameitem->name);
+            skaldAlarmProcess(alarm);
+        } else {
+            SkalMsg* msg = SkalMsgCreate("skal-xon", nameitem->name, 0, NULL);
+            SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
+            SkalMsgSetSender(msg, threadName);
+            skaldMsgSend(msg, thread->sockid);
+        }
+    }
+    CdsMapClear(thread->blockedbyme);
+
+    // Remove any reference to `thread` from other threads
+    CdsMapIteratorReset(thread->blockingMe, true);
+    for (   CdsMapItem* item = CdsMapIteratorNext(thread->blockingMe, NULL);
+            item != NULL;
+            item = CdsMapIteratorNext(thread->blockingMe, NULL)) {
+        skaldNameMapItem* nameitem = (skaldNameMapItem*)item;
+        skaldThread* blocking = CdsMapSearch(gThreads, nameitem->name);
+        if (NULL == blocking) {
+            SkalAlarm* alarm = SkalAlarmCreate("skal-bug-blockingme",
+                    SKAL_SEVERITY_WARNING, true, false,
+                    "Thread '%s' says it is blocked by '%s', but '%s' does not exist",
+                    threadName, nameitem->name, nameitem->name);
+            skaldAlarmProcess(alarm);
+        } else {
+            bool removed = CdsMapRemove(blocking->blockedByMe, threadName);
+            if (!removed) {
+                SkalAlarm* alarm = SkalAlarmCreate("skal-bug-blockedbyme",
+                        SKAL_SEVERITY_WARNING, true, false,
+                        "Thread '%s' says it is blocked by '%s', but thread '%s' does not have a record of that"
+                        threadName, nameitem->name, nameitem->name);
+                skaldAlarmProcess(alarm);
+            }
+        }
+    }
+    CdsMapClear(thread->blockingMe);
+
+    // Remove any reference from the process/skald structure
+    skaldSocketCtx* ctx = (skaldSocketCtx*)SkalNetGetContext(gNet,
+            thread->sockid);
+    SKALASSERT(ctx != NULL);
+    switch (ctx->type) {
+    SKALASSERT(    (SKALD_SOCKET_DOMAIN_PEER == ctx->type)
+                || (SKALD_SOCKET_PROCESS == ctx->type));
+    bool removed2 = CdsMapRemove(ctx->threadNames, threadName);
+    if (!removed2) {
+        SkalAlarm* alarm = SkalAlarmCreate("skal-bug-unknown-thread",
+                SKAL_SEVERITY_WARNING, true, false,
+                "Thread '%s' should be part of '%s', but it's not listed there...",
+                threadName, ctx->name);
+        skaldAlarmProcess(alarm);
+    }
 }
 
 
@@ -468,39 +679,197 @@ static void skaldThreadUnref(CdsMapItem* item)
 {
     skaldThread* thread = (skaldThread*)item;
     SKALASSERT(thread != NULL);
-    thread->ref--;
-    if (thread->ref <= 0) {
-        skaldThreadSendXon(thread);
-        CdsMapDestroy(thread->blockers);
-        free(thread);
+    SKALASSERT(CdsMapIsEmpty(thread->blockedByMe));
+    SKALASSERT(CdsMapIsEmpty(thread->blockingMe));
+    CdsMapDestroy(thread->blockedByMe);
+    CdsMapDestroy(thread->blockingMe);
+    free(thread);
+}
+
+
+static const char* skaldSocketTypeToString(skaldSocketType type)
+{
+    const char* str = "UNKNOWN";
+    switch (type) {
+        case SKALD_SOCKET_PIPE_SERVER : str = "PIPE_SERVER"; break;
+        case SKALD_SOCKET_PIPE_CLIENT : str = "PIPE_CLIENT"; break;
+        case SKALD_SOCKET_PEER        : str = "PEER"       ; break;
+        case SKALD_SOCKET_SERVER      : str = "SERVER"     ; break;
+        case SKALD_SOCKET_PROCESS     : str = "PROCESS"    ; break;
+        default :
+    }
+    return str;
+}
+
+
+static void skaldWrongSocketType(int sockid, const skaldSocketCtx* ctx,
+        const char* msgtype, const char* extra)
+{
+    SkalAlarm* alarm = SkalAlarmCreate(
+            "skal-wrong-socket-type",
+            SKAL_SEVERITY_ERROR,
+            true,
+            false,
+            "From socket '%s' (type %s) for msg '%s' - closing socket%s%s",
+            ctx->name,
+            skaldSocketTypeToString(ctx->type),
+            msgtype,
+            (extra != NULL) ? "; " : "",
+            (extra != NULL) ? extra : "");
+    skaldAlarmProcess(alarm);
+    SkalNetSocketDestroy(gNet, sockid);
+}
+
+
+static void skaldHandleMsg(int sockid, skaldSocketCtx* ctx, const SkalMsg* msg)
+{
+    SKALASSERT(ctx != NULL);
+    SKALASSERT(msg != NULL);
+
+    const char* type = SkalMsgType(msg);
+    if (strcmp(type, "skal-master-born") == 0) {
+        // The `skal-master` thread of a process provides us with information
+        if (ctx->type != SKALD_SOCKET_PROCESS) {
+            skaldWrongSocketType(sockid, ctx,
+                    type, "expected SKALD_SOCKET_PROCESS");
+            return;
+        }
+        const char* name = SkalMsgGetString(msg, "name");
+        snprintf(ctx->name, sizeof(ctx->name), "%s", name);
+
+        // Send a `skal-domain` message in response
+        SkalMsg* resp = SkalMsgCreate("skal-domain", "skal-master", 0, NULL);
+        SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
+        SkalMsgAddString(resp, "domain", gDomain);
+        skaldMsgSend(msg, sockid);
+
+    } else if (strcmp(type, "skal-born") == 0) {
+        // A managed or domain thread has been born
+        if (    (ctx->type != SKALD_SOCKET_PROCESS)
+             || (ctx->type != SKALD_SOCKET_DOMAIN_PEER)) {
+            skaldWrongSocketType(sockid, ctx, type,
+                    "expected SKALD_SOCKET_PROCESS or SKALD_SOCKET_DOMAIN_PEER");
+            return;
+        }
+
+        skaldThread* thread = SkalMallocZ(sizeof(*thread));
+        thread->sockid = sockid;
+
+        const char* sender = SkalMsgSender(msg);
+        if (SKALD_SOCKET_PROCESS == ctx->type) {
+            char* threadDomain = skaldDomain(sender);
+            SKALASSERT(threadDomain != NULL);
+            SKALASSERT(strcmp(threadDomain, gDomain) == 0);
+        }
+        snprintf(thread->name, sizeof(thread->name), "%s", sender);
+
+        thread->blockedByMe = CdsMapCreate(NULL,                   // name
+                                           0,                      // capacity
+                                           SkalStringCompare,      // compare
+                                           NULL,                   // cookie
+                                           NULL,                   // keyUnref
+                                           skaldNameMapItemUnref); // itemUnref
+
+        thread->blockingMe = CdsMapCreate(NULL,                   // name
+                                          0,                      // capacity
+                                          SkalStringCompare,      // compare
+                                          NULL,                   // cookie
+                                          NULL,                   // keyUnref
+                                          skaldNameMapItemUnref); // itemUnref
+
+        bool inserted = CdsMapInsert(gThreads, (void*)sender, &thread->item);
+        SKALASSERT(inserted);
+
+        skaldInsertName(ctx->threadNames, sender);
+
+        // TODO: if managed thread, inform domain peers
+
+    } else if (strcmp(type, "skal-died") == 0) {
+        // A managed or domain thread just died
+        if (    (ctx->type != SKALD_SOCKET_PROCESS)
+             || (ctx->type != SKALD_SOCKET_DOMAIN_PEER)) {
+            skaldWrongSocketType(sockid, ctx, type,
+                    "expected SKALD_SOCKET_PROCESS or SKALD_SOCKET_DOMAIN_PEER");
+            return;
+        }
+        skaldHandleThreadDeath(SkalMsgSender(msg));
+
+        // TODO: if managed thread, inform domain peers
+
+    } else if (strcmp(type, "skal-xoff") == 0) {
+        // A thread is telling another thread to stop sending to it
+        if (    (ctx->type != SKALD_SOCKET_PROCESS)
+             || (ctx->type != SKALD_SOCKET_DOMAIN_PEER)) {
+            skaldWrongSocketType(sockid, ctx, type,
+                    "expected SKALD_SOCKET_PROCESS or SKALD_SOCKET_DOMAIN_PEER");
+            return;
+        }
+
+        // We only do something if the recipient is managed by this skald
+        const char* recipient = SkalMsgRecipient(msg);
+        const char* recipientDomain = skaldDomain(recipient);
+        SKALASSERT(recipientDomain != NULL);
+        if (strcmp(recipientDomain, gDomain) == 0) {
+            skaldThread* blocked = CdsMapSearch(gThreads, recipient);
+            if (blocked != NULL) {
+                const char* sender = SkalMsgSender(msg);
+                skaldInsertName(blocked->blockingMe, sender);
+                // TODO: from here
+        }
+        skaldThread* blocking = CdsMapSearch(gThreads, sender);
+        if (blocking != NULL) {
+            skaldInsertName(blocking->blockedByMe, recipient);
+        }
+
+    } else if (strcmp(type, "skal-ntf-xon") == 0) {
+        // TODO
+
+    } else if (strcmp(type, "skal-xon") == 0) {
+        // TODO
     }
 }
 
 
-static void skaldThreadSendXon(const skaldThread* thread)
+static void skaldSendMsgOverCnxSocket(SkalMsg* msg,
+        int sockid, skaldSocketCtx* ctx)
 {
-    SKALASSERT(thread != NULL);
-    SKALASSERT(thread->blocking != NULL);
-    CdsMapIteratorReset(thread->blocking, true);
-    for (   CdsMapItem* item = CdsMapIteratorNext(thread->blocking, NULL);
-            item != NULL;
-            item = CdsMapIteratorNext(thread->blocking, NULL)) {
-        skaldBlocked* blocked = (skaldBlocked*)item;
-        SkalMsg* msg = SkalMsgCreate("skal-xon", blocked->name, 0, NULL);
-        SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
-        SkalMsgAddString(msg, "origin", thread->name);
-        skaldMsgSend(msg);
+    SKALASSERT(SKALD_SOCKET_PROCESS == ctx->type);
+    skaldProcess* process = &ctx->process;
+    if (ctx->unwell) {
+        SkalLog("SKALD: Not sending message over socket '%s' because it is unwell",
+                ctx->name);
+        return;
+    }
+
+    char* json = SkalMsgToJson(msg);
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gNet, sockid,
+            json, strlen(json) + 1);
+    free(json);
+    if (result != SKAL_NET_SEND_OK) {
+        ctx->unwell = true;
+        SkalAlarm* alarm = SkalAlarmCreate("skal-send-fail",
+                SKAL_SEVERITY_ERROR, true, false,
+                "Over socket '%s'", ctx->name);
+        SkalNetSocketDestroy(gNet, sockid);
     }
 }
 
-
-static void skaldHandleMsg(const SkalMsg* msg)
+static void skaldMsgSend(SkalMsg* msg, int sockid)
 {
-    // TODO
-}
+    SKALASSERT(msg != NULL);
+    skaldSocketCtx* ctx = (skaldSocketCtx*)SkalNetGetContext(gNet,
+            blocked->sockid);
+    SKALASSERT(ctx != NULL);
 
-
-static void skaldMsgSend(SkalMsg* msg)
-{
-    // TODO
+    switch (ctx->type) {
+    case SKALD_SOCKET_PEER :
+        SKALPANIC_MSG("Peer comms not yet implemented");
+        break;
+    case SKALD_SOCKET_PROCESS :
+        skaldSendMsgOverCnxSocket(msg, sockid, ctx);
+        break;
+    default :
+        SKALPANIC_MSG("Can't send a msg over socket type %d", (int)ctx->type);
+    }
+    SkalMsgUnref(msg);
 }
