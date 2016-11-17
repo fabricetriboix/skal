@@ -10,6 +10,10 @@ The following assumptions are made in order to simplify things:
    never re-order packets (these are UNIX sockets or equivalent)
  - When a process crashes, the link between it and skald behaves like
    the process has closed the link
+ - Any node can directly access any other node in any domain; if you
+   need to segregate domains, as far as SKAL is concerned, this is a
+   network topology issue that should be addresses and solved at a
+   system level
 
 
 Limits
@@ -45,18 +49,18 @@ This is done by throttling the sender thread in the following way:
    sending to B until its queue size is not full anymore (which is the
    case when the queue size comes below a certain lower threshold; this
    second threshold is lower in order to have an hysteresis effect).
- - The code sends to thread A an 'xoff' message telling it to stop
+ - The code sends to thread A an `xoff` message telling it to stop
    sending any message to thread B.
- - The code sends to thread B an 'ntf-xon' message; this tells thread B
-   to send an 'xon' message to thread A when its queue is not full
+ - The code sends to thread B an `ntf-xon` message; this tells thread B
+   to send an `xon` message to thread A when its queue is not full
    anymore; thread B maintains a list of other threads waiting for such
-   an 'xon' message.
- - When thread B's queue is not full anymore, it sends 'xon' messages to
+   an `xon` message.
+ - When thread B's queue is not full anymore, it sends `xon` messages to
    all threads blocked on itself.
- - Thread A keeps track of how many 'xoff' messages it received from any
-   other thread; as long as an 'xoff' message has not been cancelled by
-   a corresponding 'xon' message, thread A will not process any user
-   message (but will still process SKAL messages, such as 'xon')
+ - Thread A keeps track of how many `xoff` messages it received from any
+   other thread; as long as an `xoff` message has not been cancelled by
+   a corresponding `xon` message, thread A will not process any user
+   message (but will still process SKAL messages, such as `xon`)
 
 Note: SKAL messages never cause an xon/xoff trigger.
 
@@ -67,37 +71,42 @@ All possible scenarios for a message sent by thread A to thread B
 If A and B are in the same process, thread A pushes the message directly
 into the message queue of thread B. In addition, thread A checks whether
 B's queue is full. If it is full:
- - Thread A sends to itself an 'xoff' message
- - Thread A sends to thread B a 'ntf-xon' message
- - When thread B's queue is not full anymore, it sends an 'xon' message
+ - Thread A sends to itself an `xoff` message
+ - Thread A sends to thread B a `ntf-xon` message
+ - When thread B's queue is not full anymore, it sends an `xon` message
    to thread A
 
-If A and B are in different processes (say X and Y, possibly on
-different computers) the following happens:
- - Thread A sends the message to 'skal-mater' for routing (see note 1
-   below)
- - 'skal-master' sends the message to skald for routing
- - skald forwards the message to process Y
- - The 'skal-master' thread of process Y receives the message and pushes
-   it into thread B's queue
- - If thread B's queue is full, 'skal-master' will send an 'xoff'
-   message to thread A (see note 2 below) and an 'ntf-xon' message to
-   thread B
- - When thread B's queue is not full anymore, it sends an 'xon' message
-   to thread A (see note 2 below)
+If A and B are in different processes, but in the same domain, the
+following happens:
+ - Thread A sees that thread B is in a different process and sends the
+   message to its skald for routing
+ - skald receives the message and sees it is in the same domain
+ - skald looks up which process owns thread B
+ - if the process that owns thread B is directly connected to skald,
+   skald forwards the message to that process
+ - if the process that owns thread B is connected to another skald, this
+   skald forwards the message to the other skald, which, upon reception,
+   forwards it to the process owning thread B
+ - The `skal-master` thread of the process owning thread B receives the
+   message and pushes it into thread B's queue
+ - If thread B's queue is full, `skal-master` sends an `xoff` message
+   back to thread A (via skald), and a `ntf-xon` message to thread B
+ - When thread B's queue is not full anymore, it sends an `xon` message
+   to thread A (via skald)
 
-TODO from here: I am overdoing skal-net; a process would only
-communicate with skald, and that's a single UNIX socket.
+We can see from the above that every skald in a given domain must know
+all the threads in that domain, and which skald manages which thread.
 
-Note 1: The message is not sent directly by thread A to skald because if
-the socket buffer is full, thread A would block and we would have very
-little control over that. Instead, 'skal-master' is tasked to throttle
-traffic to skald; so fast-sending thread can be throttled back using the
-xon/xoff mechanism.
+If A and B are in different domains, the following happens:
+ - Thread A sees that thread B is in a different process and sends the
+   message to its skald for routing
+ - skald receives the message and sees it is in a different domain; it
+   forwards the message to one of the skald it knows are on that domain
+ - What happens thereafter is the same as the previous case, starting
+   from the 2nd step (included)
 
-Note 2: In the above case, the 'xoff' sent from 'skal-master' in process Y to
-thread A and the 'xon' message sent by thread B to thread A go through
-full routing via skald.
+We can see here that skald must know of all peer skald's it is connected
+to and their respective domains.
 
 
 User message failures
@@ -111,19 +120,16 @@ Failures related to SKAL messages are dealt with in the next section.
 Please note the following assumptions are being made by the SKAL
 framework:
  - UNIX sockets never lose data
- - There is always enough RAM and CPU to process 'xoff' messages
+ - There is always enough RAM and CPU to process `xoff` messages
  - A skald daemon never crashes and always deal with messages in a
    timely manner
 
 A user message may fail to reach its intended recipient in the following
 conditions:
- - The recipient does not exist; in this case, the message is dropped;
-   if the sender requested to be notified of dropped messages, a
-   'skal-drop-no-recipient' message is sent back to the sender.
- - The recipient is in the process of shutting itself down; in this
-   case, the message is dropped; if the sender requested to be notified
-   of dropped messages, a 'skal-drop-shutdown' message is sent back to
-   the sender.
+ - The recipient does not exist or is shutting down; in this case, the
+   message is dropped; if the sender requested to be notified of dropped
+   messages, a `skal-drop-no-recipient` message is sent back to the
+   sender.
  - There is a network outage; in this case, the message is dropped; if
    the sender requested to be notified of dropped messages, a
    'skal-drop-no-network' message is sent back to the sender.

@@ -118,14 +118,6 @@ typedef struct {
      */
     const char* domain;
 
-    /** Is this skald the designated gateway for the above domain?
-     *
-     * If you have multiple domains, you must designated one and only one skald
-     * to be the gateway for that domain. All communications with other domains
-     * will go through that gateway.
-     */
-    bool isGateway;
-
     /** Local address to bind and listen to
      *
      * This is where processes on this computer will connect to. This is
