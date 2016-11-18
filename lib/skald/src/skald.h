@@ -95,7 +95,7 @@ typedef struct {
     /** Local address to bind and listen to
      *
      * This is where processes on this computer will connect to. This is
-     * typically a UNIX socket.
+     * typically a UNIX socket. Must not be NULL.
      */
     const char* localAddrPath;
 
@@ -134,7 +134,8 @@ void SkaldRun(const SkaldParams* params);
 
 /** Terminate skald
  *
- * This function can typically be called from a signal handler.
+ * This function can typically be called from a signal handler. This function
+ * returns only once skald has actually terminated.
  */
 void SkaldTerminate(void);
 

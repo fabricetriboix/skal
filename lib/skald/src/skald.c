@@ -21,6 +21,7 @@
 #include "cdsmap.h"
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 
 
@@ -270,6 +271,10 @@ static CdsMap* gAlarms = NULL;
 static char gDomain[SKAL_DOMAIN_NAME_MAX] = "local";
 
 
+/** Flag to indicate that skald has terminated */
+static bool gTerminated = false;
+
+
 
 /*---------------------------------+
  | Public function implementations |
@@ -431,6 +436,8 @@ void SkaldRun(const SkaldParams* params)
     SkalNetDestroy(gNet);
     CdsMapDestroy(gThreads);
     CdsMapDestroy(gAlarms);
+
+    gTerminated = true;
 }
 
 
@@ -440,6 +447,11 @@ void SkaldTerminate(void)
     SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
             gPipeClientSockid, &c, 1);
     SKALASSERT(SKAL_NET_SEND_OK == result);
+
+    // TODO: Re-write this using a condvar
+    while (!gTerminated) {
+        usleep(1000); // Wait for 1ms
+    }
 }
 
 
