@@ -10,13 +10,15 @@ rttestmainobj = ""
 testsrcs = []
 
 subdirs = [os.path.join("plf", variant['target']),
-           "common", "net", "skal"]
+           "common", "net", "skal", "skald"]
 
 for subdir in subdirs:
     artefacts = SConscript(os.path.join(subdir, "SConscript"),
             exports={'variant': variant})
     variant['env'].Append(CPPPATH = [os.path.join("#lib", subdir, "include")])
     if subdir == "skal":
+        variant['env'].Append(CPPPATH = [os.path.join("#lib", subdir, "src")])
+    if subdir == "skald":
         variant['env'].Append(CPPPATH = [os.path.join("#lib", subdir, "src")])
 
     for key, value in artefacts.items():
