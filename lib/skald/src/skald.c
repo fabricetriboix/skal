@@ -224,8 +224,11 @@ static void skaldWrongSocketType(int sockid, const skaldSocketCtx* ctx,
  * @param sockid [in]     skal-net socket that received this message
  * @param ctx    [in,out] Context of socket that received this message
  * @param msg    [in]     Message to process; must not be NULL
+ *
+ * @return `true` if message successfully processed, `false` otherwise (in which
+ *         case it must be unreferenced)
  */
-static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg);
+static bool skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg);
 
 
 
@@ -248,8 +251,8 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg);
 static SkalNet* gNet = NULL;
 
 
-/** Repeat pipe server sockid for easy access */
-static int gPipeServerSockid = -1;
+/** Repeat pipe client sockid for easy access */
+static int gPipeClientSockid = -1;
 
 
 /** Information about all managed and domain threads
@@ -281,9 +284,8 @@ void SkaldRun(const SkaldParams* params)
         int n = snprintf(gDomain, sizeof(gDomain), "%s", params->domain);
         SKALASSERT(n < (int)sizeof(gDomain));
     }
+    SKALASSERT(params->localAddrPath != NULL);
     SKALASSERT(params->localAddrPath[0] != '\0');
-    SKALASSERT(SkalIsAsciiString(params->localAddrPath,
-                sizeof(params->localAddrPath)));
 
     gNet = SkalNetCreate(params->pollTimeout_us, skaldCtxUnref);
 
@@ -308,7 +310,6 @@ void SkaldRun(const SkaldParams* params)
     SkalNetAddr addr;
     addr.type = SKAL_NET_TYPE_PIPE;
     int sockid = SkalNetServerCreate(gNet, &addr, 0, ctx, 0);
-    gPipeServerSockid = sockid;
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
     SKALASSERT(SKAL_NET_EV_CONN == event->type);
@@ -317,6 +318,7 @@ void SkaldRun(const SkaldParams* params)
     ctx->type = SKALD_SOCKET_PIPE_CLIENT;
     snprintf(ctx->name, sizeof(ctx->name), "pipe-client");
     bool contextSet = SkalNetSetContext(gNet, event->conn.commSockid, ctx);
+    gPipeClientSockid = event->conn.commSockid;
     SKALASSERT(contextSet);
     SkalNetEventUnref(event);
 
@@ -406,7 +408,9 @@ void SkaldRun(const SkaldParams* params)
                                 true, false, "From process '%s'", ctx->name);
                         skaldAlarmProcess(alarm);
                     } else {
-                        skaldProcessMsg(event->sockid, ctx, msg);
+                        if (!skaldProcessMsg(event->sockid, ctx, msg)) {
+                            SkalMsgUnref(msg);
+                        }
                     }
                 }
                 break;
@@ -415,6 +419,8 @@ void SkaldRun(const SkaldParams* params)
                         (int)event->type);
                 break;
             }
+            break;
+
         default :
             SKALPANIC_MSG("Unexpected socket type %d", (int)ctx->type);
             break;
@@ -432,7 +438,7 @@ void SkaldTerminate(void)
 {
     char c = 'x';
     SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
-            gPipeServerSockid, &c, 1);
+            gPipeClientSockid, &c, 1);
     SKALASSERT(SKAL_NET_SEND_OK == result);
 }
 
@@ -568,7 +574,7 @@ static void skaldWrongSocketType(int sockid, const skaldSocketCtx* ctx,
 }
 
 
-static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
+static bool skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
 {
     SKALASSERT(ctx != NULL);
     SKALASSERT(msg != NULL);
@@ -582,6 +588,7 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
                 "Received a message where the sender has no domain: '%s'",
                 sender);
         skaldAlarmProcess(alarm);
+        return false;
     }
     if (NULL == skaldDomain(recipient)) {
         SkalAlarm* alarm = SkalAlarmCreate("skal-invalid-msg-recipient-no-domain",
@@ -589,6 +596,7 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
                 "Received a message where the recipient has no domain: '%s'",
                 recipient);
         skaldAlarmProcess(alarm);
+        return false;
     }
 
     // Take action depending on message type
@@ -598,7 +606,7 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
         if (ctx->type != SKALD_SOCKET_PROCESS) {
             skaldWrongSocketType(sockid, ctx, type,
                     "expected SKALD_SOCKET_PROCESS");
-            return;
+            return false;
         }
         const char* name = SkalMsgGetString(msg, "name");
         snprintf(ctx->name, sizeof(ctx->name), "%s", name);
@@ -607,7 +615,9 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
         SkalMsg* resp = SkalMsgCreate("skal-domain", "skal-master", 0, NULL);
         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
         SkalMsgAddString(resp, "domain", gDomain);
-        skaldMsgSendTo(msg, sockid);
+        skaldMsgSendTo(resp, sockid);
+
+        SkalMsgUnref(msg);
 
     } else if (strcmp(type, "skal-born") == 0) {
         // A managed or domain thread has been born
@@ -615,7 +625,7 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
              || (ctx->type != SKALD_SOCKET_DOMAIN_PEER)) {
             skaldWrongSocketType(sockid, ctx, type,
                     "expected SKALD_SOCKET_PROCESS or SKALD_SOCKET_DOMAIN_PEER");
-            return;
+            return false;
         }
 
         const char* domain = skaldDomain(sender);
@@ -626,7 +636,7 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
                     "Received a skal-born message from '%s', which is on a different domain than mine (%s)",
                     sender, gDomain);
             skaldAlarmProcess(alarm);
-            return;
+            return false;
         }
 
         skaldThread* thread = SkalMallocZ(sizeof(*thread));
@@ -645,6 +655,7 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
         if (SKALD_SOCKET_PROCESS == ctx->type) {
             // TODO: inform all domain peers
         }
+        SkalMsgUnref(msg);
 
     } else if (strcmp(type, "skal-died") == 0) {
         // A managed or domain thread just died
@@ -652,9 +663,8 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
              || (ctx->type != SKALD_SOCKET_DOMAIN_PEER)) {
             skaldWrongSocketType(sockid, ctx, type,
                     "expected SKALD_SOCKET_PROCESS or SKALD_SOCKET_DOMAIN_PEER");
-            return;
+            return false;
         }
-        const char* sender = SkalMsgSender(msg);
         bool removed = CdsMapRemove(gThreads, (void*)sender);
         if (!removed) {
             SkalAlarm* alarm = SkalAlarmCreate("skal-unknown-thread",
@@ -675,6 +685,7 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
         if (SKALD_SOCKET_PROCESS == ctx->type) {
             // TODO: inform domain peers
         }
+        SkalMsgUnref(msg);
 
     } else if (strcmp(type, "skal-ntf-xon") == 0) {
         const char* domain = skaldDomain(recipient);
@@ -687,7 +698,7 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
             SkalMsg* resp = SkalMsgCreate("skal-xon", sender, 0, NULL);
             SkalMsgSetSender(resp, recipient);
             SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
-            skaldRouteMsg(msg);
+            skaldRouteMsg(resp);
             SkalMsgUnref(msg);
         } else {
             skaldRouteMsg(msg);
@@ -696,6 +707,8 @@ static void skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
     } else {
         skaldRouteMsg(msg);
     }
+
+    return true;
 }
 
 
@@ -730,6 +743,7 @@ static void skaldRouteMsg(SkalMsg* msg)
                 "Invalid message to route: recipient has no domain: '%s'",
                 recipient);
         skaldAlarmProcess(alarm);
+        SkalMsgUnref(msg);
         return;
     }
     if (strcmp(domain, gDomain) == 0) {

@@ -6,10 +6,6 @@ artefacts = {}
 
 srcs = [os.path.join("src", "skald.c")]
 artefacts['objs'] = [variant['env'].StaticObject(src) for src in srcs]
-#artefacts['testsrcs'] = [os.path.join("test", "unittest-blob.c"),
-#                         os.path.join("test", "unittest-alarm.c"),
-#                         os.path.join("test", "unittest-msg.c"),
-#                         os.path.join("test", "unittest-queue.c"),
-#                         os.path.join("test", "unittest-thread.c")]
+artefacts['testsrcs'] = [os.path.join("test", "unittest-skald.c")]
 
 Return('artefacts')
