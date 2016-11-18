@@ -396,14 +396,14 @@ void SkalNetDestroy(SkalNet* net)
 }
 
 
-int SkalNetServerCreate(SkalNet* net, SkalNetType sntype,
-        const SkalNetAddr* localAddr, int bufsize_B, void* context, int extra)
+int SkalNetServerCreate(SkalNet* net, const SkalNetAddr* localAddr,
+        int bufsize_B, void* context, int extra)
 {
     SKALASSERT(net != NULL);
-    SKALASSERT((localAddr != NULL) || (SKAL_NET_TYPE_PIPE == sntype));
+    SKALASSERT(localAddr != NULL);
 
     int sockid = -1;
-    switch (sntype) {
+    switch (localAddr->type) {
     case SKAL_NET_TYPE_PIPE :
         sockid = skalNetCreatePipe(net, bufsize_B, context);
         break;
@@ -434,24 +434,27 @@ int SkalNetServerCreate(SkalNet* net, SkalNetType sntype,
         break;
 
     default :
-        SKALPANIC_MSG("Unsupported socket type: %d", (int)sntype);
+        SKALPANIC_MSG("Unsupported socket type: %d", (int)localAddr->type);
         break;
     }
     return sockid;
 }
 
 
-int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
+int SkalNetCommCreate(SkalNet* net,
         const SkalNetAddr* localAddr, const SkalNetAddr* remoteAddr,
         int bufsize_B, void* context, int64_t timeout_us)
 {
     SKALASSERT(net != NULL);
     SKALASSERT(remoteAddr != NULL);
+    if (localAddr != NULL) {
+        SKALASSERT(localAddr->type == remoteAddr->type);
+    }
 
     int domain;
     int type;
     int protocol = 0;
-    switch (sntype) {
+    switch (remoteAddr->type) {
     case SKAL_NET_TYPE_PIPE :
         SKALPANIC_MSG("Can't create comm socket of type 'pipe'");
         break;
@@ -482,7 +485,7 @@ int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
         break;
 
     default :
-        SKALPANIC_MSG("Unknown type %d", (int)sntype);
+        SKALPANIC_MSG("Unknown type %d", (int)remoteAddr->type);
         break;
     }
 

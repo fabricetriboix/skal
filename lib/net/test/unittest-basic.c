@@ -92,8 +92,9 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_pipe_should_create_server)
 {
-    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_PIPE, NULL,
-            0, (void*)0xcafedeca, 0);
+    SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_PIPE;
+    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, (void*)0xcafedeca, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
@@ -179,9 +180,9 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_unix_stream_should_create_server)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_UNIX_STREAM;
     snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
-    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_UNIX_STREAM,
-            &addr, 0, gNet, 0);
+    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, gNet, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
@@ -189,8 +190,9 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_unix_stream_should_create_client)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_UNIX_STREAM;
     snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
-    gCommSockid = SkalNetCommCreate(gCommNet, SKAL_NET_TYPE_UNIX_STREAM,
+    gCommSockid = SkalNetCommCreate(gCommNet,
             NULL, &addr, 0, (void*)0xdeadbabe, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }
@@ -313,9 +315,9 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_unix_dgram_should_create_server)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_UNIX_DGRAM;
     snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
-    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_UNIX_DGRAM,
-            &addr, 0, gNet, 0);
+    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, gNet, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
@@ -323,8 +325,9 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_unix_dgram_should_create_client)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_UNIX_DGRAM;
     snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
-    gCommSockid = SkalNetCommCreate(gCommNet, SKAL_NET_TYPE_UNIX_DGRAM,
+    gCommSockid = SkalNetCommCreate(gCommNet,
             NULL, &addr, 0, (void*)0xdeadbabe, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }
@@ -470,9 +473,9 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_unix_seqpkt_should_create_server)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
     snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
-    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_UNIX_SEQPACKET,
-            &addr, 0, (void*)0xdeadbeef, 0);
+    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, (void*)0xdeadbeef, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
@@ -480,8 +483,9 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_unix_seqpkt_should_create_client)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
     snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
-    gCommSockid = SkalNetCommCreate(gCommNet, SKAL_NET_TYPE_UNIX_SEQPACKET,
+    gCommSockid = SkalNetCommCreate(gCommNet,
             NULL, &addr, 0, (void*)0xdeadbabe, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }
@@ -629,10 +633,10 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_tcp_should_create_server)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_IP4_TCP;
     RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
     addr.ip4.port = 5678;
-    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_IP4_TCP,
-            &addr, 0, NULL, 0);
+    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
@@ -640,10 +644,10 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_tcp_should_create_client)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_IP4_TCP;
     RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
     addr.ip4.port = 5678;
-    gCommSockid = SkalNetCommCreate(gCommNet, SKAL_NET_TYPE_IP4_TCP,
-            NULL, &addr, 0, NULL, 0);
+    gCommSockid = SkalNetCommCreate(gCommNet, NULL, &addr, 0, NULL, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }
 RTT_TEST_END
@@ -765,10 +769,10 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_udp_should_create_server)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_IP4_UDP;
     RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
     addr.ip4.port = 6789;
-    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_IP4_UDP,
-            &addr, 0, gNet, 0);
+    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, gNet, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
@@ -776,12 +780,13 @@ RTT_TEST_END
 RTT_TEST_START(skal_net_udp_should_create_client)
 {
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_IP4_UDP;
     RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
     addr.ip4.port = 6789;
     SkalNetAddr localaddr;
     RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &localaddr.ip4.address));
     localaddr.ip4.port = 9000;
-    gCommSockid = SkalNetCommCreate(gCommNet, SKAL_NET_TYPE_IP4_UDP,
+    gCommSockid = SkalNetCommCreate(gCommNet,
             &localaddr, &addr, 0, (void*)0xdeadbabe, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }

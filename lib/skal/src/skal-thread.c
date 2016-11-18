@@ -356,9 +356,9 @@ void SkalThreadInit(const char* skaldPath)
     gNet = SkalNetCreate(0, NULL);
     SkalNetAddr addr;
     SKALASSERT(strlen(skaldPath) < sizeof(addr.unix.path));
+    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
     strcpy(addr.unix.path, skaldPath);
-    gSockid = SkalNetCommCreate(gNet, SKAL_NET_TYPE_UNIX_SEQPACKET,
-            NULL, &addr, 0, NULL, 0);
+    gSockid = SkalNetCommCreate(gNet, NULL, &addr, 0, NULL, 0);
     SkalNetEvent* event = NULL;
     while (NULL == event) {
         event = SkalNetPoll_BLOCKING(gNet);
@@ -368,8 +368,8 @@ void SkalThreadInit(const char* skaldPath)
     SkalNetEventUnref(event);
 
     // Create pipe
-    gPipeServerId = SkalNetServerCreate(gNet,
-            SKAL_NET_TYPE_PIPE, NULL, 0, NULL, 0);
+    addr.type = SKAL_NET_TYPE_PIPE;
+    gPipeServerId = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
     event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
     SKALASSERT(SKAL_NET_EV_CONN == event->type);

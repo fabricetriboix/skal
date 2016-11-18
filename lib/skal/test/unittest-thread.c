@@ -99,10 +99,10 @@ static RTBool testThreadEnterGroup(void)
     SkalPlfThreadMakeSkal_DEBUG("TestThread");
     gNet = SkalNetCreate(0, NULL);
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
     unlink(SOCKPATH);
     snprintf(addr.unix.path, sizeof(addr.unix.path), SOCKPATH);
-    gServerSockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_UNIX_SEQPACKET,
-                  &addr, 0, NULL, 0);
+    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
     gSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
     SkalThreadInit(SOCKPATH);
     return RTTrue;

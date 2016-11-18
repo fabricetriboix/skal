@@ -85,19 +85,23 @@ typedef enum {
 
 /** A UNIX address */
 typedef struct {
-    char path[108];
+    SkalNetType type;
+    char        path[108];
 } SkalNetAddrUnix;
 
 
 /** An IPv4 address; used for TCP, UDP and SCTP */
 typedef struct {
-    uint32_t address; // host byte order
-    uint16_t port;    // host byte order
+    SkalNetType type;
+    uint32_t    address; // host byte order
+    uint16_t    port;    // host byte order
 } SkalNetAddrIp4;
 
 
 /** A network address */
 typedef union {
+    SkalNetType type;
+
     /** UNIX address, for `SKAL_NET_TYPE_UNIX_*` */
     SkalNetAddrUnix unix;
 
@@ -312,11 +316,7 @@ void SkalNetDestroy(SkalNet* net);
  *
  * @param net       [in,out] Socket set to add server socket to; must not be
  *                           NULL
- * @param sntype    [in]     Type of socket to create
- * @param localAddr [in]     Local address to listen to. If `type` is
- *                           `SKAL_NET_TYPE_PIPE`, this argument is ignored and
- *                           should be NULL. For all other `type`; must not be
- *                           NULL.
+ * @param localAddr [in]     Local address to listen to; must not be NULL
  * @param bufsize_B [in]     Buffer size for comm sockets created out of this
  *                           server socket, in bytes; <=0 for default value
  * @param context   [in]     Private context to associate with the server
@@ -333,8 +333,8 @@ void SkalNetDestroy(SkalNet* net);
  *
  * @return Id of the newly created server socket; this function never fails
  */
-int SkalNetServerCreate(SkalNet* net, SkalNetType sntype,
-        const SkalNetAddr* localAddr, int bufsize_B, void* context, int extra);
+int SkalNetServerCreate(SkalNet* net, const SkalNetAddr* localAddr,
+        int bufsize_B, void* context, int extra);
 
 
 /** Create a comm socket within a socket set
@@ -347,10 +347,9 @@ int SkalNetServerCreate(SkalNet* net, SkalNetType sntype,
  * `SKAL_NET_EV_NOT_ESTABLISED` event.
  *
  * @param net        [in,out] Socket set to add comm socket to; must not be NULL
- * @param sntype     [in]     Type of socket to create; must not be
- *                            `SKAL_NET_TYPE_PIPE`
  * @param localAddr  [in]     Local address to bind to; may be NULL; ignored for
- *                            UNIX sockets
+ *                            UNIX sockets; must not be `SKAL_NET_TYPE_PIPE`; if
+ *                            not NULL, must be of the same type a `remoteAddr`
  * @param remoteAddr [in]     Remote address to connect to; must not be NULL
  * @param bufsize_B  [in]     Socket buffer size, in bytes; <=0 for default
  * @param context    [in]     Private context to associate with the comm
@@ -362,7 +361,7 @@ int SkalNetServerCreate(SkalNet* net, SkalNetType sntype,
  *
  * @return Id of the newly created comm socket
  */
-int SkalNetCommCreate(SkalNet* net, SkalNetType sntype,
+int SkalNetCommCreate(SkalNet* net,
         const SkalNetAddr* localAddr, const SkalNetAddr* remoteAddr,
         int bufsize_B, void* context, int64_t timeout_us);
 
