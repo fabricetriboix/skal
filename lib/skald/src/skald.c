@@ -281,9 +281,9 @@ void SkaldRun(const SkaldParams* params)
         int n = snprintf(gDomain, sizeof(gDomain), "%s", params->domain);
         SKALASSERT(n < (int)sizeof(gDomain));
     }
-    SKALASSERT(params->localAddr.unix.path[0] != '\0');
-    SKALASSERT(SkalIsAsciiString(params->localAddr.unix.path,
-                sizeof(params->localAddr.unix.path)));
+    SKALASSERT(params->localAddrPath[0] != '\0');
+    SKALASSERT(SkalIsAsciiString(params->localAddrPath,
+                sizeof(params->localAddrPath)));
 
     gNet = SkalNetCreate(params->pollTimeout_us, skaldCtxUnref);
 
@@ -305,7 +305,9 @@ void SkaldRun(const SkaldParams* params)
     skaldSocketCtx* ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_PIPE_SERVER;
     snprintf(ctx->name, sizeof(ctx->name), "pipe-server");
-    int sockid = SkalNetServerCreate(gNet, SKAL_NET_TYPE_PIPE, NULL, 0, ctx, 0);
+    SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_PIPE;
+    int sockid = SkalNetServerCreate(gNet, &addr, 0, ctx, 0);
     gPipeServerSockid = sockid;
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
@@ -326,8 +328,10 @@ void SkaldRun(const SkaldParams* params)
     ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_SERVER;
     snprintf(ctx->name, sizeof(ctx->name), "local-server");
-    (void)SkalNetServerCreate(gNet,
-            SKAL_NET_TYPE_UNIX_SEQPACKET, &params->localAddr, 0, ctx, 0);
+    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
+    snprintf(addr.unix.path, sizeof(addr.unix.path),
+            "%s", params->localAddrPath);
+    (void)SkalNetServerCreate(gNet, &addr, 0, ctx, 0);
 
     // Infinite loop: process events on sockets
     bool stop = false;

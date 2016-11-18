@@ -26,14 +26,10 @@
  * SKAL daemon to route messages and manage alarms and groups.
  *
  * A skald daemon is part of a domain, which is a cluster of skald daemons with
- * the same domain name. One skald in the cluster must be designated as the
- * gateway, which means that it is in charge with communications with other
- * domains. Domain names must be unique for a given network.
+ * the same domain name.
  *
  * The jobs of the skald daemon are the following:
  *  - Route messages between threads
- *  - Monitor which thread is blocked on what thread
- *  - Unblock blocked thread when the blocking thread crashed
  *  - Maintain a register of alarms
  *  - Maintain a register of groups
  *
@@ -49,48 +45,22 @@
  *    skald in the same domain
  *  - Foreign threads: Threads in a different domain
  *
- * The routing of a message between threads is accomplished in different ways
- * depending on the sender and recipient of the message. If the recipient of the
- * message is a group, the message is duplicated for each thread in the group
- * and the sames rules apply as if the duplicated message is sent to the
- * destination thread. Regardless of the sender thread, the following apply:
- *  - If the recipient thread is a managed thread, skald will forward it to the
- *    corresponding process through the local connection
- *  - If the recipient thread is a domain thread, skald will forward it to the
- *    skald that manages this thread (this means that this skald keeps track of
- *    all managed and domain threads in its domain)
- *  - If the recipient thread is a foreign thread, skald will forward it to the
- *    domain gateway (for each domain, one skald is designated as the gateway
- *    and is in charge of all communications with other domains). The gateway
- *    skald does not keep track of every single foreign thread. Instead it keeps
- *    track of other domain gateways. In practice any message whose recipient is
- *    neither a managed thread not a domain thread is considered a foreign
- *    thread, even if it actually does not exist. The skald gateway of the
- *    corresponding domain will know that the recipient does not exist.
+ * The top-level `routing.md` file details how messages are routed.
  *
- * It is very important that a thread does not get block indefinitely on another
- * thread that died for some reason. There are 2 cases where a thread might be
- * blocked forever in such a way:
- *  - When the blocking thread terminates naturally without having sent 'xon'
- *    messages to unblock other threads blocked on it
- *  - Or when the blocking thread crashes (in which case it brings down the
- *    whole process with it); from skald's point of view, this is just detected
- *    by the local connection to the process being cut
- * In both cases, skald will come to the rescue and send 'xon' messages to
- * threads blocked on the thread(s) that just died. This means skald will keep
- * track of foreign threads blocked on a given managed thread, on top of domain
- * threads (skald should never see any xon/xoff messages for managed threads,
- * are these are routed and managed by the skal-master thread for that process).
+ * In order for a thread not be blocked indefinitely on another thread, skald
+ * will respond to `skal-ntf-xon` messages where the recipient does not exist
+ * anymore. In such a case, skald will send a `skal-xon` message to the blocked
+ * thread in order to unblock it.
  *
- * Skald also maintains a register of currently activated alarms. It is possible
- * for another thread to register to the 'alarm' group and receive all alarm
+ * Skald maintains a register of currently activated alarms. It is possible for
+ * another thread to register to the 'alarm' group and receive all alarm
  * notifications. It is also possible to query skald at any time to get the
  * alarms currently activated, using a 'skal-query-alarms' message.
  *
  * Finally, skald maintains a register of groups. A group is a set of
  * destination threads. Any message whose recipient is the group, is duplicated
- * for each thread in that group. Nothing prevents an entry in a group to be a
- * group itself.
+ * for each thread in that group. Nothing prevents an entry in a group to be
+ * another group.
  *
  * A message can only pass through skald once. This is to prevent messages going
  * round in circles (eg: when group A references group B which references group
@@ -98,6 +68,10 @@
  * skald will not keep track of every single message forever, so it will keep
  * track only of the last 10 seconds worth of messages (this duration is
  * configurable).
+ *
+ * TODO: Check that a msg does not pass more than once through skald
+ * TODO: Implement groups
+ * TODO: Implement `skal-query-alarms`
  */
 
 #include "skalcommon.h"
@@ -123,7 +97,7 @@ typedef struct {
      * This is where processes on this computer will connect to. This is
      * typically a UNIX socket.
      */
-    const SkalNetAddr localAddr;
+    const char* localAddrPath;
 
     /** Other skald daemons to connect to
      *
