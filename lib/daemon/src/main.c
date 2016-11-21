@@ -19,6 +19,7 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <errno.h>
 
 
 #define SKALD_DEFAULT_CFGPATH "/etc/skal/skald.cfg"
@@ -26,29 +27,56 @@
 #define SKALD_SOCKNAME "skald.sock"
 
 
-static bool gTerminationInProgress = false;
+static unsigned int gSigCount = 0;
 
 static void handleSignal(int signum)
 {
-    if (gTerminationInProgress) {
-        fprintf(stderr,
-                "Received signal %d, but termination is in progress; signal ignored\n");
-    } else {
-        fprintf(stderr, "Received signal %d, terminating...\n");
-        gTerminationInProgress = true;
+    switch (gSigCount) {
+    case 0 :
+        fprintf(stderr, "Received signal %d, terminating...\n", signum);
+        gSigCount++;
         SkaldTerminate();
+        break;
+
+    case 1 :
+        fprintf(stderr, "Received signal %d, but termination is in progress\n",
+                signum);
+        fprintf(stderr, "Send signal again to force termination\n");
+        gSigCount++;
+        break;
+
+    default :
+        fprintf(stderr, "Received signal %d for a thid time, forcing termination now\n",
+                signum);
+        exit(2);
+        break;
     }
 }
 
 
 int main(int argc, char** argv)
 {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handleSignal;
+    int ret = sigaction(SIGINT, &sa, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "ERROR: sigaction(SIGINT) failed: %s [%d]\n",
+                strerror(errno), errno);
+        return 1;
+    }
+    ret = sigaction(SIGTERM, &sa, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "ERROR: sigaction(SIGTERM) failed: %s [%d]\n",
+                strerror(errno), errno);
+        return 1;
+    }
+
     // TODO: parse config file
     //const char* cfgpath = SKALD_DEFAULT_CFGPATH;
 
     SkaldParams params;
     memset(&params, 0, sizeof(params));
-    char path[SKAL_NAME_MAX];
     params.localAddrPath = "/tmp/skald.sock";
     unlink(params.localAddrPath);
 

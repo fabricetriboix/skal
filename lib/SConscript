@@ -7,10 +7,11 @@ import atexit
 incs = []
 objs = []
 rttestmainobj = ""
+skaldobjs = []
 testsrcs = []
 
 subdirs = [os.path.join("plf", variant['target']),
-           "common", "net", "skal", "skald"]
+           "common", "net", "skal", "daemon"]
 
 for subdir in subdirs:
     artefacts = SConscript(os.path.join(subdir, "SConscript"),
@@ -18,7 +19,7 @@ for subdir in subdirs:
     variant['env'].Append(CPPPATH = [os.path.join("#lib", subdir, "include")])
     if subdir == "skal":
         variant['env'].Append(CPPPATH = [os.path.join("#lib", subdir, "src")])
-    if subdir == "skald":
+    if subdir == "daemon":
         variant['env'].Append(CPPPATH = [os.path.join("#lib", subdir, "src")])
 
     for key, value in artefacts.items():
@@ -30,6 +31,9 @@ for subdir in subdirs:
 
         elif key == 'rttestmainobj':
             rttestmainobj = value
+
+        elif key == 'skaldobjs':
+            skaldobjs.extend(value)
 
         elif key == 'testsrcs':
             for src in value:
@@ -67,3 +71,9 @@ if len(testsrcs) > 0:
     if GetOption('use_flloc'):
         libs.append('flloc')
     variant['env'].Program("skal_unit_tests", testobjs, LIBS=libs)
+
+# Build skald
+libs = ['skal', 'cds']
+if GetOption('use_flloc'):
+    libs.append('flloc')
+variant['env'].Program("skald", skaldobjs, LIBS=libs)
