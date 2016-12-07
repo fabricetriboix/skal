@@ -25,13 +25,14 @@ MODULES = $(TOPDIR)/lib/plf/$(PLF) $(TOPDIR)/lib/common \
 
 # Path for make to search for source files
 VPATH = $(foreach i,$(MODULES),$(i)/src) $(foreach i,$(MODULES),$(i)/test) \
-		$(TOPDIR)/skald/src
+		$(TOPDIR)/skald/src $(TOPDIR)/skald/test
 
 # Output libraries
 OUTPUT_LIBS = libskal.a
 
 # Include paths for compilation
-INCS = $(foreach i,$(MODULES),-I$(i)/include) $(foreach i,$(MODULES),-I$(i)/src)
+INCS = $(foreach i,$(MODULES),-I$(i)/include) \
+		$(foreach i,$(MODULES),-I$(i)/src) -I$(TOPDIR)/skald/src
 
 # List public header files
 HDRS = $(foreach i,$(MODULES),$(wildcard $(i)/include/*.h))
@@ -42,7 +43,7 @@ LIBSKAL_OBJS = skalplf.o skalcommon.o skal-net.o skal-blob.o skal-alarm.o \
 SKALD_OBJS := skald.o main.o
 RTTEST_MAIN_OBJ = rttestmain.o
 SKAL_TEST_OBJS = test-plf.o test-common.o test-net.o test-blob.o test-alarm.o \
-		test-msg.o test-queue.o test-thread.o
+		test-msg.o test-queue.o test-thread.o test-skald.o
 
 # Libraries to link against when building test programs
 LINKLIBS = -lskal -lcds -lrttest -lrtsys
@@ -53,8 +54,7 @@ endif
 
 # Standard targets
 
-#all: $(OUTPUT_LIBS) skald doc skal_unit_tests
-all: $(OUTPUT_LIBS) doc skald
+all: $(OUTPUT_LIBS) skald skal_unit_tests doc
 
 doc: doc/html/index.html
 
@@ -110,7 +110,7 @@ libskal.a: $(LIBSKAL_OBJS)
 skald: $(SKALD_OBJS) $(OUTPUT_LIBS)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(OUTPUT_LIBS)
+skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(OUTPUT_LIBS) skald.o
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
 
@@ -193,7 +193,7 @@ dbg:
 
 # Automatic header dependencies
 
-OBJS = $(LIBCDS_OBJS) $(RTTEST_MAIN_OBJ) $(CDS_TEST_OBJS) $(CDS_VS_STL_OBJS)
+OBJS = $(LIBSKAL_OBJS) $(SKALD_OBJS) $(RTTEST_MAIN_OBJ) $(SKAL_TEST_OBJS)
 
 -include $(OBJS:.o=.d)
 
