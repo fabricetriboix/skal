@@ -25,13 +25,13 @@ MODULES = $(TOPDIR)/lib/plf/$(PLF) $(TOPDIR)/lib/common \
 
 # Path for make to search for source files
 VPATH = $(foreach i,$(MODULES),$(i)/src) $(foreach i,$(MODULES),$(i)/test) \
-		$(TOPDIR)/skald
+		$(TOPDIR)/skald/src
 
 # Output libraries
 OUTPUT_LIBS = libskal.a
 
 # Include paths for compilation
-INCS = $(foreach i,$(MODULES),-I$(i)/include)
+INCS = $(foreach i,$(MODULES),-I$(i)/include) $(foreach i,$(MODULES),-I$(i)/src)
 
 # List public header files
 HDRS = $(foreach i,$(MODULES),$(wildcard $(i)/include/*.h))
@@ -39,6 +39,7 @@ HDRS = $(foreach i,$(MODULES),$(wildcard $(i)/include/*.h))
 # List of object files for various targets
 LIBSKAL_OBJS = skalplf.o skalcommon.o skal-net.o skal-blob.o skal-alarm.o \
 		skal-msg.o skal-queue.o skal-thread.o
+SKALD_OBJS := skald.o main.o
 RTTEST_MAIN_OBJ = rttestmain.o
 SKAL_TEST_OBJS = test-plf.o test-common.o test-net.o test-blob.o test-alarm.o \
 		test-msg.o test-queue.o test-thread.o
@@ -53,7 +54,7 @@ endif
 # Standard targets
 
 #all: $(OUTPUT_LIBS) skald doc skal_unit_tests
-all: $(OUTPUT_LIBS) doc
+all: $(OUTPUT_LIBS) doc skald
 
 doc: doc/html/index.html
 
@@ -105,6 +106,9 @@ $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
 
 libskal.a: $(LIBSKAL_OBJS)
+
+skald: $(SKALD_OBJS) $(OUTPUT_LIBS)
+	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
 skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(OUTPUT_LIBS)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
