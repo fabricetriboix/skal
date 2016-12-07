@@ -62,6 +62,7 @@ LIB_PATH = $(LIBRARY_PATH)
 PREFIX = /usr/local
 
 # Installation directories
+BINDIR = $(PREFIX)/bin
 LIBDIR = $(PREFIX)/lib
 INCDIR = $(PREFIX)/include
 DOCDIR = $(PREFIX)/doc/skal
