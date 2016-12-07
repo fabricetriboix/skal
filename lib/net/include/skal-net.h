@@ -85,28 +85,24 @@ typedef enum {
 
 /** A UNIX address */
 typedef struct {
-    SkalNetType type;
-    char        path[108];
+    SkalNetType type;      ///< Address type, must be `SKAL_NET_TYPE_UNIX_*`
+    char        path[108]; ///< UNIX socket path
 } SkalNetAddrUnix;
 
 
 /** An IPv4 address; used for TCP, UDP and SCTP */
 typedef struct {
-    SkalNetType type;
-    uint32_t    address; // host byte order
-    uint16_t    port;    // host byte order
+    SkalNetType type;    ///< Address type; must be `SKAL_NET_TYPE_IP4_*`
+    uint32_t    address; ///< IP address, host byte order
+    uint16_t    port;    ///< Port number, host byte order
 } SkalNetAddrIp4;
 
 
 /** A network address */
 typedef union {
-    SkalNetType type;
-
-    /** UNIX address, for `SKAL_NET_TYPE_UNIX_*` */
-    SkalNetAddrUnix unix;
-
-    /** IPv4 address, for `SKAL_NET_TYPE_IP4_*` */
-    SkalNetAddrIp4 ip4;
+    SkalNetType     type; ///< Address type
+    SkalNetAddrUnix unix; ///< UNIX address, for `SKAL_NET_TYPE_UNIX_*`
+    SkalNetAddrIp4  ip4;  ///< IPv4 address, for `SKAL_NET_TYPE_IP4_*`
 } SkalNetAddr;
 
 

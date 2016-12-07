@@ -53,7 +53,7 @@ endif
 # Standard targets
 
 #all: $(OUTPUT_LIBS) skald doc skal_unit_tests
-all: $(OUTPUT_LIBS)
+all: $(OUTPUT_LIBS) doc
 
 doc: doc/html/index.html
 

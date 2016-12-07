@@ -365,7 +365,7 @@ void SkalExit(void);
  * NB: The only way to terminate a thread is for its `processMsg` callback to
  * return `false`, or for the process itself to be terminated.
  *
- * @param thread [in] Description of the thread to create
+ * @param cfg [in] Description of the thread to create
  */
 void SkalThreadCreate(const SkalThreadCfg* cfg);
 
@@ -654,14 +654,16 @@ int64_t SkalBlobSize_B(const SkalBlob* blob);
 
 /** Create an empty message
  *
- * @param type   [in] Message's type. This argument may not be NULL and may
- *                    not be an empty string. Please note that message types
- *                    starting with "skal-" are reserved for SKAL's own use, so
- *                    please avoid prefixing your message types with "skal-".
- * @param flags  [in] Message flags; please refer to `SKAL_MSG_FLAG_*`
- * @param marker [in] A marker that helps uniquely identify this message. This
- *                    argument may be NULL, in which case a marker will be
- *                    automatically generated.
+ * @param type      [in] Message's type. This argument may not be NULL and may
+ *                       not be an empty string. Please note that message types
+ *                       starting with "skal-" are reserved for SKAL's own use,
+ *                       so please avoid prefixing your message types with
+ *                       "skal-".
+ * @param recipient [in] Whom to send this message to
+ * @param flags     [in] Message flags; please refer to `SKAL_MSG_FLAG_*`
+ * @param marker    [in] A marker that helps uniquely identify this message.
+ *                       This argument may be NULL, in which case a marker will
+ *                       be automatically generated.
  *
  * @return The newly created SKAL message; this function never returns NULL
  */

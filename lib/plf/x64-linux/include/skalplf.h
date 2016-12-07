@@ -251,7 +251,7 @@ SkalPlfThread* SkalPlfThreadCreate(const char* name,
 void SkalPlfThreadCancel(SkalPlfThread* thread);
 
 
-/* Join a thread
+/** Join a thread
  *
  * If the `thread` is still running when this function is called, it will block
  * until the thread terminates.

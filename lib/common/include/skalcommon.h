@@ -63,8 +63,11 @@ typedef struct SkalStringBuilder SkalStringBuilder;
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-#define SkalMalloc(_size_B) _SkalMalloc((_size_B), __FILE__, __LINE__)
+#define SkalMalloc(size_B) _SkalMalloc((size_B), __FILE__, __LINE__)
+
+/** @cond hidden */
 void* _SkalMalloc(int size_B, const char* file, int line);
+/** @endcond */
 
 
 /** Allocate memory and initialises it to zero
@@ -77,8 +80,11 @@ void* _SkalMalloc(int size_B, const char* file, int line);
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-#define SkalMallocZ(_size_B) _SkalMallocZ((_size_B), __FILE__, __LINE__)
+#define SkalMallocZ(size_B) _SkalMallocZ((size_B), __FILE__, __LINE__)
+
+/** @cond hidden */
 void* _SkalMallocZ(int size_B, const char* file, int line);
+/** @endcond */
 
 
 /** `realloc()` replacement
@@ -92,9 +98,12 @@ void* _SkalMallocZ(int size_B, const char* file, int line);
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-#define SkalRealloc(_ptr, _size_B) \
-    _SkalRealloc((_ptr), (_size_B), __FILE__, __LINE__)
+#define SkalRealloc(ptr, size_B) \
+    _SkalRealloc((ptr), (size_B), __FILE__, __LINE__)
+
+/** @cond hidden */
 void* _SkalRealloc(void* ptr, int size_B, const char* file, int line);
+/** @endcond */
 
 
 /** `calloc()` replacement
@@ -108,9 +117,12 @@ void* _SkalRealloc(void* ptr, int size_B, const char* file, int line);
  * @return A pointer to the newly allocated memory area, never NULL; please
  *         release with `free()` when you no longer need it
  */
-#define SkalCalloc(_nItems, _itemSize_B) \
-    _SkalCalloc((_nItems), (_itemSize_B), __FILE__, __LINE__)
+#define SkalCalloc(nItems, itemSize_B) \
+    _SkalCalloc((nItems), (itemSize_B), __FILE__, __LINE__)
+
+/** @cond hidden */
 void* _SkalCalloc(int nItems, int itemSize_B, const char* file, int line);
+/** @endcond */
 
 
 /** Helper function to sprintf a string
@@ -209,7 +221,7 @@ bool SkalIsUtf8String(const char* str, int maxlen);
  * @return -1 if `leftkey` < `rightkey`, 0 if `leftkey` == `rightkey`,
  *         +1 if `leftkey` > `rightkey`
  */
-int SkalStringCompare(void* lefykey, void* rightkey, void* cookie);
+int SkalStringCompare(void* leftkey, void* rightkey, void* cookie);
 
 
 /** Encode up to 3 bytes into 4 base64 characters
@@ -286,8 +298,11 @@ uint8_t* SkalBase64Decode(const char* base64, int* size_B);
  */
 #define SkalLog(_format, ...) \
     _SkalLog(__FILE__, __LINE__, (_format), ## __VA_ARGS__)
+
+/** @cond hidden */
 void _SkalLog(const char* file, int line, const char* format, ...)
     __attribute__(( format(printf, 3, 4) ));
+/** @endcond */
 
 
 
