@@ -369,7 +369,7 @@ RTT_TEST_START(skal_msg_should_create_from_json)
     RTT_EXPECT(strcmp(s, "Some\"Marker") == 0);
 
     RTT_EXPECT(SkalMsgHasField(msg, "SomeDouble"));
-    double d = SkalMsgGetDouble(gMsg, "SomeDouble");
+    double d = SkalMsgGetDouble(msg, "SomeDouble");
     double diff = d - 345.678;
     if (diff < 0) {
         diff = -diff;
@@ -378,7 +378,7 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 
     RTT_EXPECT(SkalMsgHasField(msg, "SomeMiniblob"));
     int size_B;
-    const uint8_t* data = SkalMsgGetMiniblob(gMsg, "SomeMiniblob", &size_B);
+    const uint8_t* data = SkalMsgGetMiniblob(msg, "SomeMiniblob", &size_B);
     RTT_EXPECT(data != NULL);
     RTT_EXPECT(4 == size_B);
     uint8_t expected[4] = { 0x11, 0x22, 0x33, 0x44 };
