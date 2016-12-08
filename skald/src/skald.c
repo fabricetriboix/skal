@@ -447,11 +447,6 @@ void SkaldTerminate(void)
     SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
             gPipeClientSockid, &c, 1);
     SKALASSERT(SKAL_NET_SEND_OK == result);
-
-    // TODO: Re-write this using a condvar
-    while (!gTerminated) {
-        usleep(1000); // Wait for 1ms
-    }
 }
 
 

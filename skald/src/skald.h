@@ -134,8 +134,9 @@ void SkaldRun(const SkaldParams* params);
 
 /** Terminate skald
  *
- * This function can typically be called from a signal handler. This function
- * returns only once skald has actually terminated.
+ * This function does not block and is typically called from a signal handler.
+ * This function returns immediately; skald will be stopped only once
+ * `SkaldRun()` returns.
  */
 void SkaldTerminate(void);
 

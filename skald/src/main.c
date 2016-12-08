@@ -46,7 +46,7 @@ static void handleSignal(int signum)
         break;
 
     default :
-        fprintf(stderr, "Received signal %d for a thid time, forcing termination now\n",
+        fprintf(stderr, "Received signal %d for a third time, forcing termination now\n",
                 signum);
         exit(2);
         break;
