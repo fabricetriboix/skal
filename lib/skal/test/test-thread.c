@@ -104,14 +104,14 @@ static RTBool testThreadEnterGroup(void)
     snprintf(addr.unix.path, sizeof(addr.unix.path), SOCKPATH);
     gServerSockid = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
     gSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
-    SkalThreadInit(SOCKPATH);
+    bool connected = SkalThreadInit(SOCKPATH);
+    SKALASSERT(connected);
     return RTTrue;
 }
 
 static RTBool testThreadExitGroup(void)
 {
     SkalThreadExit();
-    usleep(5000); // Wait for `skal-master` etc. to die
     SkalPlfThreadCancel(gSkaldThread);
     SkalPlfThreadJoin(gSkaldThread);
     gSkaldThread = NULL;

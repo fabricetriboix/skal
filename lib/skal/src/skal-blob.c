@@ -33,8 +33,7 @@ typedef struct {
 } skalAllocatorItem;
 
 
-struct SkalBlob
-{
+struct SkalBlob {
     char    allocator[SKAL_NAME_MAX];
     int     ref;
     char    id[SKAL_NAME_MAX];

@@ -322,7 +322,7 @@ static int gPipeClientId = -1;
  +---------------------------------*/
 
 
-void SkalThreadInit(const char* skaldPath)
+bool SkalThreadInit(const char* skaldPath)
 {
     SKALASSERT(NULL == gMutex);
     SKALASSERT(NULL == gThreads);
@@ -363,6 +363,9 @@ void SkalThreadInit(const char* skaldPath)
     while (NULL == event) {
         event = SkalNetPoll_BLOCKING(gNet);
     }
+    if (SKAL_NET_EV_NOT_ESTABLISHED == event->type) {
+        return false;
+    }
     SKALASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
     SKALASSERT(gSockid == event->sockid);
     SkalNetEventUnref(event);
@@ -390,6 +393,7 @@ void SkalThreadInit(const char* skaldPath)
     SkalMsg* msg = SkalQueuePop_BLOCKING(gGlobalQueue, false);
     SKALASSERT(strcmp(SkalMsgType(msg), "skal-master-init-done") == 0);
     SkalMsgUnref(msg);
+    return true;
 }
 
 

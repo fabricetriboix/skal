@@ -328,13 +328,14 @@ typedef struct
  * A skald daemon should be running on the same computer before this call is
  * made. You must call this function before any other function in this module.
  *
- * @param skaldUrl   [in] URL to connect to skald. This may be NULL. Actually,
- *                        this should be NULL unless you really know what you
- *                        are doing.
- * @param allocators [in] A NULL-teminated array of custom blob allocators. This
- *                        may be NULL. Actually, this should be NULL, unless you
- *                        have some special way to store data (like a video
- *                        card storing frame buffers).
+ * @param skaldUrl    [in] URL to connect to skald. This may be NULL. Actually,
+ *                         this should be NULL unless you really know what you
+ *                         are doing.
+ * @param allocators  [in] Array of custom blob allocators. This may be NULL.
+ *                         Actually, this should be NULL, unless you have some
+ *                         special way to store data (like a video card storing
+ *                         frame buffers).
+ * @param nallocators [in] Number of allocators in the above array
  *
  * If allocator names are not unique, the latest one will be used. This could be
  * used to override the pre-defined "malloc" and "shm" allocators, although this
@@ -348,12 +349,16 @@ typedef struct
  *
  * @return `true` if OK, `false` if can't connect to skald
  */
-bool SkalInit(const char* skaldUrl, const SkalAllocator* allocators);
+bool SkalInit(const char* skaldUrl,
+        const SkalAllocator* allocators, int nallocators);
 
 
-/** Terminate this process
+/** Terminate SKAL for this process
  *
- * This function can typically be called from a signal handler.
+ * This function terminates all threads managed by SKAL in this process and
+ * de-allocates all resources used by SKAL.
+ *
+ * This function is blocking.
  */
 void SkalExit(void);
 
@@ -386,14 +391,6 @@ void SkalThreadSubscribe(const char* group);
  * @param group [in] Group to unsubscribe to; must not be NULL
  */
 void SkalThreadUnsubscribe(const char* group);
-
-
-/** SKAL main loop
- *
- * This should be your last call in your `main()` function. This function does
- * not return.
- */
-void SkalLoop(void) __attribute__((noreturn));
 
 
 /** Create an alarm object
@@ -933,8 +930,8 @@ void SkalMsgSend(SkalMsg* msg);
 
 /** Get the current domain name
  *
- * The domain name is sent by skald immediately after we connect to it. Shortly
- * after `SkalInit()` returns, the domain will have its definitive value.
+ * The domain name is sent by skald just after we connect to it. Shortly after
+ * `SkalInit()` returns, the domain will have its definitive value.
  *
  * @return The current domain name, or NULL if not known yet
  */

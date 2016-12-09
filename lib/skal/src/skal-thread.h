@@ -39,8 +39,10 @@ typedef struct SkalThread SkalThread;
 /** Initialise the thread module & create the master thread
  *
  * @param skaldPath [in] Path to skald socket, or NULL for default
+ *
+ * @return `true` if OK, `false` if it can't connect to skald
  */
-void SkalThreadInit(const char* skaldPath);
+bool SkalThreadInit(const char* skaldPath);
 
 
 /** Terminate all threads and free up all resources

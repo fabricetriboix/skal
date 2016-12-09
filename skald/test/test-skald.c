@@ -47,7 +47,8 @@ static RTBool testSkaldEnterGroup(void)
     gNet = SkalNetCreate(0, NULL);
     gSkaldThread = SkalPlfThreadCreate("real-skald", realSkald, NULL);
     usleep(10000); // wait for skald to be ready
-    SkalThreadInit(SOCKPATH);
+    bool ok = SkalThreadInit(SOCKPATH);
+    SKALASSERT(ok);
     return RTTrue;
 }
 

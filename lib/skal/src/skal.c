@@ -14,32 +14,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SKAL_BLOB_h_
-#define SKAL_BLOB_h_
-
 #include "skal.h"
+#include "skal-thread.h"
+#include "skal-blob.h"
+#include <string.h>
 
 
 
-/*------------------------------+
- | Public function declarations |
- +------------------------------*/
+/*---------------------------------+
+ | Public function implementations |
+ +---------------------------------*/
 
 
-/** Initialise SKAL allocators for this process
- *
- * The "malloc" and "shm" allocator will be automatically created.
- *
- * @param allocators [in] Array of custom blob allocators; may be NULL if you
- *                        don't have custom allocators
- * @param size       [in] Size of the above array
- */
-void SkalBlobInit(const SkalAllocator* allocators, int size);
+bool SkalInit(const char* skaldUrl,
+        const SkalAllocator* allocators, int nallocators)
+{
+    SkalPlfInit();
+    SkalBlobInit(allocators, nallocators);
+
+    const char* sktpath = SKAL_DEFAULT_SKALD_PATH;
+    if (skaldUrl != NULL) {
+        SKALASSERT(strncmp(skaldUrl, "unix://", 7) == 0);
+        sktpath = skaldUrl + 7;
+    }
+    return SkalThreadInit(sktpath);
+}
 
 
-/* Deregister all allocators for this process */
-void SkalBlobExit(void);
-
-
-
-#endif /* SKAL_BLOB_h_ */
+void SkalExit(void)
+{
+    SkalThreadExit();
+    SkalBlobExit();
+}

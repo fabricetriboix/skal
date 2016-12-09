@@ -39,7 +39,7 @@ HDRS = $(foreach i,$(MODULES),$(wildcard $(i)/include/*.h))
 
 # List of object files for various targets
 LIBSKAL_OBJS = skalplf.o skalcommon.o skal-net.o skal-blob.o skal-alarm.o \
-		skal-msg.o skal-queue.o skal-thread.o
+		skal-msg.o skal-queue.o skal-thread.o skal.o
 SKALD_OBJS := skald.o main.o
 RTTEST_MAIN_OBJ = rttestmain.o
 SKAL_TEST_OBJS = test-plf.o test-common.o test-net.o test-blob.o test-alarm.o \
