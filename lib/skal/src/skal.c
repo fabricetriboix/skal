@@ -37,7 +37,13 @@ bool SkalInit(const char* skaldUrl,
         SKALASSERT(strncmp(skaldUrl, "unix://", 7) == 0);
         sktpath = skaldUrl + 7;
     }
-    return SkalThreadInit(sktpath);
+
+    bool ok = SkalThreadInit(sktpath);
+    if (!ok) {
+        SkalBlobExit();
+        SkalPlfExit();
+    }
+    return ok;
 }
 
 
@@ -45,4 +51,5 @@ void SkalExit(void)
 {
     SkalThreadExit();
     SkalBlobExit();
+    SkalPlfExit();
 }
