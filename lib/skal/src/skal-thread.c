@@ -330,13 +330,32 @@ bool SkalThreadInit(const char* skaldPath)
     SKALASSERT(NULL == gGlobalQueue);
     SKALASSERT(NULL == gNet);
 
-    snprintf(gProcessName, sizeof(gProcessName), "%s", SkalPlfThreadGetName());
+    gTerminating = false;
 
+    SkalPlfGetPThreadName(gProcessName, sizeof(gProcessName));
+
+    // Create UNIX socket and connect to skald
     if (NULL == skaldPath) {
         skaldPath = SKAL_DEFAULT_SKALD_PATH;
     }
-
-    gTerminating = false;
+    gNet = SkalNetCreate(0, NULL);
+    SkalNetAddr addr;
+    SKALASSERT(strlen(skaldPath) < sizeof(addr.unix.path));
+    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
+    strcpy(addr.unix.path, skaldPath);
+    gSockid = SkalNetCommCreate(gNet, NULL, &addr, 0, NULL, 0);
+    SkalNetEvent* event = NULL;
+    while (NULL == event) {
+        event = SkalNetPoll_BLOCKING(gNet);
+    }
+    if (SKAL_NET_EV_NOT_ESTABLISHED == event->type) {
+        SkalNetEventUnref(event);
+        SkalNetDestroy(gNet);
+        return false;
+    }
+    SKALASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
+    SKALASSERT(gSockid == event->sockid);
+    SkalNetEventUnref(event);
 
     gMutex = SkalPlfMutexCreate();
 
@@ -351,24 +370,6 @@ bool SkalThreadInit(const char* skaldPath)
                             NULL,              // cookie
                             NULL,              // keyUnref
                             (void(*)(CdsMapItem*))skalThreadUnref); // itemUnref
-
-    // Create UNIX socket and connect to skald
-    gNet = SkalNetCreate(0, NULL);
-    SkalNetAddr addr;
-    SKALASSERT(strlen(skaldPath) < sizeof(addr.unix.path));
-    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
-    strcpy(addr.unix.path, skaldPath);
-    gSockid = SkalNetCommCreate(gNet, NULL, &addr, 0, NULL, 0);
-    SkalNetEvent* event = NULL;
-    while (NULL == event) {
-        event = SkalNetPoll_BLOCKING(gNet);
-    }
-    if (SKAL_NET_EV_NOT_ESTABLISHED == event->type) {
-        return false;
-    }
-    SKALASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
-    SKALASSERT(gSockid == event->sockid);
-    SkalNetEventUnref(event);
 
     // Create pipe
     addr.type = SKAL_NET_TYPE_PIPE;
