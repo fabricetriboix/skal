@@ -124,6 +124,9 @@ static int skalNetPosixToAddr(const struct sockaddr* posixAddr,
  *
  * The event structure will be reset to 0 and the reference count set to 1.
  *
+ * **IMPORTANT**: The event `context` is filled in when the event is popped out,
+ * not in this function! Do not set the `context` after calling this function!
+ *
  * @param type   [in] Event type
  * @param sockid [in] Id of socket that is generating the event
  *
@@ -565,8 +568,16 @@ int SkalNetCommCreate(SkalNet* net,
     socklen_t len = skalNetAddrToPosix(domain, remoteAddr, sa);
     ret = connect(fd, sa, len);
     if (ret < 0) {
-        SKALASSERT(EINPROGRESS == errno);
-        c->isInProgress = true;
+        if (ECONNREFUSED == errno) {
+            // We might get an immediate refusal in the case of UNIX sockets
+            SkalNetEvent* event = skalNetEventAllocate(
+                    SKAL_NET_EV_NOT_ESTABLISHED, sockid);
+            bool inserted = CdsListPushBack(net->events, &event->item);
+            SKALASSERT(inserted);
+        } else {
+            SKALASSERT(EINPROGRESS == errno);
+            c->isInProgress = true;
+        }
     } else {
         // Connection has been established immediately; this would be
         // unusual (except maybe for `AF_UNIX` sockets), but we handle the
