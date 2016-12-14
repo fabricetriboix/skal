@@ -206,7 +206,7 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
     gMsgRefCount_DEBUG++;
     msg->flags = flags;
     strncpy(msg->type, type, sizeof(msg->type) - 1);
-    if (SkalPlfThreadGetSpecific() != NULL) {
+    if (SkalPlfThreadIsSkal()) {
         // The current thread is managed by SKAL
         const char* name = SkalPlfThreadGetName();
         skalSetThreadName(msg->sender, sizeof(msg->sender), name);
