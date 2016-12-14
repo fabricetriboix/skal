@@ -269,9 +269,8 @@ typedef struct SkalMsg SkalMsg;
  *
  * The arguments are:
  *  - `cookie`: Same as `SkalThreadCfg.cookie`
- *  - `msg`: Message that triggered this call; ownership of `msg` is transferred
- *    to you, it is up to you to free it when you're finished with it, or send
- *    it to another thread.
+ *  - `msg`: Message that triggered this call; ownership of `msg` remains with
+ *    the caller, do not call `SkalMsgUnref()` on that `msg`
  *
  * If you want to terminate the thread, this function should return `false` and
  * you wish will be executed with immediate effect. Otherwise, just return
@@ -373,24 +372,6 @@ void SkalExit(void);
  * @param cfg [in] Description of the thread to create
  */
 void SkalThreadCreate(const SkalThreadCfg* cfg);
-
-
-/** Subscribe the current thread to the given group
- *
- * This function must be called from within the thread that must subscribe.
- *
- * @param group [in] Group to subscribe to; must not be NULL
- */
-void SkalThreadSubscribe(const char* group);
-
-
-/** Unsubscribe the current thread from the given group
- *
- * This function must be called from within the thread that must unsubscribe.
- *
- * @param group [in] Group to unsubscribe to; must not be NULL
- */
-void SkalThreadUnsubscribe(const char* group);
 
 
 /** Create an alarm object
