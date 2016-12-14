@@ -259,6 +259,33 @@ bool SkalNetStringToIp4(const char* str, uint32_t* ip4);
 void SkalNetIp4ToString(uint32_t ip4, char* str, int capacity);
 
 
+/** Parse a URL as a socket address
+ *
+ * Examples of valid URLs are:
+ *  - tcp://localhost:8000
+ *  - udp://10.0.0.1:25/
+ *  - unix:///var/lib/bla/bla.sock
+ *
+ * @param url  [in]  URL to parse
+ * @param addr [out] Parsed socket address
+ *
+ * @return `true` if success, `false` if `url` is not valid
+ */
+// TODO
+bool SkalNetUrlToAddr(const char* url, SkalNetAddr* addr);
+
+
+/** Convert a socket address to a URL
+ *
+ * @param addr [in] Socket address to convert
+ *
+ * @return URL; this function never returns NULL; please call `free()` on the
+ *         returned string when finished with it
+ */
+// TODO
+char* SkalNetAddrToUrl(SkalNetAddr* addr);
+
+
 /** Add a reference to an event object */
 void SkalNetEventRef(SkalNetEvent* event);
 
