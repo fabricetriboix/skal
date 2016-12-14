@@ -278,6 +278,17 @@ void SkalPlfThreadSetName(const char* name);
 const char* SkalPlfThreadGetName(void);
 
 
+/** Get the pthread name of the current thread
+ *
+ * Please note the pthread name is a GNU extension and is usually limited to 16
+ * characters in size.
+ *
+ * @param name   [out] Where to write the pthread name; must not be NULL
+ * @param size_B [in]  Size of the above buffer, in bytes; must be >0
+ */
+void SkalPlfGetPThreadName(char* name, int size_B);
+
+
 /** Set the thread-specific value
  *
  * Please note only one such value can be held for each thread. If you call this
@@ -293,6 +304,13 @@ void SkalPlfThreadSetSpecific(void* value);
  * @return The thread-specific value, or NULL if it was not set
  */
 void* SkalPlfThreadGetSpecific(void);
+
+
+/** Check if the current thread is managed by SKAL or not
+ *
+ * @return `true` if the current thread is managed by SKAL, `false` if not
+ */
+bool SkalPlfThreadIsSkal(void);
 
 
 /** Get the pid or tid of the current thread */
