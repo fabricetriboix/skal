@@ -23,6 +23,7 @@
 #include <string.h>
 #include <unistd.h>
 
+// TODO: robustify skal-net so it never asserts, as this is unacceptable for skald
 
 
 /*----------------+
@@ -292,6 +293,12 @@ void SkaldRun(const SkaldParams* params)
     SKALASSERT(params->localAddrPath != NULL);
     SKALASSERT(params->localAddrPath[0] != '\0');
 
+    SkalPlfInit();
+    char name[SKAL_NAME_MAX];
+    int n = snprintf(name, sizeof(name), "skald@%s", gDomain);
+    SKALASSERT(n < (int)sizeof(name));
+    SkalPlfThreadMakeSkal_DEBUG(name);
+
     gNet = SkalNetCreate(params->pollTimeout_us, skaldCtxUnref);
 
     gThreads = CdsMapCreate("threads",         // name
@@ -437,6 +444,8 @@ void SkaldRun(const SkaldParams* params)
     CdsMapDestroy(gThreads);
     CdsMapDestroy(gAlarms);
 
+    SkalPlfThreadUnmakeSkal_DEBUG();
+    SkalPlfExit();
     gTerminated = true;
 }
 
@@ -629,7 +638,7 @@ static bool skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
     } else if (strcmp(type, "skal-born") == 0) {
         // A managed or domain thread has been born
         if (    (ctx->type != SKALD_SOCKET_PROCESS)
-             || (ctx->type != SKALD_SOCKET_DOMAIN_PEER)) {
+             && (ctx->type != SKALD_SOCKET_DOMAIN_PEER)) {
             skaldWrongSocketType(sockid, ctx, type,
                     "expected SKALD_SOCKET_PROCESS or SKALD_SOCKET_DOMAIN_PEER");
             return false;
@@ -667,7 +676,7 @@ static bool skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
     } else if (strcmp(type, "skal-died") == 0) {
         // A managed or domain thread just died
         if (    (ctx->type != SKALD_SOCKET_PROCESS)
-             || (ctx->type != SKALD_SOCKET_DOMAIN_PEER)) {
+             && (ctx->type != SKALD_SOCKET_DOMAIN_PEER)) {
             skaldWrongSocketType(sockid, ctx, type,
                     "expected SKALD_SOCKET_PROCESS or SKALD_SOCKET_DOMAIN_PEER");
             return false;
@@ -710,6 +719,12 @@ static bool skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
         } else {
             skaldRouteMsg(msg);
         }
+
+    } else if (strcmp(type, "skal-ping") == 0) {
+        SkalMsg* resp = SkalMsgCreate("skal-pong", sender, 0, NULL);
+        SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
+        skaldRouteMsg(resp);
+        SkalMsgUnref(msg);
 
     } else {
         skaldRouteMsg(msg);
