@@ -291,7 +291,7 @@ bool SkalNetUrlToAddr(const char* url, SkalNetAddr* addr);
  * @return URL; this function never returns NULL; please call `free()` on the
  *         returned string when finished with it
  */
-char* SkalNetAddrToUrl(SkalNetAddr* addr);
+char* SkalNetAddrToUrl(const SkalNetAddr* addr);
 
 
 /** Add a reference to an event object */

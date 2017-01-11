@@ -296,7 +296,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_stream_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END
@@ -447,7 +447,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_dgram_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END
@@ -605,7 +605,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END
@@ -750,7 +750,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_tcp_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END
@@ -906,7 +906,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_udp_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END

@@ -48,8 +48,7 @@ static void pseudoSkald(void* arg)
             case SKAL_NET_EV_DISCONN :
                 {
                     SKALASSERT(gClientSockid == event->sockid);
-                    bool destroyed = SkalNetSocketDestroy(gNet, gClientSockid);
-                    SKALASSERT(destroyed);
+                    SkalNetSocketDestroy(gNet, gClientSockid);
                     gClientSockid = -1;
                 }
                 break;
