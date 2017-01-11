@@ -56,6 +56,66 @@ RTT_TEST_START(skal_net_basic_should_print_ip4)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_net_basic_should_parse_unix_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_parse_unixs_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_parse_unixd_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_parse_tcp_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_parse_udp_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_unix_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_unixs_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_unixd_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_tcp_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_udp_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
 RTT_TEST_START(skal_net_basic_should_create_set)
 {
     gNet = SkalNetCreate(0, NULL);
@@ -73,6 +133,16 @@ RTT_TEST_END
 RTT_GROUP_END(TestNetBasic,
         skal_net_basic_should_parse_ip4_string,
         skal_net_basic_should_print_ip4,
+        skal_net_basic_should_parse_unix_url,
+        skal_net_basic_should_parse_unixs_url,
+        skal_net_basic_should_parse_unixd_url,
+        skal_net_basic_should_parse_tcp_url,
+        skal_net_basic_should_parse_udp_url,
+        skal_net_basic_should_make_unix_url,
+        skal_net_basic_should_make_unixs_url,
+        skal_net_basic_should_make_unixd_url,
+        skal_net_basic_should_make_tcp_url,
+        skal_net_basic_should_make_udp_url,
         skal_net_basic_should_create_set,
         skal_net_basic_should_destroy_set)
 

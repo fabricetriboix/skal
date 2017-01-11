@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -224,9 +224,16 @@ typedef enum
 
     /** Connection has been reset by peer while we were sending
      *
-     * This can happen only on connection-based sockets.
+     * This can happen only on connection-based sockets. It is recommended you
+     * destroy this socket whenever convenient.
      */
-    SKAL_NET_SEND_RESET
+    SKAL_NET_SEND_RESET,
+
+    /** Unexpected error
+     *
+     * This should not happen and is likely to be a bug in skal-net.
+     */
+    SKAL_NET_SEND_ERROR
 } SkalNetSendResult;
 
 
@@ -264,14 +271,16 @@ void SkalNetIp4ToString(uint32_t ip4, char* str, int capacity);
  * Examples of valid URLs are:
  *  - tcp://localhost:8000
  *  - udp://10.0.0.1:25/
- *  - unix:///var/lib/bla/bla.sock
+ *  - unix:///var/lib/foo/bar.sock
+ *
+ * Please note "unix://" sockets are by default of `SOCK_SEQPACKET` type. For
+ * `SOCK_STREAM` type, use "unixs://"; for `SOCK_DGRAM` type, use "unixd://".
  *
  * @param url  [in]  URL to parse
  * @param addr [out] Parsed socket address
  *
  * @return `true` if success, `false` if `url` is not valid
  */
-// TODO
 bool SkalNetUrlToAddr(const char* url, SkalNetAddr* addr);
 
 
@@ -282,7 +291,6 @@ bool SkalNetUrlToAddr(const char* url, SkalNetAddr* addr);
  * @return URL; this function never returns NULL; please call `free()` on the
  *         returned string when finished with it
  */
-// TODO
 char* SkalNetAddrToUrl(SkalNetAddr* addr);
 
 
@@ -351,10 +359,9 @@ void SkalNetDestroy(SkalNet* net);
  *                           default value.
  *                           If the server socket is connection-oriented, this
  *                           is the maximum pending connections before denying
- *                           incoming connection requests; <=0 for default
- *                           value.
+ *                           incoming connection requests; 0 for default value.
  *
- * @return Id of the newly created server socket; this function never fails
+ * @return Id of the newly created server socket, or -1 in case of system error
  */
 int SkalNetServerCreate(SkalNet* net, const SkalNetAddr* localAddr,
         int bufsize_B, void* context, int extra);
@@ -374,15 +381,15 @@ int SkalNetServerCreate(SkalNet* net, const SkalNetAddr* localAddr,
  *                            UNIX sockets; must not be `SKAL_NET_TYPE_PIPE`; if
  *                            not NULL, must be of the same type a `remoteAddr`
  * @param remoteAddr [in]     Remote address to connect to; must not be NULL
- * @param bufsize_B  [in]     Socket buffer size, in bytes; <=0 for default
+ * @param bufsize_B  [in]     Socket buffer size, in bytes; 0 for default
  * @param context    [in]     Private context to associate with the comm
  *                            socket; this context will be provided back when
  *                            events occur on this socket for your conveninence
  * @param timeout_us [in]     Idle timeout in us (for connection-less comm
  *                            sockets only, ignored for other sockets);
- *                            <=0 for default
+ *                            0 for default
  *
- * @return Id of the newly created comm socket
+ * @return Id of the newly created comm socket, or -1 in case of a system error
  */
 int SkalNetCommCreate(SkalNet* net,
         const SkalNetAddr* localAddr, const SkalNetAddr* remoteAddr,
@@ -391,8 +398,7 @@ int SkalNetCommCreate(SkalNet* net,
 
 /** Wait for something to happen
  *
- * This function blocks until something happens on one (or more) socket in the
- * set.
+ * This function blocks until something happens in the socket set.
  *
  * @param net [in,out] Socket set to poll; must not be NULL
  *
@@ -491,11 +497,9 @@ SkalNetSendResult SkalNetSend_BLOCKING(SkalNet* net, int sockid,
 /** Destroy a socket from a socket set
  *
  * @param net    [in,out] Socket set to destroy socket from; must not be NULL
- * @param sockid [in]     Id of the socket to destroy
- *
- * @return `true` if success, `false` if `sockid` it not valid
+ * @param sockid [in]     Id of the socket to destroy; must be valid
  */
-bool SkalNetSocketDestroy(SkalNet* net, int sockid);
+void SkalNetSocketDestroy(SkalNet* net, int sockid);
 
 
 
