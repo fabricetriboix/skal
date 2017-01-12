@@ -1542,8 +1542,18 @@ static void* skalNetReadPacket(SkalNet* net, int sockid,
         SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_ERROR, sockid);
         bool inserted = CdsListPushBack(net->events, &event->item);
         SKALASSERT(inserted);
+
+    } else if (0 == ret) {
+        // NB: Various domains (UNIX, IPv4, etc.) allow empty datagrams, but we
+        // assume no empty datagram is ever sent to us. We instead assume an
+        // empty read means the connection has been closed (for example for
+        // SOCK_SEQPACKET sockets.
+        free(data);
+        data = NULL;
+        SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_DISCONN, sockid);
+        bool inserted = CdsListPushBack(net->events, &event->item);
+        SKALASSERT(inserted);
     }
-    // NB: Various domains (UNIX, IPv4, etc.) allow empty datagrams
 
     *size_B = ret;
     return data;
