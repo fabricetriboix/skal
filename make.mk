@@ -43,7 +43,7 @@ LIBSKAL_OBJS = skalplf.o skalcommon.o skal-net.o skal-blob.o skal-alarm.o \
 SKALD_OBJS = skald.o main.o
 RTTEST_MAIN_OBJ = rttestmain.o
 SKAL_TEST_OBJS = test-plf.o test-common.o test-net.o test-blob.o test-alarm.o \
-		test-msg.o test-queue.o test-thread.o test-skald.o
+		test-msg.o test-queue.o test-thread.o
 
 # Libraries to link against when building programs
 LINKLIBS = -lskal -lcds -lrttest -lrtsys
