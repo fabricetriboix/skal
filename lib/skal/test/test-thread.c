@@ -141,7 +141,7 @@ static bool testSimpleProcessMsg(void* cookie, SkalMsg* msg)
         gError = 1;
     } else if (strcmp(SkalMsgType(msg), "ping") != 0) {
         gError = 2;
-    } else if (strcmp(SkalMsgSender(msg), "skal-external@local")!=0) {
+    } else if (strcmp(SkalMsgSender(msg), "TestThread@local")!=0) {
         gError = 3;
     } else if (strcmp(SkalMsgRecipient(msg), "simple@local") != 0) {
         gError = 4;
