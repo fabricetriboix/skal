@@ -99,18 +99,6 @@ typedef struct {
      */
     const char* localAddrPath;
 
-    /** Other skald daemons to connect to
-     *
-     * These can be in this domain or different domains.
-     *
-     * This is an array of `npeers` items. May be NULL if you want this skald to
-     * be alone.
-     */
-    const SkalNetAddr* peers;
-
-    /** Number of items in the `peers` array - must be >= 0 */
-    int npeers;
-
     /** Timeout when polling for network events, in us
      *
      * Set this to <= 0 to use the default value.

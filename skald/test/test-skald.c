@@ -25,10 +25,9 @@
 
 
 #define SOCKPATH "test-skald.sock"
-static SkalNet* gNet = NULL;
-static SkalPlfThread* gSkaldThread = NULL;
+static SkalPlfThread* gSkaldContainer = NULL;
 
-static void realSkald(void* arg)
+static void skaldContainer(void* arg)
 {
     (void)arg;
     SkaldParams params;
@@ -43,9 +42,9 @@ static void realSkald(void* arg)
 static RTBool testSkaldEnterGroup(void)
 {
     SkalPlfInit();
-    SkalPlfThreadMakeSkal_DEBUG("TestThread");
-    gNet = SkalNetCreate(0, NULL);
-    gSkaldThread = SkalPlfThreadCreate("real-skald", realSkald, NULL);
+    SkalPlfThreadMakeSkal_DEBUG("TestSkaldThread");
+    gSkaldContainer = SkalPlfThreadCreate("skald-container",
+            skaldContainer, NULL);
     usleep(10000); // wait for skald to be ready
     bool ok = SkalThreadInit(SOCKPATH);
     SKALASSERT(ok);
@@ -57,10 +56,8 @@ static RTBool testSkaldExitGroup(void)
     SkalThreadExit();
     usleep(10000); // Wait for `skal-master` etc. to die
     SkaldTerminate();
-    SkalPlfThreadJoin(gSkaldThread);
-    gSkaldThread = NULL;
-    SkalNetDestroy(gNet);
-    gNet = NULL;
+    SkalPlfThreadJoin(gSkaldContainer);
+    gSkaldContainer = NULL;
     unlink(SOCKPATH);
     SkalPlfThreadUnmakeSkal_DEBUG();
     SkalPlfExit();

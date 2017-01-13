@@ -28,7 +28,7 @@ static SkalNet* gNet = NULL;
 static int gServerSockid = -1;
 static int gClientSockid = -1;
 static bool gHasConnected = false;
-static SkalPlfThread* gSkaldThread = NULL;
+static SkalPlfThread* gPseudoSkaldThread = NULL;
 
 static void pseudoSkald(void* arg)
 {
@@ -102,7 +102,7 @@ static RTBool testThreadEnterGroup(void)
     unlink(SOCKPATH);
     snprintf(addr.unix.path, sizeof(addr.unix.path), SOCKPATH);
     gServerSockid = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
-    gSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
+    gPseudoSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
     bool connected = SkalThreadInit(SOCKPATH);
     SKALASSERT(connected);
     return RTTrue;
@@ -111,9 +111,9 @@ static RTBool testThreadEnterGroup(void)
 static RTBool testThreadExitGroup(void)
 {
     SkalThreadExit();
-    SkalPlfThreadCancel(gSkaldThread);
-    SkalPlfThreadJoin(gSkaldThread);
-    gSkaldThread = NULL;
+    SkalPlfThreadCancel(gPseudoSkaldThread);
+    SkalPlfThreadJoin(gPseudoSkaldThread);
+    gPseudoSkaldThread = NULL;
     SkalNetDestroy(gNet);
     gNet = NULL;
     gServerSockid = -1;

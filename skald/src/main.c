@@ -56,6 +56,8 @@ static void handleSignal(int signum)
 
 int main(int argc, char** argv)
 {
+    SkalPlfInit();
+
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handleSignal;
@@ -72,8 +74,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // TODO: parse config file
-    //const char* cfgpath = SKALD_DEFAULT_CFGPATH;
+    // TODO: parse arguments
 
     SkaldParams params;
     memset(&params, 0, sizeof(params));
@@ -81,5 +82,7 @@ int main(int argc, char** argv)
     unlink(params.localAddrPath);
 
     SkaldRun(&params);
+
+    SkalPlfExit();
     return 0;
 }

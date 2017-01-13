@@ -23,7 +23,6 @@
 #include <string.h>
 #include <unistd.h>
 
-// TODO: robustify skal-net so it never asserts, as this is unacceptable for skald
 
 
 /*----------------+
@@ -126,6 +125,14 @@ typedef struct {
 /*-------------------------------+
  | Private function declarations |
  +-------------------------------*/
+
+
+/** SKALD thread
+ *
+ * @param arg [in] Thread argument; actually `SkaldParams`: SKALD configuration
+ *                 parameters
+ */
+static void skaldRunThread(void* arg);
 
 
 /** Get the domain name out of a thread name
@@ -239,6 +246,10 @@ static bool skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg);
  +------------------*/
 
 
+/** SKALD thread */
+static SkalPlfThread* gSkaldThread = NULL;
+
+
 /** Sockets
  *
  * There are 3 types of sockets:
@@ -264,16 +275,15 @@ static int gPipeClientSockid = -1;
 static CdsMap* gThreads = NULL;
 
 
-/** Alarms currently active */
+/** Alarms currently active
+ *
+ * Map is made of `skaldAlarm`, and the key is `skaldAlarm->key`.
+ */
 static CdsMap* gAlarms = NULL;
 
 
 /** Domain this skald manages */
 static char gDomain[SKAL_DOMAIN_NAME_MAX] = "local";
-
-
-/** Flag to indicate that skald has terminated */
-static bool gTerminated = false;
 
 
 
@@ -284,20 +294,58 @@ static bool gTerminated = false;
 
 void SkaldRun(const SkaldParams* params)
 {
+    SKALASSERT(NULL == gSkaldThread);
+
     SKALASSERT(params != NULL);
-    if (params->domain != NULL) {
-        SKALASSERT(SkalIsAsciiString(params->domain, SKAL_DOMAIN_NAME_MAX));
-        int n = snprintf(gDomain, sizeof(gDomain), "%s", params->domain);
-        SKALASSERT(n < (int)sizeof(gDomain));
-    }
     SKALASSERT(params->localAddrPath != NULL);
     SKALASSERT(params->localAddrPath[0] != '\0');
 
-    SkalPlfInit();
-    char name[SKAL_NAME_MAX];
-    int n = snprintf(name, sizeof(name), "skald@%s", gDomain);
-    SKALASSERT(n < (int)sizeof(name));
-    SkalPlfThreadMakeSkal_DEBUG(name);
+    SkaldParams* cp = SkalMallocZ(sizeof(*cp));
+    if (params->domain != NULL) {
+        SKALASSERT(SkalIsAsciiString(params->domain, SKAL_DOMAIN_NAME_MAX));
+        cp->domain = strdup(params->domain);
+        SKALASSERT(cp->domain != NULL);
+    }
+    cp->localAddrPath = strdup(params->localAddrPath);
+    SKALASSERT(cp->localAddrPath != NULL);
+
+    // Start skald thread
+    gSkaldThread = SkalPlfThreadCreate("skald", skaldRunThread, cp);
+
+    // Wait for skald thread to finish, which can be in a very long time
+    SkalPlfThreadJoin(gSkaldThread);
+}
+
+
+void SkaldTerminate(void)
+{
+    char c = 'x';
+    SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
+            gPipeClientSockid, &c, 1);
+    SKALASSERT(SKAL_NET_SEND_OK == result);
+}
+
+
+
+/*----------------------------------+
+ | Private function implementations |
+ +----------------------------------*/
+
+
+static void skaldRunThread(void* arg)
+{
+    SKALASSERT(arg != NULL);
+    SkaldParams* params = (SkaldParams*)arg;
+
+    SKALASSERT(NULL == gNet);
+    SKALASSERT(-1 == gPipeClientSockid);
+    SKALASSERT(NULL == gThreads);
+    SKALASSERT(NULL == gAlarms);
+
+    if (params->domain != NULL) {
+        int n = snprintf(gDomain, sizeof(gDomain), "%s", params->domain);
+        SKALASSERT(n < (int)sizeof(gDomain));
+    }
 
     gNet = SkalNetCreate(params->pollTimeout_us, skaldCtxUnref);
 
@@ -334,10 +382,6 @@ void SkaldRun(const SkaldParams* params)
     SKALASSERT(contextSet);
     SkalNetEventUnref(event);
 
-    // TODO: Connect to other skald's
-    (void)params->peers;
-    (void)params->npeers;
-
     // Create skald local socket
     ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_SERVER;
@@ -346,6 +390,12 @@ void SkaldRun(const SkaldParams* params)
     snprintf(addr.unix.path, sizeof(addr.unix.path),
             "%s", params->localAddrPath);
     (void)SkalNetServerCreate(gNet, &addr, 0, ctx, 0);
+
+    // We don't need `params` anymore
+    free((char*)params->domain);
+    free((char*)params->localAddrPath);
+    free(params);
+    params = NULL;
 
     // Infinite loop: process events on sockets
     bool stop = false;
@@ -443,26 +493,7 @@ void SkaldRun(const SkaldParams* params)
     SkalNetDestroy(gNet);
     CdsMapDestroy(gThreads);
     CdsMapDestroy(gAlarms);
-
-    SkalPlfThreadUnmakeSkal_DEBUG();
-    SkalPlfExit();
-    gTerminated = true;
 }
-
-
-void SkaldTerminate(void)
-{
-    char c = 'x';
-    SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
-            gPipeClientSockid, &c, 1);
-    SKALASSERT(SKAL_NET_SEND_OK == result);
-}
-
-
-
-/*----------------------------------+
- | Private function implementations |
- +----------------------------------*/
 
 
 static const char* skaldDomain(const char* threadName)
