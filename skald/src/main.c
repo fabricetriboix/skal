@@ -54,6 +54,45 @@ static void handleSignal(int signum)
 }
 
 
+static void usage(void)
+{
+    printf( "%s",
+            "skald [-h] [-d DOMAIN] [-s SOCKPATH]\n"
+            "  -h            Print this message and exit\n"
+            "  -d DOMAIN     Set the skald domain\n"
+            "  -s SOCKPATH   Set the path of the UNIX socket file\n"
+            "  -f PIDFILE    Fork and write skald PID in PIDFILE\n"
+          );
+    exit(0);
+}
+
+
+static void parseArgs(int argc, char** argv, SkaldParams* params)
+{
+    int opt;
+    while ((opt = getopt(argc, argv, "hd:s:f:")) != -1) {
+        switch (opt) {
+        case 'h' :
+            usage();
+            break;
+        case 'd' :
+            params->domain = optarg;
+            break;
+        case 's' :
+            params->localAddrPath = optarg;
+            break;
+        case 'f' :
+            fprintf(stderr, "TODO: Fork not implemented yet\n");
+            exit(2);
+            break;
+        default :
+            fprintf(stderr, "Unknown argument -%c\n", (char)opt);
+            exit(2);
+        }
+    }
+}
+
+
 int main(int argc, char** argv)
 {
     SkalPlfInit();
@@ -74,11 +113,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // TODO: parse arguments
-
     SkaldParams params;
     memset(&params, 0, sizeof(params));
-    params.localAddrPath = "/tmp/skald.sock";
+    parseArgs(argc, argv, &params);
     unlink(params.localAddrPath);
 
     SkaldRun(&params);
