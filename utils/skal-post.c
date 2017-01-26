@@ -324,10 +324,24 @@ int main(int argc, char** argv)
             usage(0);
             break;
         case 'u' :
-            url = strdup(optarg);
-            if (NULL == url) {
-                fprintf(stderr, "Failed to strdup(%s)\n", optarg);
-                exit(1);
+            if (strstr(optarg, "://") == NULL) {
+                int len = strlen(optarg) + 8; // to prepend "unix://"
+                url = malloc(len);
+                if (NULL == url) {
+                    fprintf(stderr, "Failed to allocate %d bytes\n", len);
+                    exit(1);
+                }
+                int n = snprintf(url, len, "unix://%s", optarg);
+                if (n >= len) {
+                    fprintf(stderr, "Impossible!\n");
+                    exit(1);
+                }
+            } else {
+                url = strdup(optarg);
+                if (NULL == url) {
+                    fprintf(stderr, "Failed to strdup(%s)\n", optarg);
+                    exit(1);
+                }
             }
             break;
         default :
