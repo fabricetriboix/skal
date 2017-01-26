@@ -338,6 +338,7 @@ int main(int argc, char** argv)
     // Initialise SKAL and create a thread
     if (!SkalInit(url, NULL, 0)) {
         fprintf(stderr, "Failed to connect to skald\n");
+        free(url);
         exit(1);
     }
     free(url);
