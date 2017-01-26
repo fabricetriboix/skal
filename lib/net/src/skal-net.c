@@ -731,7 +731,7 @@ int SkalNetCommCreate(SkalNet* net,
     int fd = socket(c->domain, c->type, c->protocol);
     if (fd < 0) {
         char* url = SkalNetAddrToUrl(remoteAddr);
-        SkalLog("socket(domain=%d, type=%d, protocol=%d) failed: errno=%d [%s] [remote=%s]\n",
+        SkalLog("socket(domain=%d, type=%d, protocol=%d) failed: errno=%d [%s] [remote=%s]",
                 c->domain, c->type, c->protocol, errno, strerror(errno), url);
         free(url);
         return -1;
@@ -779,7 +779,7 @@ int SkalNetCommCreate(SkalNet* net,
             skalNetPosixToAddr(&sun, c->type, &addr);
             char* local = SkalNetAddrToUrl(&addr); // `localAddr` may be NULL
             char* remote = SkalNetAddrToUrl(remoteAddr);
-            SkalLog("bind(%s) failed: errno=%d [%s] [remote=%s]\n",
+            SkalLog("bind(%s) failed: errno=%d [%s] [remote=%s]",
                     local, errno, strerror(errno), remote);
             free(local);
             free(remote);
@@ -819,7 +819,7 @@ int SkalNetCommCreate(SkalNet* net,
             {
                 // Something unexpected happened...
                 char* remote = SkalNetAddrToUrl(remoteAddr);
-                SkalLog("connect(%s) failed: errno=%d [%s]\n",
+                SkalLog("connect(%s) failed: errno=%d [%s]",
                         remote, errno, strerror(errno));
                 free(remote);
                 SkalNetSocketDestroy(net, sockid);
@@ -1162,7 +1162,7 @@ static int skalNetCreatePipe(SkalNet* net, int bufsize_B, void* context)
     int fds[2];
     int ret = pipe(fds);
     if (ret < 0) {
-        SkalLog("pipe() failed: errno=%d [%s]\n", errno, strerror(errno));
+        SkalLog("pipe() failed: errno=%d [%s]", errno, strerror(errno));
         return -1;
     }
 
@@ -1236,7 +1236,7 @@ static int skalNetCreateServer(SkalNet* net, int domain, int type, int protocol,
     int fd = socket(domain, type, protocol);
     if (fd < 0) {
         char* local = SkalNetAddrToUrl(localAddr);
-        SkalLog("socket(domain=%d, type=%d, protocol=%d) failed: errno=%d [%s] [localAddr=%s]\n",
+        SkalLog("socket(domain=%d, type=%d, protocol=%d) failed: errno=%d [%s] [localAddr=%s]",
                 domain, type, protocol, errno, strerror(errno), local);
         free(local);
         CdsMapDestroy(s->cnxLessClients);
@@ -1255,7 +1255,7 @@ static int skalNetCreateServer(SkalNet* net, int domain, int type, int protocol,
     ret = bind(fd, (const struct sockaddr*)(&s->local), len);
     if (ret < 0) {
         char* local = SkalNetAddrToUrl(localAddr);
-        SkalLog("bind(%s) failed: errno=%d [%s]\n",
+        SkalLog("bind(%s) failed: errno=%d [%s]",
                 local, errno, strerror(errno));
         free(local);
         SkalNetSocketDestroy(net, sockid);
@@ -1461,7 +1461,7 @@ static void skalNetAccept(SkalNet* net, int sockid)
     socklen_t len = sizeof(sun);
     int fd = accept(s->fd, (struct sockaddr*)&sun, &len);
     if (fd < 0) {
-        SkalLog("accept() failed: errno=%d [%s]\n", errno, strerror(errno));
+        SkalLog("accept() failed: errno=%d [%s]", errno, strerror(errno));
     } else {
         (void)skalNetNewComm(net, sockid, fd, &sun);
     }
@@ -1533,7 +1533,7 @@ static void* skalNetReadPacket(SkalNet* net, int sockid,
         SkalNetAddr addr;
         skalNetPosixToAddr(&c->local, c->type, &addr);
         char* url = SkalNetAddrToUrl(&addr);
-        SkalLog("recvfrom() failed: errno=%d [%s] [local=%s]\n",
+        SkalLog("recvfrom() failed: errno=%d [%s] [local=%s]",
                 errno, strerror(errno), url);
         free(url);
 
