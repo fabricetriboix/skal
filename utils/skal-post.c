@@ -18,9 +18,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <errno.h>
 
 
-const char* gOptString = "hnwS:f:F:m:i:d:s:b:";
+const char* gOptString = "hnw:u:S:f:F:m:i:d:s:b:";
 
 static void usage(int ret)
 {
@@ -30,7 +32,7 @@ static void usage(int ret)
             "     RECIPIENT   Recipient of this message\n"
             "  -h             Print this usage information and exit\n"
             "  -n             Dry-run: print message to stdout and exit\n"
-            "  -w             Wait for a response and print it to stdout\n"
+            "  -w TIMEOUT_ms  Wait (at most TIMEOUT_ms) for a response and print it to stdout\n"
             "  -u URL         URL to connect to skald\n"
             "  -S SENDER      Set message SENDER\n"
             "  -f FLAGS       Set message FLAGS (8-bit unsigned integer)\n"
@@ -78,23 +80,32 @@ typedef struct {
 } Args;
 
 
-// Thread status: -1 = running, 0 = finished & success, 1 = finished & error
-static int gStatus = -1;
+static enum {
+    INIT,
+    WAIT_FOR_RESPONSE,
+    DONE
+} gState = INIT;
 
 
-static bool doPost(void* cookie, SkalMsg* msg)
+static int gResponseTimeout_ms = -1; // -1 means: to not wait for a response
+static pthread_t gTimeoutTread;
+
+
+static void* timeoutThread(void* arg)
 {
-    if (strcmp(SkalMsgType(msg), "kick") != 0) {
-        return true;
-    }
+    (void)arg;
+    usleep(gResponseTimeout_ms * 1000);
+    printf("ERROR: Timeout waiting for a response\n");
+    exit(1);
+}
 
-    Args* args = (Args*)cookie;
 
+static bool doPost(Args* args)
+{
     // 2nd pass: parse arguments necessary to create the bare message
     uint8_t flags = 0;
     char* marker = NULL;
     bool dryrun = false;
-    bool waitForResponse = false;
     optind = 1; // reset getopt
     int opt = 0;
     while (opt != -1) {
@@ -104,7 +115,18 @@ static bool doPost(void* cookie, SkalMsg* msg)
             dryrun = true;
             break;
         case 'w' :
-            waitForResponse = true;
+            {
+                int tmp;
+                if (sscanf(optarg, "%d", &tmp) != 1) {
+                    fprintf(stderr, "Invalid TIMEOUT_ms: '%s'\n", optarg);
+                    exit(2);
+                }
+                if (tmp <= 0) {
+                    fprintf(stderr, "Invalid TIMEOUT_ms: %d\n", tmp);
+                    exit(2);
+                }
+                gResponseTimeout_ms = tmp;
+            }
             break;
         case 'f' :
             {
@@ -139,7 +161,7 @@ static bool doPost(void* cookie, SkalMsg* msg)
     }
 
     // Create bare message
-    msg = SkalMsgCreate(args->argv[optind], args->argv[optind+1],
+    SkalMsg* msg = SkalMsgCreate(args->argv[optind], args->argv[optind+1],
             flags, marker);
     free(marker);
 
@@ -244,23 +266,48 @@ static bool doPost(void* cookie, SkalMsg* msg)
         printf("%s\n", json);
         free(json);
         SkalMsgUnref(msg);
-
-    } else {
-        SkalMsgSend(msg);
-
-        if (waitForResponse) {
-            // TODO: implement waitForResponse
-        } else {
-            // Ensure we don't close the socket too quickly, otherwise skald
-            // might error with an ECONNRESET at the same time the message is
-            // received.
-            usleep(5000);
-        }
-
-        gStatus = 0;
+        gState = DONE;
+        return false;
     }
 
+    SkalMsgSend(msg);
+
+    if (gResponseTimeout_ms > 0) {
+        int ret = pthread_create(&gTimeoutTread, NULL, timeoutThread, NULL);
+        if (ret != 0) {
+            fprintf(stderr, "Failed to create timeout thread: %s [%d]\n",
+                    strerror(errno), errno);
+            exit(1);
+        }
+        gState = WAIT_FOR_RESPONSE;
+        return true;
+    }
+
+    // Ensure we don't close the socket too quickly, otherwise skald might error
+    // with an ECONNRESET at the same time the message is received.
+    usleep(5000);
+    gState = DONE;
     return false;
+}
+
+
+static bool processMsg(void* cookie, SkalMsg* msg)
+{
+    if (strcmp(SkalMsgType(msg), "skal-post-kick") == 0) {
+        return doPost((Args*)cookie);
+    }
+
+    if (WAIT_FOR_RESPONSE == gState) {
+        char* json = SkalMsgToJson(msg);
+        printf("%s\n", json);
+        free(json);
+        pthread_cancel(gTimeoutTread);
+        pthread_join(gTimeoutTread, NULL);
+        gState = DONE;
+        return false;
+    }
+
+    return true;
 }
 
 
@@ -293,6 +340,7 @@ int main(int argc, char** argv)
         fprintf(stderr, "Failed to connect to skald\n");
         exit(1);
     }
+    free(url);
 
     Args* args = malloc(sizeof(*args));
     args->argc = argc;
@@ -300,19 +348,19 @@ int main(int argc, char** argv)
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     snprintf(cfg.name, sizeof(cfg.name), "skal-post");
-    cfg.processMsg = doPost;
+    cfg.processMsg = processMsg;
     cfg.cookie = args;
     SkalThreadCreate(&cfg);
 
     // Kick off the thread and wait for it to finish
-    SkalMsg* msg = SkalMsgCreate("kick", "skal-post", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("skal-post-kick", "skal-post", 0, NULL);
     SkalMsgSend(msg);
-    while (gStatus < 0) {
+    while (gState != DONE) {
         usleep(100);
     }
 
     // Cleanup
     SkalExit();
     free(args);
-    return gStatus;
+    return 0;
 }

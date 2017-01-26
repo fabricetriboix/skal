@@ -273,8 +273,8 @@ typedef struct SkalMsg SkalMsg;
  *    the caller, do not call `SkalMsgUnref()` on that `msg`
  *
  * If you want to terminate the thread, this function should return `false` and
- * you wish will be executed with immediate effect. Otherwise, just return
- * `true`.
+ * you wish will be executed with immediate effect. Otherwise, return `true` to
+ * keep going.
  *
  * **This function is not allowed to block!**
  */
