@@ -991,7 +991,7 @@ void SkalNetSocketDestroy(SkalNet* net, int sockid)
         if (s->cnxLessClients != NULL) {
             CdsMapDestroy(s->cnxLessClients);
         }
-        if (AF_UNIX == s->domain) {
+        if ((AF_UNIX == s->domain) && !(s->isFromServer)) {
             unlink(s->local.sun_path);
         }
         s->fd = -1;
