@@ -370,6 +370,7 @@ static void skaldRunThread(void* arg)
     SkalNetAddr addr;
     addr.type = SKAL_NET_TYPE_PIPE;
     int sockid = SkalNetServerCreate(gNet, &addr, 0, ctx, 0);
+    SKALASSERT(sockid >= 0);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
     SKALASSERT(SKAL_NET_EV_CONN == event->type);
@@ -389,7 +390,8 @@ static void skaldRunThread(void* arg)
     addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
     snprintf(addr.unix.path, sizeof(addr.unix.path),
             "%s", params->localAddrPath);
-    (void)SkalNetServerCreate(gNet, &addr, 0, ctx, 0);
+    sockid = SkalNetServerCreate(gNet, &addr, 0, ctx, 0);
+    SKALASSERT(sockid >= 0);
 
     // We don't need `params` anymore
     free((char*)params->domain);

@@ -344,6 +344,11 @@ bool SkalThreadInit(const char* skaldPath)
     addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
     strcpy(addr.unix.path, skaldPath);
     gSockid = SkalNetCommCreate(gNet, NULL, &addr, 0, NULL, 0);
+    if (gSockid < 0) {
+        SkalNetDestroy(gNet);
+        gNet = NULL;
+        return false;
+    }
     SkalNetEvent* event = NULL;
     while (NULL == event) {
         event = SkalNetPoll_BLOCKING(gNet);
@@ -351,6 +356,7 @@ bool SkalThreadInit(const char* skaldPath)
     if (SKAL_NET_EV_NOT_ESTABLISHED == event->type) {
         SkalNetEventUnref(event);
         SkalNetDestroy(gNet);
+        gNet = NULL;
         return false;
     }
     SKALASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -374,6 +380,7 @@ bool SkalThreadInit(const char* skaldPath)
     // Create pipe
     addr.type = SKAL_NET_TYPE_PIPE;
     gPipeServerId = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
+    SKALASSERT(gPipeServerId >= 0);
     event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
     SKALASSERT(SKAL_NET_EV_CONN == event->type);

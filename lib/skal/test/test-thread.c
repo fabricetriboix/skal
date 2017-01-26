@@ -102,6 +102,7 @@ static RTBool testThreadEnterGroup(void)
     unlink(SOCKPATH);
     snprintf(addr.unix.path, sizeof(addr.unix.path), SOCKPATH);
     gServerSockid = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
+    SKALASSERT(gServerSockid >= 0);
     gPseudoSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
     bool connected = SkalThreadInit(SOCKPATH);
     SKALASSERT(connected);
