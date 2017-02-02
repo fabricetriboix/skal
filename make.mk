@@ -54,7 +54,7 @@ endif
 
 # Standard targets
 
-all: $(OUTPUT_LIBS) skald skal-post skal_unit_tests doc
+all: $(OUTPUT_LIBS) skald skal-post skal_unit_tests writer reader doc
 
 doc: doc/html/index.html
 
@@ -114,6 +114,12 @@ skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(OUTPUT_LIBS) skald.o
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
 skal-post: skal-post.o $(OUTPUT_LIBS)
+	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
+
+writer: writer.o $(OUTPUT_LIBS)
+	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
+
+reader: reader.o $(OUTPUT_LIBS)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
 

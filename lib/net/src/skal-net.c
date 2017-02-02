@@ -1682,7 +1682,7 @@ static void* skalNetReadStream(SkalNet* net, int sockid, int* size_B)
 #if 0
             if (c->domain < 0) {
                 // This is a pipe => Stop as soon as we read something
-                // XXX why?
+                // TODO why?
                 done = true;
             }
 #endif
