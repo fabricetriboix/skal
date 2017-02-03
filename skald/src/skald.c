@@ -286,6 +286,10 @@ static CdsMap* gAlarms = NULL;
 static char gDomain[SKAL_DOMAIN_NAME_MAX] = "local";
 
 
+/** Full name of this skald */
+static char gName[SKAL_NAME_MAX] = "skald@local";
+
+
 
 /*---------------------------------+
  | Public function implementations |
@@ -649,6 +653,8 @@ static bool skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
     }
 
     // Take action depending on message type
+    // TODO: from here: this is not good! It should depend on the target skald,
+    // except for the first few messages (handshake).
     const char* type = SkalMsgType(msg);
     if (strcmp(type, "skal-master-born") == 0) {
         // The `skal-master` thread of a process provides us with information
@@ -759,6 +765,9 @@ static bool skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
         skaldRouteMsg(resp);
         SkalMsgUnref(msg);
 
+    } else if (strcmp(recipient, gName) == 0) {
+        SkalLog("Received unknown message '%s'... ignoring\n", type);
+
     } else {
         skaldRouteMsg(msg);
     }
@@ -777,7 +786,10 @@ static void skaldDropMsg(SkalMsg* msg)
             SkalMsgType(msg), SkalMsgRecipient(msg));
     skaldAlarmProcess(alarm);
 
-    if (SkalMsgFlags(msg) | SKAL_MSG_FLAG_NTF_DROP) {
+    if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_NTF_DROP) {
+        char* XXX = SkalMsgToJson(msg);
+        fprintf(stderr, "XXX %s: drop msg >>>%s<<<\n", __func__, XXX);
+        free(XXX);
         SkalMsg* resp = SkalMsgCreate("skal-drop-no-recipient",
                 SkalMsgSender(msg), 0, NULL);
         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
@@ -799,13 +811,16 @@ static void skaldRouteMsg(SkalMsg* msg)
                 recipient);
         skaldAlarmProcess(alarm);
         SkalMsgUnref(msg);
-        return;
-    }
-    if (strcmp(domain, gDomain) == 0) {
+    } else if (strcmp(domain, gDomain) == 0) {
         skaldThread* thread = (skaldThread*)CdsMapSearch(gThreads,
                 (void*)recipient);
         if (NULL == thread) {
-            skaldDropMsg(msg);
+            if (strcmp(recipient, gName) == 0) {
+                SkalLog("Can't route message '%s' to myself - ignoring\n",
+                        SkalMsgType(msg));
+            } else {
+                skaldDropMsg(msg);
+            }
         } else {
             skaldMsgSendTo(msg, thread->sockid);
         }
@@ -813,7 +828,10 @@ static void skaldRouteMsg(SkalMsg* msg)
         // The recipient is in another domain
         //  => Look up foreign skald to send to
         // TODO
-        SKALPANIC_MSG("Not yet implemented");
+        char* json = SkalMsgToJson(msg);
+        fprintf(stderr, "XXX KAPUT MSG >>>%s<<<\n", json);
+        free(json);
+        SKALPANIC_MSG("Not yet implemented: message domain %s", domain);
     }
 }
 
