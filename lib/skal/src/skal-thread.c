@@ -584,7 +584,7 @@ static void skalThreadRun(void* arg)
 {
     SKALASSERT(arg != NULL);
     SkalThread* thread = (SkalThread*)arg;
-    SKALASSERT(strcmp(thread->cfg.name, "skal-master") != 0);
+    SKALASSERT(strncmp(thread->cfg.name, "skal-master", 11) != 0);
     SkalPlfThreadSetName(thread->cfg.name);
 
     skalThreadPrivate* priv = SkalMallocZ(sizeof(*priv));
