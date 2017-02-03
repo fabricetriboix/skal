@@ -145,7 +145,7 @@ else
 	$$cmd
 endif
 
-test: skal_unit_tests
+test: skal_unit_tests writer reader
 	@set -eu; \
 	if ! which rttest2text.py > /dev/null 2>&1; then \
 		echo "ERROR: rttest2text.py not found in PATH"; \

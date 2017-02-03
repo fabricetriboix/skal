@@ -55,6 +55,10 @@ static bool processMsg(void* cookie, SkalMsg* msg)
         if (*count >= gCount) {
             // This is the last message
             SkalMsgAddInt(pkt, "easter-egg", 1);
+            struct timespec ts;
+            ts.tv_sec = 0;
+            ts.tv_nsec = 10 * 1000 * 1000; // 10ms
+            nanosleep(&ts, NULL); // wait for a skald to process the last msgs
             ok = false;
             gTerminating = true;
         } else {

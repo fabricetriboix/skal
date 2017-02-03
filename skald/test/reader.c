@@ -55,11 +55,12 @@ static bool processMsg(void* cookie, SkalMsg* msg)
         }
         if (SkalMsgHasField(msg, "easter-egg")) {
             // This was the last packet
-            ok = false;
             gTerminating = true;
+            ok = false;
         } else {
             // Simulate some kind of processing
             usleep(2000);
+            (*count)++;
         }
     }
     return ok;
