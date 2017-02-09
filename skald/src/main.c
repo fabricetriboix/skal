@@ -22,31 +22,33 @@
 #include <errno.h>
 
 
-#define SKALD_DEFAULT_CFGPATH "/etc/skal/skald.cfg"
-
 #define SKALD_SOCKNAME "skald.sock"
 
 
-static unsigned int gSigCount = 0;
+static enum {
+    STARTING,
+    RUNNING,
+    TERMINATING
+} gState = STARTING;
 
 static void handleSignal(int signum)
 {
-    switch (gSigCount) {
-    case 0 :
-        fprintf(stderr, "Received signal %d, terminating...\n", signum);
-        gSigCount++;
-        SkaldTerminate();
-        break;
-
-    case 1 :
-        fprintf(stderr, "Received signal %d, but termination is in progress\n",
+    switch (gState) {
+    case STARTING :
+        fprintf(stderr,
+                "Received signal %d, but skald has not started yet; ignored\n",
                 signum);
-        fprintf(stderr, "Send signal again to force termination\n");
-        gSigCount++;
         break;
 
+    case RUNNING :
+        fprintf(stderr, "Received signal %d, terminating...\n", signum);
+        fprintf(stderr, "Send signal again to force termination\n");
+        gState = TERMINATING;
+        break;
+
+    case TERMINATING :
     default :
-        fprintf(stderr, "Received signal %d for a third time, forcing termination now\n",
+        fprintf(stderr, "Received signal %d again, forcing termination now\n",
                 signum);
         exit(2);
         break;
@@ -120,6 +122,12 @@ int main(int argc, char** argv)
 
     SkaldRun(&params);
 
+    gState = RUNNING;
+    while (RUNNING == gState) {
+        sleep(1);
+    }
+
+    SkaldTerminate();
     SkalPlfExit();
     return 0;
 }

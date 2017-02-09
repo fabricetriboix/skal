@@ -64,8 +64,8 @@ static void pseudoSkald(void* arg)
                     SKALASSERT(hasnull);
                     SkalMsg* msg = SkalMsgCreateFromJson(json);
                     SKALASSERT(msg != NULL);
-                    if (strcmp(SkalMsgType(msg), "skal-master-born") == 0) {
-                        SkalMsg* resp = SkalMsgCreate("skal-domain",
+                    if (strcmp(SkalMsgType(msg), "skal-init-master-born") == 0) {
+                        SkalMsg* resp = SkalMsgCreate("skal-init-domain",
                                 "skal-master", 0, NULL);
                         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
                         SkalMsgAddString(resp, "domain", "local");

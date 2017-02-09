@@ -115,16 +115,15 @@ typedef struct {
 
 /** Run skald
  *
- * This function does not return, except when `SkaldTerminate` is called.
+ * This function returns when skald is up and running.
  */
 void SkaldRun(const SkaldParams* params);
 
 
 /** Terminate skald
  *
- * This function does not block and is typically called from a signal handler.
- * This function returns immediately; skald will be stopped only once
- * `SkaldRun()` returns.
+ * This function might block for a very short time while skald is shutting down.
+ * When this function returns, skald has been terminated.
  */
 void SkaldTerminate(void);
 

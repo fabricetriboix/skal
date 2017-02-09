@@ -772,7 +772,7 @@ static void skalMasterThreadRun(void* arg)
     SkalPlfThreadSetSpecific(priv);
 
     // Tell skald the master thread for this process is starting
-    SkalMsg* msg = SkalMsgCreate("skal-master-born", "skald", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("skal-init-master-born", "skald", 0, NULL);
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalMsgAddString(msg, "name", gProcessName);
     SkalMsgSend(msg);
@@ -789,7 +789,7 @@ static void skalMasterThreadRun(void* arg)
     if (NULL == msg) {
         SKALPANIC_MSG("Invalid message received from skald; wrong message format version?");
     }
-    SKALASSERT(strcmp(SkalMsgType(msg), "skal-domain") == 0);
+    SKALASSERT(strcmp(SkalMsgType(msg), "skal-init-domain") == 0);
     SkalSetDomain(SkalMsgGetString(msg, "domain"));
     SkalMsgUnref(msg);
     SkalNetEventUnref(event);
