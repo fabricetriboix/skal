@@ -149,6 +149,8 @@ void* _SkalCalloc(int nItems, int itemSize_B, const char* file, int line)
 
 char* SkalSPrintf(const char* format, ...)
 {
+    SKALASSERT(format != NULL);
+
     va_list ap;
     va_start(ap, format);
 
@@ -175,6 +177,8 @@ char* SkalSPrintf(const char* format, ...)
 
 char* SkalVSPrintf(const char* format, va_list ap)
 {
+    SKALASSERT(format != NULL);
+
     va_list ap1;
     va_copy(ap1, ap);
 
