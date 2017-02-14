@@ -866,15 +866,17 @@ static void skalMasterRouteMsg(SkalMsg* msg)
 {
     bool sent = skalDoSendMsg(msg, false);
     if (!sent) {
-        // Recipient is not in this process. This could happen if the recipient
-        // thread recently terminated and the information has not been
-        // propagated yet to the skald managing the message sender.
-        if (!(SkalMsgFlags(msg) & SKAL_MSG_FLAG_DROP_OK)) {
+        // Recipient is not in this process. This would normally be caught by
+        // the local skald, but let's handle it nevertheless.
+        if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_NTF_DROP) {
             // The sender wants to be notified of dropped message
-            SkalMsg* msg2 = SkalMsgCreate("skal-msg-drop",
+            SkalMsg* resp = SkalMsgCreate("skal-error-drop",
                     SkalMsgSender(msg), 0, NULL);
-            SkalMsgSetIFlags(msg2, SKAL_MSG_IFLAG_INTERNAL);
-            sent = skalDoSendMsg(msg, true);
+            SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
+            SkalMsgAddString(resp, "reason", "no recipient");
+            SkalMsgAddFormattedString(resp, "extra",
+                    "Thread %s does not exist", SkalMsgRecipient(msg));
+            sent = skalDoSendMsg(resp, true);
             SKALASSERT(sent);
         }
     }

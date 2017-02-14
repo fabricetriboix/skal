@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 
+// TODO: from here: review the handling and routing of messages
 
 /*----------------+
  | Macros & Types |
@@ -466,6 +467,7 @@ static void skaldRunThread(void* arg)
                     // The string should be null-terminated, but it's safer to
                     // enforce null termination
                     json[event->in.size_B - 1] = '\0';
+                    fprintf(stderr, "XXX received >>>%s<<<\n", json);
                     SkalMsg* msg = SkalMsgCreateFromJson(json);
                     if (NULL == msg) {
                         SkalAlarm* alarm = SkalAlarmCreate(
@@ -654,8 +656,10 @@ static bool skaldProcessMsg(int sockid, skaldSocketCtx* ctx, SkalMsg* msg)
     // its domain).
     if (    (strcmp(SkalMsgRecipient(msg), gName) == 0)
          || (strncmp(SkalMsgType(msg), "skal-init-", 10) == 0)) {
+        fprintf(stderr, "XXX %s: calling skaldHandleMsg()\n", __func__);
         return skaldHandleMsg(sockid, ctx, msg);
     } else {
+        fprintf(stderr, "XXX %s: calling skaldRouteMsg()\n", __func__);
         skaldRouteMsg(msg);
         return true;
     }
@@ -800,9 +804,12 @@ static void skaldDropMsg(SkalMsg* msg)
         char* XXX = SkalMsgToJson(msg);
         fprintf(stderr, "XXX %s: drop msg >>>%s<<<\n", __func__, XXX);
         free(XXX);
-        SkalMsg* resp = SkalMsgCreate("skal-drop-no-recipient",
+        SkalMsg* resp = SkalMsgCreate("skal-error-drop",
                 SkalMsgSender(msg), 0, NULL);
         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
+        SkalMsgAddString(resp, "reason", "no recipient");
+        SkalMsgAddFormattedString(resp, "extra",
+                "Thread %s does not exist", SkalMsgRecipient(msg));
         skaldRouteMsg(resp);
     }
 
@@ -814,6 +821,9 @@ static void skaldRouteMsg(SkalMsg* msg)
 {
     const char* recipient = SkalMsgRecipient(msg);
     const char* domain = skaldDomain(recipient);
+    char* XXX = SkalMsgToJson(msg);
+    fprintf(stderr, "XXX %s: domain=%s >>>%s<<<\n", __func__, domain, XXX);
+    free(XXX);
     if (NULL == domain) {
         SkalAlarm* alarm = SkalAlarmCreate("skal-invalid-msg-no-domain",
                 SKAL_ALARM_WARNING, true, false,
@@ -824,11 +834,13 @@ static void skaldRouteMsg(SkalMsg* msg)
     } else if (strcmp(domain, SkalDomain()) == 0) {
         skaldThread* thread = (skaldThread*)CdsMapSearch(gThreads,
                 (void*)recipient);
+        fprintf(stderr, "XXX %s: searching for recipient thread '%s', found %p\n", __func__, recipient, thread);
         if (NULL == thread) {
             if (strcmp(recipient, gName) == 0) {
                 SkalLog("Can't route message '%s' to myself - ignoring\n",
                         SkalMsgType(msg));
             } else {
+                fprintf(stderr, "XXX %s: calling skaldDropMsg()\n", __func__);
                 skaldDropMsg(msg);
             }
         } else {
@@ -860,6 +872,7 @@ static void skaldMsgSendTo(SkalMsg* msg, int sockid)
     case SKALD_SOCKET_PROCESS :
         {
             char* json = SkalMsgToJson(msg);
+            fprintf(stderr, "XXX %s: >>>%s<<<\n", __func__, json);
             SkalNetSendResult result = SkalNetSend_BLOCKING(gNet, sockid,
                     json, strlen(json) + 1);
             free(json);
