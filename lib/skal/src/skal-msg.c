@@ -20,6 +20,7 @@
 #include "cdslist.h"
 #include "cdsmap.h"
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
 #include <float.h>
@@ -336,6 +337,18 @@ void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s)
     field->size_B = strlen(s) + 1;
     field->s = SkalMallocZ(field->size_B);
     memcpy(field->s, s, field->size_B);
+}
+
+
+void SkalMsgAddFormattedString(SkalMsg* msg, const char* name,
+        const char* format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+    char* s = SkalVSPrintf(format, ap);
+    va_end(ap);
+    SkalMsgAddString(msg, name, s);
+    free(s);
 }
 
 

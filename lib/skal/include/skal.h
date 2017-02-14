@@ -748,6 +748,20 @@ void SkalMsgAddDouble(SkalMsg* msg, const char* name, double d);
 void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s);
 
 
+/** Add a formatted string to the message
+ *
+ * @param msg    [in,out] Message to manipulate; must not be NULL
+ * @param name   [in]     Name of the string; must not be NULL
+ * @param format [in]     Printf-like format of string to send; must not be
+ *                        NULL; must be UTF-8 encoded and null-terminated; can
+ *                        be of arbitrary length.
+ * @param ...    [in]     Printf-like arguments
+ */
+void SkalMsgAddFormattedString(SkalMsg* msg, const char* name,
+        const char* format, ...)
+    __attribute__(( format(printf, 3, 4) ));
+
+
 /** Add an extra binary field to the message
  *
  * Unlike a blob, this field will be copied every time a message moves from one
