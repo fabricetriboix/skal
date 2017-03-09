@@ -1529,28 +1529,30 @@ static void* skalNetReadPacket(SkalNet* net, int sockid,
 
     socklen_t socklen = sizeof(*src);
     int ret = recvfrom(c->fd, data, c->bufsize_B, 0, src, &socklen);
-    if (ret < 0) {
-        SkalNetAddr addr;
-        skalNetPosixToAddr(&c->local, c->type, &addr);
-        char* url = SkalNetAddrToUrl(&addr);
-        SkalLog("recvfrom() failed: errno=%d [%s] [local=%s]",
-                errno, strerror(errno), url);
-        free(url);
 
-        free(data);
-        data = NULL;
-        SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_ERROR, sockid);
-        bool inserted = CdsListPushBack(net->events, &event->item);
-        SKALASSERT(inserted);
-
-    } else if (0 == ret) {
+    if ((0 == ret) || ((ret < 0) && (ECONNRESET == errno))) {
         // NB: Various domains (UNIX, IPv4, etc.) allow empty datagrams, but we
         // assume no empty datagram is ever sent to us. We instead assume an
         // empty read means the connection has been closed (for example for
         // SOCK_SEQPACKET sockets.
         free(data);
         data = NULL;
+        ret = 0;
         SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_DISCONN, sockid);
+        bool inserted = CdsListPushBack(net->events, &event->item);
+        SKALASSERT(inserted);
+
+    } else if (ret < 0) {
+        free(data);
+        data = NULL;
+        ret = 0;
+        SkalNetAddr addr;
+        skalNetPosixToAddr(&c->local, c->type, &addr);
+        char* url = SkalNetAddrToUrl(&addr);
+        SkalLog("recvfrom() failed: errno=%d [%s] [local=%s]",
+                errno, strerror(errno), url);
+        free(url);
+        SkalNetEvent* event = skalNetEventAllocate(SKAL_NET_EV_ERROR, sockid);
         bool inserted = CdsListPushBack(net->events, &event->item);
         SKALASSERT(inserted);
     }
