@@ -29,14 +29,14 @@ static int gServerSockid = -1;
 static int gClientSockid = -1;
 static bool gHasConnected = false;
 static SkalPlfThread* gPseudoSkaldThread = NULL;
+static bool gTerminate = false;
 
 static void pseudoSkald(void* arg)
 {
     (void)arg;
     SkalPlfThreadSetName("skald");
     SkalPlfThreadSetSpecific((void*)0xcafedeca); // to fool skal-msg
-    bool stop = false;
-    while (!stop) {
+    while (!gTerminate) {
         SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
         if (event != NULL) {
             switch (event->type) {
@@ -93,6 +93,7 @@ static void pseudoSkald(void* arg)
 
 static RTBool testThreadEnterGroup(void)
 {
+    gTerminate = false;
     gHasConnected = false;
     SkalPlfInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread");
@@ -112,7 +113,7 @@ static RTBool testThreadEnterGroup(void)
 static RTBool testThreadExitGroup(void)
 {
     SkalThreadExit();
-    SkalPlfThreadCancel(gPseudoSkaldThread);
+    gTerminate = true;
     SkalPlfThreadJoin(gPseudoSkaldThread);
     gPseudoSkaldThread = NULL;
     SkalNetDestroy(gNet);

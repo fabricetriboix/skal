@@ -260,14 +260,6 @@ SkalPlfThread* SkalPlfThreadCreate(const char* name,
 }
 
 
-void SkalPlfThreadCancel(SkalPlfThread* thread)
-{
-    SKALASSERT(thread != NULL);
-    int ret = pthread_cancel(thread->id);
-    SKALASSERT(ret == 0);
-}
-
-
 void SkalPlfThreadJoin(SkalPlfThread* thread)
 {
     SKALASSERT(thread != NULL);

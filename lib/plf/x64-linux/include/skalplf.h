@@ -241,16 +241,6 @@ SkalPlfThread* SkalPlfThreadCreate(const char* name,
         SkalPlfThreadFunction threadfn, void* arg);
 
 
-/** Cancel a thread
- *
- * Once this function returns, please call `SkalPlfThreadJoin()` on it to free
- * up its resources.
- *
- * @param thread [in,out] Thread to cancel
- */
-void SkalPlfThreadCancel(SkalPlfThread* thread);
-
-
 /** Join a thread
  *
  * If the `thread` is still running when this function is called, it will block

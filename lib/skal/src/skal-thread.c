@@ -149,8 +149,8 @@ static SkalThread* skalDoCreateThread(const SkalThreadCfg* cfg);
 
 /** Function to unreference a thread structure
  *
- * Please note this function will not terminate or cancel the thread. This
- * function blocks until the thread has terminated.
+ * Please note this function will not terminate the thread. This function blocks
+ * until the thread has terminated.
  */
 static void skalThreadUnref(SkalThread* thread);
 
