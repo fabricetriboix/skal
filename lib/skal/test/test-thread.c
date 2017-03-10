@@ -29,14 +29,16 @@ static int gServerSockid = -1;
 static int gClientSockid = -1;
 static bool gHasConnected = false;
 static SkalPlfThread* gPseudoSkaldThread = NULL;
-static bool gTerminate = false;
+static int gSockidPipeServer = -1;
+static int gSockidPipeClient = -1;
 
 static void pseudoSkald(void* arg)
 {
     (void)arg;
     SkalPlfThreadSetName("skald");
     SkalPlfThreadSetSpecific((void*)0xcafedeca); // to fool skal-msg
-    while (!gTerminate) {
+    bool stop = false;
+    while (!stop) {
         SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
         if (event != NULL) {
             switch (event->type) {
@@ -53,7 +55,9 @@ static void pseudoSkald(void* arg)
                 }
                 break;
             case SKAL_NET_EV_IN :
-                {
+                if (event->sockid == gSockidPipeServer) {
+                    stop = true;
+                } else {
                     const char* json = (const char*)(event->in.data);
                     bool hasnull = false;
                     for (int i = 0; (i < event->in.size_B) && !hasnull; i++) {
@@ -93,12 +97,23 @@ static void pseudoSkald(void* arg)
 
 static RTBool testThreadEnterGroup(void)
 {
-    gTerminate = false;
     gHasConnected = false;
     SkalPlfInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread");
     gNet = SkalNetCreate(0, NULL);
+
+    // Create pipe to allow pseudo-skald to terminate cleanly
     SkalNetAddr addr;
+    addr.type = SKAL_NET_TYPE_PIPE;
+    gSockidPipeServer = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
+    SKALASSERT(gSockidPipeServer >= 0);
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    SKALASSERT(event != NULL);
+    SKALASSERT(SKAL_NET_EV_CONN == event->type);
+    SKALASSERT(gSockidPipeServer == event->sockid);
+    gSockidPipeClient = event->conn.commSockid;
+    SkalNetEventUnref(event);
+
     addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
     unlink(SOCKPATH);
     snprintf(addr.unix.path, sizeof(addr.unix.path), SOCKPATH);
@@ -113,7 +128,8 @@ static RTBool testThreadEnterGroup(void)
 static RTBool testThreadExitGroup(void)
 {
     SkalThreadExit();
-    gTerminate = true;
+    char c ='x';
+    SkalNetSend_BLOCKING(gNet, gSockidPipeClient, &c, 1);
     SkalPlfThreadJoin(gPseudoSkaldThread);
     gPseudoSkaldThread = NULL;
     SkalNetDestroy(gNet);
