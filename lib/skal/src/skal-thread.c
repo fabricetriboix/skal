@@ -831,11 +831,17 @@ static void skalMasterThreadRun(void* arg)
 
             } else {
                 // This is a message sent to us from within this process
+                // NB: It is possible that more than one message has been queued
+                // up, in which case the pipe we use to wake skal-master up will
+                // have more than one character in it; actually, it will have
+                // one character per message.
                 SKALASSERT(gPipeServerId == event->sockid);
-                msg = SkalQueuePop(gMaster->queue, false);
-                SKALASSERT(msg != NULL);
-                if (!skalMasterProcessMsg(msg)) {
-                    stop = true;
+                for (int i = 0; (i < event->in.size_B) && !stop; i++) {
+                    msg = SkalQueuePop(gMaster->queue, false);
+                    SKALASSERT(msg != NULL);
+                    if (!skalMasterProcessMsg(msg)) {
+                        stop = true;
+                    }
                 }
             }
             break;
