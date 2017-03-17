@@ -283,6 +283,25 @@ static bool gTerminating = false;
 static SkalThread* gMaster = NULL;
 
 
+/** State of the master thread: running or not
+ *
+ * This is used to unblock the `main()` thread.
+ */
+static bool gMasterRunning = false;
+
+
+/** Whether to cancel a `SkalThreadPause()` */
+static bool gCancelPause = false;
+
+
+/** Mutex to protect the `gMasterRunning` variable */
+static SkalPlfMutex* gMasterRunningMutex = NULL;
+
+
+/** CondVar to wake up a `SkalThreadPause()` when skal-master exits */
+static SkalPlfCondVar* gMasterRunningCondVar = NULL;
+
+
 /** Global queue
  *
  * This global queue is used to communicate between the original thread (i.e.
@@ -388,6 +407,8 @@ bool SkalThreadInit(const char* skaldPath)
     SkalNetEventUnref(event);
 
     // Create master thread
+    gMasterRunningMutex = SkalPlfMutexCreate();
+    gMasterRunningCondVar = SkalPlfCondVarCreate();
     gMaster = SkalMallocZ(sizeof(*gMaster));
     snprintf(gMaster->cfg.name, sizeof(gMaster->cfg.name), "skal-master");
     gMaster->cfg.queueThreshold = SKAL_MSG_LIST_MAX;
@@ -439,6 +460,37 @@ void SkalThreadExit(void)
 
     SkalPlfMutexDestroy(gMutex);
     gMutex = NULL;
+
+    if (gMasterRunningMutex != NULL) {
+        SkalPlfMutexDestroy(gMasterRunningMutex);
+        gMasterRunningMutex = NULL;
+    }
+
+    if (gMasterRunningCondVar != NULL) {
+        SkalPlfCondVarDestroy(gMasterRunningCondVar);
+        gMasterRunningCondVar = NULL;
+    }
+}
+
+
+bool SkalThreadPause(void)
+{
+    SkalPlfMutexLock(gMasterRunningMutex);
+    gCancelPause = false;
+    while (gMasterRunning && !gCancelPause) {
+        SkalPlfCondVarWait(gMasterRunningCondVar, gMasterRunningMutex);
+    }
+    SkalPlfMutexUnlock(gMasterRunningMutex);
+    return !gMasterRunning;
+}
+
+
+void SkalThreadCancel(void)
+{
+    SkalPlfMutexLock(gMasterRunningMutex);
+    gCancelPause = true;
+    SkalPlfMutexUnlock(gMasterRunningMutex);
+    SkalPlfCondVarSignal(gMasterRunningCondVar);
 }
 
 
@@ -795,6 +847,9 @@ static void skalMasterThreadRun(void* arg)
     SkalNetEventUnref(event);
 
     // Unblock `SkalThreadInit()`
+    SkalPlfMutexLock(gMasterRunningMutex);
+    gMasterRunning = true;
+    SkalPlfMutexUnlock(gMasterRunningMutex);
     msg = SkalMsgCreate("skal-master-init-done", "skal-main", 0, NULL);
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gGlobalQueue, msg);
@@ -861,6 +916,10 @@ static void skalMasterThreadRun(void* arg)
     } // Thread loop
 
     // This thread is now terminated
+    SkalPlfMutexLock(gMasterRunningMutex);
+    gMasterRunning = false;
+    SkalPlfMutexUnlock(gMasterRunningMutex);
+    SkalPlfCondVarSignal(gMasterRunningCondVar);
     msg = SkalMsgCreate("skal-master-terminated", "skal-main", 0, NULL);
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gGlobalQueue, msg);

@@ -53,3 +53,15 @@ void SkalExit(void)
     SkalBlobExit();
     SkalPlfExit();
 }
+
+
+bool SkalPause(void)
+{
+    return SkalThreadPause();
+}
+
+
+void SkalCancel(void)
+{
+    SkalThreadCancel();
+}

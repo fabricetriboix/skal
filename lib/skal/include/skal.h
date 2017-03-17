@@ -374,6 +374,36 @@ void SkalExit(void);
 void SkalThreadCreate(const SkalThreadCfg* cfg);
 
 
+/** Pause the calling thread until all threads have finished
+ *
+ * This function will not return until all the threads have finished. Use this
+ * function to write an application that performs a certain tasks and terminates
+ * when finished.
+ *
+ * **WARNING** You must call this function AFTER having called `SkalInit()`.
+ * Also, you MUST NOT call `SkalExit()` while a call to `SkalPause()` is in
+ * progress; this will result in a segmentation fault.
+ *
+ * @return `true` if all threads have finished, `false` if `SkalCancel()` has
+ *         been called (in which case, some threads are still probably running)
+ */
+bool SkalPause(void);
+
+
+/** Cancel a `SkalPause()`
+ *
+ * Use this function to cause `SkalPause()` to return immediately. When you call
+ * `SkalCancel()`, `SkalPause()` will return `false`.
+ *
+ * This function is typically called from signal handlers.
+ *
+ * **WARNING** You must call this function AFTER having called `SkalInit()`.
+ * Also, you MUST NOT call `SkalExit()` while a call to `SkalPause()` or
+ * `SkalCancel()` is in progress; this will result in a segmentation fault.
+ */
+void SkalCancel(void);
+
+
 /** Create an alarm object
  *
  * The current time will be assigned to the alarm object as its timestamp.
@@ -394,6 +424,8 @@ void SkalThreadCreate(const SkalThreadCfg* cfg);
  * @param format   [in] Free-form comment: printf-style format; may be NULL if
  *                      you don't want to add a comment
  * @param ...      [in] Printf-style arguments
+ *
+ * @return The alarm object; this function never returns NULL
  */
 SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverityE severity,
         bool isOn, bool autoOff, const char* format, ...)

@@ -53,5 +53,17 @@ bool SkalThreadInit(const char* skaldPath);
 void SkalThreadExit(void);
 
 
+/** Pause the calling thread until all threads have exited
+ *
+ * @return `true` if all threads have terminated, `false` if
+ *         `SkalThreadCancel()` has been called
+ */
+bool SkalThreadPause(void);
+
+
+/** Cancel a `SkalThreadPause()` */
+void SkalThreadCancel(void);
+
+
 
 #endif /* SKAL_THREAD_h_ */
