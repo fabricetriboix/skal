@@ -36,8 +36,9 @@ static void handleSignal(int signum)
     switch (gState) {
     case STARTING :
         fprintf(stderr,
-                "Received signal %d, but skald has not started yet; ignored\n",
+                "Received signal %d, but skald has not started yet; forcing termination\n",
                 signum);
+        exit(2);
         break;
 
     case RUNNING :
@@ -124,7 +125,7 @@ int main(int argc, char** argv)
 
     gState = RUNNING;
     while (RUNNING == gState) {
-        sleep(1);
+        pause();
     }
 
     SkaldTerminate();

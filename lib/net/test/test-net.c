@@ -21,6 +21,10 @@
 #include <unistd.h>
 
 
+// Use 100ms for skal-net timeout
+#define SKAL_NET_TIMEOUT_us (100 * 1000)
+
+
 static RTBool skalNetTestGroupEntry(void)
 {
     SkalPlfInit();
@@ -118,7 +122,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_basic_should_create_set)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gNet != NULL);
 }
 RTT_TEST_END
@@ -155,7 +159,7 @@ static int gClientSockid = -1;
 
 RTT_TEST_START(skal_net_pipe_should_create_set)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gNet != NULL);
 }
 RTT_TEST_END
@@ -239,10 +243,10 @@ static int gCommSockid = -1;
 
 RTT_TEST_START(skal_net_unix_stream_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(0, NULL);
+    gCommNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
@@ -270,7 +274,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_stream_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
@@ -284,7 +287,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_stream_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -374,10 +376,10 @@ RTT_GROUP_START(TestNetUnixDgram, 0x00110004u,
 
 RTT_TEST_START(skal_net_unix_dgram_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(-1, NULL);
+    gCommNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
@@ -405,7 +407,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_dgram_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -433,7 +434,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_dgram_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
@@ -532,10 +532,10 @@ RTT_GROUP_START(TestNetUnixSeqpkt, 0x00110005u,
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(-1, NULL);
+    gCommNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
@@ -563,7 +563,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
@@ -577,7 +576,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -612,7 +610,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_recv_hello)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_IN == event->type);
@@ -626,7 +623,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_recv_world)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_IN == event->type);
@@ -692,10 +688,10 @@ RTT_GROUP_START(TestNetTcp, 0x00110006u,
 
 RTT_TEST_START(skal_net_tcp_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(0, NULL);
+    gCommNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
@@ -724,7 +720,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_tcp_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
@@ -738,7 +733,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_tcp_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -828,10 +822,10 @@ RTT_GROUP_START(TestNetUdp, 0x00110007u,
 
 RTT_TEST_START(skal_net_udp_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(-1, NULL);
+    gCommNet = SkalNetCreate(SKAL_NET_TIMEOUT_us, NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
@@ -864,7 +858,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_udp_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -892,7 +885,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_udp_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);

@@ -100,7 +100,7 @@ static RTBool testThreadEnterGroup(void)
     gHasConnected = false;
     SkalPlfInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread");
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(100 * 1000, NULL);
 
     // Create pipe to allow pseudo-skald to terminate cleanly
     SkalNetAddr addr;
@@ -147,6 +147,7 @@ static RTBool testThreadExitGroup(void)
 RTT_GROUP_START(TestThreadSimple, 0x00060001u,
         testThreadEnterGroup, testThreadExitGroup)
 
+static bool gPinged = false;
 static int gError = -1;
 static int gResult = -1;
 
@@ -164,15 +165,17 @@ static bool testSimpleProcessMsg(void* cookie, SkalMsg* msg)
     } else if (strcmp(SkalMsgRecipient(msg), "simple@local") != 0) {
         gError = 4;
     } else {
+        gPinged = true;
         gError = 0;
         gResult = 1;
     }
-    usleep(1);
+    usleep(1); // simulate some work
     return true;
 }
 
 RTT_TEST_START(skal_simple_should_create_thread)
 {
+    gPinged = false;
     gError = -1;
     gResult = -1;
     SkalThreadCfg cfg;
@@ -194,7 +197,11 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_simple_should_receive_ping_msg)
 {
-    usleep(5000); // give time to thread to receive and deal with ping msg
+    // Wait for thread to receive and deal with ping msg
+    for (int i = 0; (i < 10000) && !gPinged; i++) {
+        usleep(100);
+    }
+    RTT_EXPECT(gPinged);
     RTT_EXPECT(0 == gError);
     RTT_EXPECT(1 == gResult);
 }
@@ -221,7 +228,7 @@ static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
         }
         gMsgRecv++;
     }
-    usleep(100);
+    usleep(100); // simulate work
     return true;
 }
 
@@ -269,9 +276,9 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_stress_should_have_sent_and_recv_100_msg)
 {
-    // Give enough time to send and process 1000 messages
-    for (int i = 0; i < 10000; i++) {
-        usleep(1000);
+    // Give enough time to send and process 1000 messages (at most 10s)
+    for (int i = 0; i < 100*1000; i++) {
+        usleep(100);
         if (gMsgRecv >= 1000) {
             break;
         }
