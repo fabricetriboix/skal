@@ -43,7 +43,7 @@ static void handleSignal(int signum)
 
     case RUNNING :
         fprintf(stderr, "Received signal %d, terminating...\n", signum);
-        fprintf(stderr, "Send signal again to force termination\n");
+        fprintf(stderr, "  (send signal again to force termination)\n");
         gState = TERMINATING;
         break;
 

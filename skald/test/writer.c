@@ -27,19 +27,34 @@
 static int64_t gCount = 0;
 static const char* gRecipient = NULL;
 
-static bool gTerminating = false;
+static enum {
+    STARTING,
+    RUNNING,
+    TERMINATING
+} gRunningState = STARTING;
 
 static void handleSignal(int signum)
 {
-    if (gTerminating) {
+    switch (gRunningState) {
+    case STARTING :
+        fprintf(stderr,
+                "Received signal %d, but SKAL has not initialised yet; forcing termination\n",
+                signum);
+        exit(2);
+        break;
+
+    case RUNNING :
+        fprintf(stderr, "Received signal %d, terminating...\n", signum);
+        fprintf(stderr, "  (send signal again to force termination)\n");
+        gRunningState = TERMINATING;
+        SkalCancel();
+        break;
+
+    case TERMINATING :
         fprintf(stderr,
                 "Received signal %d for a 2nd time, forcing termination\n",
                 signum);
-        exit(1);
-    } else {
-        fprintf(stderr, "Received signal %d, terminating...\n", signum);
-        fprintf(stderr, "  (send signal again to force termination)\n");
-        gTerminating = true;
+        exit(2);
     }
 }
 
@@ -49,19 +64,13 @@ static bool processMsg(void* cookie, SkalMsg* msg)
     bool ok = true;
     int64_t* count = (int64_t*)cookie;
     if (strcmp(SkalMsgType(msg), "kick") == 0) {
-        // XXX SkalMsg* pkt = SkalMsgCreate("test-pkt", gRecipient, 0, NULL);
-        SkalMsg* pkt = SkalMsgCreate("test-pkt", gRecipient, SKAL_MSG_FLAG_NTF_DROP, NULL);
+        SkalMsg* pkt = SkalMsgCreate("test-pkt", gRecipient, 0, NULL);
         SkalMsgAddInt(pkt, "number", *count);
         (*count)++;
         if (*count >= gCount) {
             // This is the last message
             SkalMsgAddInt(pkt, "easter-egg", 1);
-            struct timespec ts;
-            ts.tv_sec = 0;
-            ts.tv_nsec = 10 * 1000 * 1000; // 10ms
-            nanosleep(&ts, NULL); // wait for a skald to process the last msgs
             ok = false;
-            gTerminating = true;
         } else {
             // Send a message to ourselves to keep going
             SkalMsg* kick = SkalMsgCreate("kick", "writer", 0, NULL);
@@ -117,6 +126,7 @@ int main(int argc, char** argv)
         fprintf(stderr, "Failed to initialise skald\n");
         exit(1);
     }
+    gRunningState = RUNNING;
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
@@ -131,13 +141,9 @@ int main(int argc, char** argv)
     SkalMsg* msg = SkalMsgCreate("kick", "writer", 0, NULL);
     SkalMsgSend(msg);
 
-    while (!gTerminating) {
-        struct timespec ts;
-        ts.tv_sec = 0;
-        ts.tv_nsec = 10 * 1000 * 1000; // 10ms
-        nanosleep(&ts, NULL);
-    }
+    SkalPause();
 
+    // Cleanup
     free(count);
     SkalExit();
     return 0;

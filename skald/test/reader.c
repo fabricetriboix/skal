@@ -24,19 +24,34 @@
 #include <time.h>
 
 
-static bool gTerminating = false;
+static enum {
+    STARTING,
+    RUNNING,
+    TERMINATING
+} gRunningState = STARTING;
 
 static void handleSignal(int signum)
 {
-    if (gTerminating) {
+    switch (gRunningState) {
+    case STARTING:
+        fprintf(stderr,
+                "Received signal %d, but SKAL has not initialised yet; forcing termination\n",
+                signum);
+        exit(2);
+        break;
+
+    case RUNNING :
+        fprintf(stderr, "Received signal %d, terminating...\n", signum);
+        fprintf(stderr, "  (send signal again to force termination)\n");
+        gRunningState = TERMINATING;
+        SkalCancel();
+        break;
+
+    case TERMINATING :
         fprintf(stderr,
                 "Received signal %d for a 2nd time, forcing termination\n",
                 signum);
-        exit(1);
-    } else {
-        fprintf(stderr, "Received signal %d, terminating...\n", signum);
-        fprintf(stderr, "  (send signal again to force termination)\n");
-        gTerminating = true;
+        exit(2);
     }
 }
 
@@ -50,17 +65,17 @@ static bool processMsg(void* cookie, SkalMsg* msg)
         if (n != *count) {
             fprintf(stderr, "Received packet %lld, expected %lld\n",
                     (long long)n, (long long)(*count));
-            gTerminating = true;
-            ok = false;
-        }
-        if (SkalMsgHasField(msg, "easter-egg")) {
-            // This was the last packet
-            gTerminating = true;
             ok = false;
         } else {
-            // Simulate some kind of processing
-            usleep(2000);
-            (*count)++;
+            if (SkalMsgHasField(msg, "easter-egg")) {
+                // This was the last packet
+                fprintf(stderr, "XXX received last packet\n");
+                ok = false;
+            } else {
+                fprintf(stderr, "XXX received packet %d\n", (int)(*count));
+                usleep(2000); // Simulate some kind of processing
+                (*count)++;
+            }
         }
     }
     return ok;
@@ -96,6 +111,7 @@ int main(int argc, char** argv)
         fprintf(stderr, "Failed to initialise skald (url=%s)\n", url);
         exit(1);
     }
+    gRunningState = RUNNING;
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
@@ -107,13 +123,9 @@ int main(int argc, char** argv)
     cfg.queueThreshold = 10;
     SkalThreadCreate(&cfg);
 
-    while (!gTerminating) {
-        struct timespec ts;
-        ts.tv_sec = 0;
-        ts.tv_nsec = 10 * 1000 * 1000; // 10ms
-        nanosleep(&ts, NULL);
-    }
+    SkalPause();
 
+    // Cleanup
     free(count);
     SkalExit();
     return 0;

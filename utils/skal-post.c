@@ -17,9 +17,42 @@
 #include "skal-msg.h"
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <errno.h>
+
+
+static enum {
+    STARTING,
+    RUNNING,
+    TERMINATING
+} gRunningState = STARTING;
+
+static void handleSignal(int signum)
+{
+    switch (gRunningState) {
+    case STARTING :
+        fprintf(stderr,
+                "Received signal %d, but SKAL has not initialised yet; forcing termination\n",
+                signum);
+        exit(2);
+        break;
+
+    case RUNNING :
+        fprintf(stderr, "Received signal %d, terminating...\n", signum);
+        fprintf(stderr, "  (send signal again to force termination)\n");
+        gRunningState = TERMINATING;
+        SkalCancel();
+        break;
+
+    case TERMINATING :
+        fprintf(stderr, "Received signal %d again, forcing termination now\n",
+                signum);
+        exit(2);
+        break;
+    }
+}
 
 
 const char* gOptString = "hnw:u:S:f:F:m:i:d:s:b:";
@@ -283,9 +316,6 @@ static bool doPost(Args* args)
         return true;
     }
 
-    // Ensure we don't close the socket too quickly, otherwise skald might error
-    // with an ECONNRESET at the same time the message is received.
-    usleep(5000);
     gState = DONE;
     return false;
 }
@@ -315,6 +345,9 @@ int main(int argc, char** argv)
 {
     // First pass of argument parsing: get arguments to initialise SKAL and
     // start a thread
+    if (argc < 2) {
+        usage(1);
+    }
     char* url = NULL;
     int opt = 0;
     while (opt != -1) {
@@ -349,14 +382,33 @@ int main(int argc, char** argv)
         }
     } // getopt loop
 
-    // Initialise SKAL and create a thread
+    // Setup signal handlers
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handleSignal;
+    int ret = sigaction(SIGINT, &sa, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "ERROR: sigaction(SIGINT) failed: %s [%d]\n",
+                strerror(errno), errno);
+        return 1;
+    }
+    ret = sigaction(SIGTERM, &sa, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "ERROR: sigaction(SIGTERM) failed: %s [%d]\n",
+                strerror(errno), errno);
+        return 1;
+    }
+
+    // Initialise SKAL
     if (!SkalInit(url, NULL, 0)) {
         fprintf(stderr, "Failed to connect to skald\n");
         free(url);
         exit(1);
     }
     free(url);
+    gRunningState = RUNNING;
 
+    // Start thread
     Args* args = malloc(sizeof(*args));
     args->argc = argc;
     args->argv = argv;
@@ -370,9 +422,7 @@ int main(int argc, char** argv)
     // Kick off the thread and wait for it to finish
     SkalMsg* msg = SkalMsgCreate("skal-post-kick", "skal-post", 0, NULL);
     SkalMsgSend(msg);
-    while (gState != DONE) {
-        usleep(100);
-    }
+    SkalPause();
 
     // Cleanup
     SkalExit();
