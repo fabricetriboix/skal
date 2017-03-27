@@ -313,7 +313,7 @@ void SkaldRun(const SkaldParams* params)
     int n = snprintf(gName, sizeof(gName), "skald@%s", SkalDomain());
     SKALASSERT(n < (int)sizeof(gName));
 
-    gNet = SkalNetCreate(params->pollTimeout_us, skaldCtxUnref);
+    gNet = SkalNetCreate(skaldCtxUnref);
 
     gThreads = CdsMapCreate("threads",         // name
                             0,                 // capacity
@@ -392,10 +392,7 @@ static void skaldRunThread(void* arg)
     bool stop = false;
     while (!stop) {
         SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
-        if (NULL == event) {
-            // Poll timeout without anything happening
-            continue;
-        }
+        SKALASSERT(event != NULL);
 
         skaldSocketCtx* ctx = (skaldSocketCtx*)(event->context);
         SKALASSERT(ctx != NULL);

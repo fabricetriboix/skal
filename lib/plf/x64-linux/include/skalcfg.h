@@ -90,8 +90,12 @@
 #define SKAL_NET_DEFAULT_TIMEOUT_us (10 * 1000 * 1000)
 
 
-/** Default socket polling timeout */
-#define SKAL_NET_DEFAULT_POLL_TIMEOUT_us (1000 * 1000)
+/** Socket polling timeout
+ *
+ * Please note this affects only how often connectionless sockets are checked
+ * for termination.
+ */
+#define SKAL_NET_POLL_TIMEOUT_us (10 * 1000)
 
 
 /** Default socket buffer size, in bytes */

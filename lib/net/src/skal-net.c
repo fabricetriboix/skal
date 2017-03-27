@@ -167,9 +167,6 @@ typedef struct {
 
 /** Overall skal-net structure */
 struct SkalNet {
-    /** Polling timeout when calling `select(2)` */
-    int64_t pollTimeout_us;
-
     /** Size of the `sockets` array */
     int nsockets;
 
@@ -596,15 +593,10 @@ void SkalNetEventUnref(SkalNetEvent* event)
 }
 
 
-SkalNet* SkalNetCreate(int64_t pollTimeout_us, SkalNetCtxUnref ctxUnref)
+SkalNet* SkalNetCreate(SkalNetCtxUnref ctxUnref)
 {
     SkalNet* net = SkalMallocZ(sizeof(*net));
     net->events = CdsListCreate(NULL, 0, (CdsListItemUnref)SkalNetEventUnref);
-    if (pollTimeout_us > 0) {
-        net->pollTimeout_us = pollTimeout_us;
-    } else {
-        net->pollTimeout_us = SKAL_NET_DEFAULT_POLL_TIMEOUT_us;
-    }
     net->ctxUnref = ctxUnref;
     return net;
 }
@@ -857,37 +849,43 @@ SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net)
 {
     SKALASSERT(net != NULL);
 
-    if (CdsListIsEmpty(net->events)) {
-        skalNetSelect(net);
-    }
-
-    // Scan cnx-less comm sockets for timeouts
-    int64_t now_us = SkalPlfNow_us();
-    for (int sockid = 0; sockid < net->nsockets; sockid++) {
-        skalNetSocket* s = &(net->sockets[sockid]);
-        if ((s->fd >= 0) && !(s->isServer) && s->isCnxLess) {
-            if ((now_us - s->lastActivity_us) > s->timeout_us) {
-                SkalNetEvent* evdisconn = skalNetEventAllocate(
-                        SKAL_NET_EV_DISCONN, sockid);
-                bool inserted = CdsListPushBack(net->events, &evdisconn->item);
-                SKALASSERT(inserted);
+    SkalNetEvent* event = NULL;
+    while (NULL == event) {
+        // Scan cnx-less comm sockets for timeouts
+        // TODO: This can be optimised so we don't check it every time
+        // `SkalNetPoll_BLOCKING()` is called...
+        int64_t now_us = SkalPlfNow_us();
+        for (int sockid = 0; sockid < net->nsockets; sockid++) {
+            skalNetSocket* s = &(net->sockets[sockid]);
+            if ((s->fd >= 0) && !(s->isServer) && s->isCnxLess) {
+                if ((now_us - s->lastActivity_us) > s->timeout_us) {
+                    SkalNetEvent* evdisconn = skalNetEventAllocate(
+                            SKAL_NET_EV_DISCONN, sockid);
+                    bool inserted = CdsListPushBack(net->events, &evdisconn->item);
+                    SKALASSERT(inserted);
+                }
             }
         }
-    }
 
-    SkalNetEvent* event = (SkalNetEvent*)CdsListPopFront(net->events);
-    if (event != NULL) {
-        if (net->sockets[event->sockid].fd < 0) {
-            // Socket has been closed by upper layer after the event has been
-            // generated.
-            //  => Drop the event
-            SkalNetEventUnref(event);
-            event = NULL;
-        } else {
-            // We fill in the context at the last minute, in case the upper
-            // layer changes (or sets) it between the time the event is
-            // generated and now.
-            event->context = net->sockets[event->sockid].context;
+        event = (SkalNetEvent*)CdsListPopFront(net->events);
+        if (NULL == event) {
+            skalNetSelect(net);
+            event = (SkalNetEvent*)CdsListPopFront(net->events);
+        }
+
+        if (event != NULL) {
+            if (net->sockets[event->sockid].fd < 0) {
+                // Socket has been closed by upper layer after the event has
+                // been generated.
+                //  => Drop the event
+                SkalNetEventUnref(event);
+                event = NULL;
+            } else {
+                // We fill in the context at the last minute, in case the upper
+                // layer changes (or sets) it between the time the event is
+                // generated and now.
+                event->context = net->sockets[event->sockid].context;
+            }
         }
     }
     return event;
@@ -1323,8 +1321,8 @@ static void skalNetSelect(SkalNet* net)
         pWriteFds = &writefds;
     }
     struct timeval tv;
-    tv.tv_sec  = net->pollTimeout_us / 1000000LL;
-    tv.tv_usec = net->pollTimeout_us % 1000000LL;
+    tv.tv_sec  = SKAL_NET_POLL_TIMEOUT_us / 1000000LL;
+    tv.tv_usec = SKAL_NET_POLL_TIMEOUT_us % 1000000LL;
     int count = select(maxFd + 1, &readfds, pWriteFds, &exceptfds, &tv);
     if (count < 0) {
         SKALASSERT(EINTR == errno);

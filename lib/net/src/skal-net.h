@@ -309,13 +309,12 @@ void SkalNetEventUnref(SkalNetEvent* event);
 
 /** Create a socket set
  *
- * @param pollTimeout_us [in] Polling timeout, in us; <=0 for default value
- * @param ctxUnref       [in] Function to call to de-reference a socket context;
- *                            may be NULL if not needed
+ * @param ctxUnref [in] Function to call to de-reference a socket context; may
+ *                      be NULL if not needed
  *
  * @return A newly created socket set; this function never returns NULL
  */
-SkalNet* SkalNetCreate(int64_t pollTimeout_us, SkalNetCtxUnref ctxUnref);
+SkalNet* SkalNetCreate(SkalNetCtxUnref ctxUnref);
 
 
 /** Destroy a socket set
@@ -402,8 +401,8 @@ int SkalNetCommCreate(SkalNet* net,
  *
  * @param net [in,out] Socket set to poll; must not be NULL
  *
- * @return The event that occurred, or NULL if timeout; when you are finished
- *         with the event, please call `SkalNetEventUnref()` on it
+ * @return The event that occurred; this function never returns NULL; when you
+ *         are finished with the event, please call `SkalNetEventUnref()` on it
  */
 SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net);
 

@@ -40,57 +40,56 @@ static void pseudoSkald(void* arg)
     bool stop = false;
     while (!stop) {
         SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
-        if (event != NULL) {
-            switch (event->type) {
-            case SKAL_NET_EV_CONN :
-                SKALASSERT(-1 == gClientSockid);
-                gClientSockid = event->conn.commSockid;
-                gHasConnected = true;
-                break;
-            case SKAL_NET_EV_DISCONN :
-                {
-                    SKALASSERT(gClientSockid == event->sockid);
-                    SkalNetSocketDestroy(gNet, gClientSockid);
-                    gClientSockid = -1;
-                }
-                break;
-            case SKAL_NET_EV_IN :
-                if (event->sockid == gSockidPipeServer) {
-                    stop = true;
-                } else {
-                    const char* json = (const char*)(event->in.data);
-                    bool hasnull = false;
-                    for (int i = 0; (i < event->in.size_B) && !hasnull; i++) {
-                        if ('\0' == json[i]) {
-                            hasnull = true;
-                        }
-                    }
-                    SKALASSERT(hasnull);
-                    SkalMsg* msg = SkalMsgCreateFromJson(json);
-                    SKALASSERT(msg != NULL);
-                    if (strcmp(SkalMsgType(msg), "skal-init-master-born") == 0) {
-                        SkalMsg* resp = SkalMsgCreate("skal-init-domain",
-                                "skal-master", 0, NULL);
-                        SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
-                        SkalMsgAddString(resp, "domain", "local");
-                        char* respjson = SkalMsgToJson(resp);
-                        SkalMsgUnref(resp);
-                        SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
-                                event->sockid, respjson, strlen(respjson) + 1);
-                        SKALASSERT(SKAL_NET_SEND_OK == result);
-                        free(respjson);
-                    }
-                    // else: discard all other messages
-                    SkalMsgUnref(msg);
-                }
-                break;
-            default :
-                SKALPANIC_MSG("Pseudo-skald does not expect SkalNet of type %d",
-                        (int)event->type);
-                break;
+        SKALASSERT(event != NULL);
+        switch (event->type) {
+        case SKAL_NET_EV_CONN :
+            SKALASSERT(-1 == gClientSockid);
+            gClientSockid = event->conn.commSockid;
+            gHasConnected = true;
+            break;
+        case SKAL_NET_EV_DISCONN :
+            {
+                SKALASSERT(gClientSockid == event->sockid);
+                SkalNetSocketDestroy(gNet, gClientSockid);
+                gClientSockid = -1;
             }
-            SkalNetEventUnref(event);
+            break;
+        case SKAL_NET_EV_IN :
+            if (event->sockid == gSockidPipeServer) {
+                stop = true;
+            } else {
+                const char* json = (const char*)(event->in.data);
+                bool hasnull = false;
+                for (int i = 0; (i < event->in.size_B) && !hasnull; i++) {
+                    if ('\0' == json[i]) {
+                        hasnull = true;
+                    }
+                }
+                SKALASSERT(hasnull);
+                SkalMsg* msg = SkalMsgCreateFromJson(json);
+                SKALASSERT(msg != NULL);
+                if (strcmp(SkalMsgType(msg), "skal-init-master-born") == 0) {
+                    SkalMsg* resp = SkalMsgCreate("skal-init-domain",
+                            "skal-master", 0, NULL);
+                    SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
+                    SkalMsgAddString(resp, "domain", "local");
+                    char* respjson = SkalMsgToJson(resp);
+                    SkalMsgUnref(resp);
+                    SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
+                            event->sockid, respjson, strlen(respjson) + 1);
+                    SKALASSERT(SKAL_NET_SEND_OK == result);
+                    free(respjson);
+                }
+                // else: discard all other messages
+                SkalMsgUnref(msg);
+            }
+            break;
+        default :
+            SKALPANIC_MSG("Pseudo-skald does not expect SkalNet of type %d",
+                    (int)event->type);
+            break;
         }
+        SkalNetEventUnref(event);
     } // loop
 }
 
@@ -100,7 +99,7 @@ static RTBool testThreadEnterGroup(void)
     gHasConnected = false;
     SkalPlfInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread");
-    gNet = SkalNetCreate(100 * 1000, NULL);
+    gNet = SkalNetCreate(NULL);
 
     // Create pipe to allow pseudo-skald to terminate cleanly
     SkalNetAddr addr;

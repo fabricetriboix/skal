@@ -357,7 +357,7 @@ bool SkalThreadInit(const char* skaldPath)
     if (NULL == skaldPath) {
         skaldPath = SKAL_DEFAULT_SKALD_PATH;
     }
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(NULL);
     SkalNetAddr addr;
     SKALASSERT(strlen(skaldPath) < sizeof(addr.unix.path));
     addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
@@ -368,10 +368,8 @@ bool SkalThreadInit(const char* skaldPath)
         gNet = NULL;
         return false;
     }
-    SkalNetEvent* event = NULL;
-    while (NULL == event) {
-        event = SkalNetPoll_BLOCKING(gNet);
-    }
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    SKALASSERT(event != NULL);
     if (SKAL_NET_EV_NOT_ESTABLISHED == event->type) {
         SkalNetEventUnref(event);
         SkalNetDestroy(gNet);
@@ -861,9 +859,7 @@ static void skalMasterThreadRun(void* arg)
         //  => We use `skal-net` as the single blocking point instead of
         //     `skal-queue`
         SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
-        if (NULL == event) {
-            continue; // May happen in case of a timeout
-        }
+        SKALASSERT(event != NULL);
 
         switch (event->type) {
         case SKAL_NET_EV_DISCONN :

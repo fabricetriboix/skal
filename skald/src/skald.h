@@ -98,12 +98,6 @@ typedef struct {
      * typically a UNIX socket. Must not be NULL.
      */
     const char* localAddrPath;
-
-    /** Timeout when polling for network events, in us
-     *
-     * Set this to <= 0 to use the default value.
-     */
-    int pollTimeout_us;
 } SkaldParams;
 
 
