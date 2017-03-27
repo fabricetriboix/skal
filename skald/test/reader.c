@@ -60,7 +60,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 {
     bool ok = true;
     int64_t* count = (int64_t*)cookie;
-    if (strcmp(SkalMsgType(msg), "test-pkt") == 0) {
+    if (strcmp(SkalMsgName(msg), "test-pkt") == 0) {
         int64_t n = SkalMsgGetInt(msg, "number");
         if (n != *count) {
             fprintf(stderr, "Received packet %lld, expected %lld\n",

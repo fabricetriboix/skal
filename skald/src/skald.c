@@ -498,7 +498,7 @@ static void skaldAlarmProcess(SkalAlarm* alarm)
     }
     skaldAlarm* item;
     char key[sizeof(item->key)];
-    int n = snprintf(key, sizeof(key), "%s#%s", origin, SkalAlarmType(alarm));
+    int n = snprintf(key, sizeof(key), "%s#%s", origin, SkalAlarmName(alarm));
     SKALASSERT(n < (int)sizeof(key));
 
     if (SkalAlarmIsOn(alarm)) {
@@ -573,16 +573,16 @@ static void skaldHandleMsgFromProcess(int sockid,
     SKALASSERT(msg != NULL);
 
     // Basic checks on `msg`
-    const char* msgtype = SkalMsgType(msg);
-    SKALASSERT(msgtype != NULL);
+    const char* msgName = SkalMsgName(msg);
+    SKALASSERT(msgName != NULL);
     const char* sender = SkalMsgSender(msg);
     if (NULL == skaldDomain(sender)) {
         SkalAlarm* alarm = SkalAlarmCreate(
                 "skal-protocol-sender-has-no-domain",
                 SKAL_ALARM_WARNING, true, false,
-                "Received a message where the sender has no domain: '%s' (message type: '%s')",
+                "Received a message where the sender has no domain: '%s' (message name: '%s')",
                 sender,
-                msgtype);
+                msgName);
         skaldAlarmProcess(alarm);
         SkalMsgUnref(msg);
         return;
@@ -592,19 +592,19 @@ static void skaldHandleMsgFromProcess(int sockid,
         SkalAlarm* alarm = SkalAlarmCreate(
                 "skal-protocol-recipient-has-no-domain",
                 SKAL_ALARM_WARNING, true, false,
-                "Received a message where the recipient has no domain: '%s' (message type: '%s')",
+                "Received a message where the recipient has no domain: '%s' (message name: '%s')",
                 recipient,
-                msgtype);
+                msgName);
         skaldAlarmProcess(alarm);
         SkalMsgUnref(msg);
         return;
     }
 
     if (    (strcmp(recipient, gName) == 0)
-         || (strncmp(msgtype, "skal-init-", 10) == 0)) {
+         || (strncmp(msgName, "skal-init-", 10) == 0)) {
         // The recipient of this message is this skald.
         //
-        // Please note if the message type starts with "skal-init-", it is part
+        // Please note if the message name starts with "skal-init-", it is part
         // of the SKAL protocol where a process connects to us. So such a
         // message is always for the skald which is local to the process, even
         // if the recipient domain is not set correctly (because the process
@@ -616,7 +616,7 @@ static void skaldHandleMsgFromProcess(int sockid,
 
     // Special treatment for `skal-ntf-xon` messages: ensure `sender` is not
     // blocked on a non-existing `recipient`.
-    if (strcmp(msgtype, "skal-ntf-xon") == 0) {
+    if (strcmp(msgName, "skal-ntf-xon") == 0) {
         const char* domain = skaldDomain(recipient);
         SKALASSERT(domain != NULL);
         if (    (strcmp(domain, SkalDomain()) == 0)
@@ -645,10 +645,10 @@ static void skaldProcessMsgFromProcess(int sockid,
     SKALASSERT(SKALD_SOCKET_PROCESS == ctx->type);
     SKALASSERT(msg != NULL);
 
-    // Take action depending on message type
-    const char* msgtype = SkalMsgType(msg);
+    // Take action depending on message name
+    const char* msgName = SkalMsgName(msg);
     const char* sender = SkalMsgSender(msg);
-    if (strcmp(msgtype, "skal-init-master-born") == 0) {
+    if (strcmp(msgName, "skal-init-master-born") == 0) {
         // The `skal-master` thread of a process is uttering its first words!
         if (!SkalMsgHasField(msg, "name")) {
             SkalAlarm* alarm = SkalAlarmCreate("skal-protocol-missing-field",
@@ -669,7 +669,7 @@ static void skaldProcessMsgFromProcess(int sockid,
             skaldMsgSendTo(resp, sockid);
         }
 
-    } else if (strcmp(msgtype, "skal-born") == 0) {
+    } else if (strcmp(msgName, "skal-born") == 0) {
         // A managed or domain thread has been born
         const char* domain = skaldDomain(sender);
         SKALASSERT(domain != NULL);
@@ -712,7 +712,7 @@ static void skaldProcessMsgFromProcess(int sockid,
             }
         }
 
-    } else if (strcmp(msgtype, "skal-died") == 0) {
+    } else if (strcmp(msgName, "skal-died") == 0) {
         // A managed or domain thread just died
         bool removed = CdsMapRemove(gThreads, (void*)sender);
         if (!removed) {
@@ -735,7 +735,7 @@ static void skaldProcessMsgFromProcess(int sockid,
             // TODO: inform domain peers
         }
 
-    } else if (strcmp(msgtype, "skal-ping") == 0) {
+    } else if (strcmp(msgName, "skal-ping") == 0) {
         SkalMsg* resp = SkalMsgCreate("skal-pong", sender, 0, NULL);
         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
         skaldRouteMsg(resp);
@@ -744,7 +744,7 @@ static void skaldProcessMsgFromProcess(int sockid,
         SkalAlarm* alarm = SkalAlarmCreate("skal-protocol-unknown-message",
                 SKAL_ALARM_NOTICE, true, false,
                 "Received unknown message '%s' from '%s'",
-                msgtype, sender);
+                msgName, sender);
         skaldAlarmProcess(alarm);
     }
 
@@ -759,7 +759,7 @@ static void skaldDropMsg(SkalMsg* msg)
     SkalAlarm* alarm = SkalAlarmCreate("skal-drop-no-recipient",
             SKAL_ALARM_WARNING, true, false,
             "Can't route message '%s' because I know nothing about its recipient '%s'; message dropped",
-            SkalMsgType(msg), SkalMsgRecipient(msg));
+            SkalMsgName(msg), SkalMsgRecipient(msg));
     skaldAlarmProcess(alarm);
 
     if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_NTF_DROP) {
@@ -792,7 +792,7 @@ static void skaldRouteMsg(SkalMsg* msg)
         SkalAlarm* alarm = SkalAlarmCreate("skal-protocol-recipient-has-no-domain",
                 SKAL_ALARM_WARNING, true, false,
                 "Can't route message '%s': recipient has no domain: '%s'",
-                SkalMsgType(msg), recipient);
+                SkalMsgName(msg), recipient);
         skaldAlarmProcess(alarm);
         SkalMsgUnref(msg);
 
@@ -806,7 +806,7 @@ static void skaldRouteMsg(SkalMsg* msg)
             SkalAlarm* alarm = SkalAlarmCreate("skal-conflict-circular-msg",
                     SKAL_ALARM_WARNING, true, false,
                     "Can't route message '%s': recipient '%s' is myself",
-                    SkalMsgType(msg), recipient);
+                    SkalMsgName(msg), recipient);
             skaldAlarmProcess(alarm);
         } else {
             fprintf(stderr, "XXX %s: calling skaldDropMsg()\n", __func__);

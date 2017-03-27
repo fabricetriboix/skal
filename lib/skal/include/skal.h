@@ -413,7 +413,7 @@ void SkalCancel(void);
  *
  * The alarm comment can be a UTF-8 string.
  *
- * @param type     [in] Alarm type; must not be NULL; alarm types starting with
+ * @param name     [in] Alarm name; must not be NULL; alarm names starting with
  *                      "skal-" are reserved for SKAL
  * @param severity [in] Alarm severity
  * @param isOn     [in] Whether the condition related to the alarm started or
@@ -427,7 +427,7 @@ void SkalCancel(void);
  *
  * @return The alarm object; this function never returns NULL
  */
-SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverityE severity,
+SkalAlarm* SkalAlarmCreate(const char* name, SkalAlarmSeverityE severity,
         bool isOn, bool autoOff, const char* format, ...)
     __attribute__(( format(printf, 5, 6) ));
 
@@ -455,13 +455,13 @@ void SkalAlarmRef(SkalAlarm* alarm);
 void SkalAlarmUnref(SkalAlarm* alarm);
 
 
-/** Get the alarm type
+/** Get the alarm name
  *
  * @param alarm [in] Alarm to query; must not be NULL
  *
- * @return The alarm type; never NULL
+ * @return The alarm name; never NULL
  */
-const char* SkalAlarmType(const SkalAlarm* alarm);
+const char* SkalAlarmName(const SkalAlarm* alarm);
 
 
 /** Get the alarm severity
@@ -664,10 +664,10 @@ int64_t SkalBlobSize_B(const SkalBlob* blob);
 
 /** Create an empty message
  *
- * @param type      [in] Message's type. This argument may not be NULL and may
- *                       not be an empty string. Please note that message types
+ * @param name      [in] Message's name. This argument may not be NULL and may
+ *                       not be an empty string. Please note that message names
  *                       starting with "skal-" are reserved for SKAL's own use,
- *                       so please avoid prefixing your message types with
+ *                       so please avoid prefixing your message names with
  *                       "skal-".
  * @param recipient [in] Whom to send this message to
  * @param flags     [in] Message flags; please refer to `SKAL_MSG_FLAG_*`
@@ -677,7 +677,7 @@ int64_t SkalBlobSize_B(const SkalBlob* blob);
  *
  * @return The newly created SKAL message; this function never returns NULL
  */
-SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
+SkalMsg* SkalMsgCreate(const char* name, const char* recipient,
         uint8_t flags, const char* marker);
 
 
@@ -707,13 +707,13 @@ void SkalMsgRef(SkalMsg* msg);
 void SkalMsgUnref(SkalMsg* msg);
 
 
-/** Get the message type
+/** Get the message name
  *
  * @param msg [in] Message to query; must not be NULL
  *
- * @return The message type; never NULL
+ * @return The message name; never NULL
  */
-const char* SkalMsgType(const SkalMsg* msg);
+const char* SkalMsgName(const SkalMsg* msg);
 
 
 /** Get the message sender

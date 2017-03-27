@@ -51,11 +51,11 @@ RTT_TEST_START(skal_should_create_alarm)
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_alarm_should_have_correct_type)
+RTT_TEST_START(skal_alarm_should_have_correct_name)
 {
-    const char* type = SkalAlarmType(gAlarm);
-    RTT_EXPECT(type != NULL);
-    RTT_EXPECT(strcmp(type, "total-meltdown") == 0);
+    const char* name = SkalAlarmName(gAlarm);
+    RTT_EXPECT(name != NULL);
+    RTT_EXPECT(strcmp(name, "total-meltdown") == 0);
 }
 RTT_TEST_END
 
@@ -104,7 +104,7 @@ RTT_TEST_START(skal_alarm_should_convert_to_json)
 {
     char* expected = SkalSPrintf(
         "  {\n"
-        "   \"type\": \"total-meltdown\",\n"
+        "   \"name\": \"total-meltdown\",\n"
         "   \"severity\": \"warning\",\n"
         "   \"origin\": \"TestThreadA\",\n"
         "   \"isOn\": true,\n"
@@ -136,13 +136,13 @@ RTT_TEST_START(skal_alarm_should_parse_json)
         "   \"comment\": \"this is\\ a test\",\n"
         "   \"autoOff\": true,\n"
         "     \"timestamp\\_us\": 1234567,\n"
-        "   \"type\": \"Bla bla bla\"\n"
+        "   \"name\": \"Bla bla bla\"\n"
         "  },\n";
 
     SkalAlarm* alarm = SkalAlarmCreateFromJson(&json);
     RTT_EXPECT(alarm != NULL);
 
-    const char* s = SkalAlarmType(alarm);
+    const char* s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
     RTT_EXPECT(strcmp(s, "Bla bla bla") == 0);
 
@@ -164,7 +164,7 @@ RTT_TEST_END
 
 RTT_GROUP_END(TestSkalAlarm,
         skal_should_create_alarm,
-        skal_alarm_should_have_correct_type,
+        skal_alarm_should_have_correct_name,
         skal_alarm_should_have_correct_severity,
         skal_alarm_should_have_correct_origin,
         skal_alarm_should_have_correct_ison,

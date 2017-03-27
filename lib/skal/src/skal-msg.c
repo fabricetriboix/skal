@@ -72,7 +72,7 @@ struct SkalMsg {
     int         version;
     uint8_t     flags;
     uint8_t     iflags;
-    char        type[SKAL_NAME_MAX];
+    char        name[SKAL_NAME_MAX];
     char        sender[SKAL_NAME_MAX];
     char        recipient[SKAL_NAME_MAX];
     char        marker[SKAL_NAME_MAX];
@@ -191,10 +191,10 @@ static int64_t gMsgRefCount_DEBUG = 0;
  +---------------------------------*/
 
 
-SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
+SkalMsg* SkalMsgCreate(const char* name, const char* recipient,
         uint8_t flags, const char* marker)
 {
-    SKALASSERT(SkalIsAsciiString(type, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
     SKALASSERT(SkalIsAsciiString(recipient, SKAL_NAME_MAX));
     if (marker != NULL) {
         SKALASSERT(SkalIsAsciiString(marker, SKAL_NAME_MAX));
@@ -206,7 +206,7 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
     msg->version = SKAL_MSG_VERSION;
     gMsgRefCount_DEBUG++;
     msg->flags = flags;
-    strncpy(msg->type, type, sizeof(msg->type) - 1);
+    strncpy(msg->name, name, sizeof(msg->name) - 1);
     if (SkalPlfThreadIsSkal()) {
         // The current thread is managed by SKAL
         const char* name = SkalPlfThreadGetName();
@@ -279,10 +279,10 @@ void SkalMsgUnref(SkalMsg* msg)
 }
 
 
-const char* SkalMsgType(const SkalMsg* msg)
+const char* SkalMsgName(const SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
-    return msg->type;
+    return msg->name;
 }
 
 
@@ -505,7 +505,7 @@ char* SkalMsgToJson(const SkalMsg* msg)
     SkalStringBuilderAppend(sb,
             "{\n"
             " \"version\": %d,\n"
-            " \"type\": \"%s\",\n"
+            " \"name\": \"%s\",\n"
             " \"sender\": \"%s\",\n"
             " \"recipient\": \"%s\",\n"
             " \"marker\": \"%s\",\n"
@@ -513,7 +513,7 @@ char* SkalMsgToJson(const SkalMsg* msg)
             " \"iflags\": %u,\n"
             " \"fields\": [\n",
             (int)SKAL_MSG_VERSION,
-            SkalMsgType(msg),
+            SkalMsgName(msg),
             SkalMsgSender(msg),
             SkalMsgRecipient(msg),
             SkalMsgMarker(msg),
@@ -778,8 +778,8 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
         SkalLog("SkalMsg: Invalid JSON: 'version' is required");
         return false;
     }
-    if ('\0' == msg->type[0]) {
-        SkalLog("SkalMsg: Invalid JSON: 'type' is required");
+    if ('\0' == msg->name[0]) {
+        SkalLog("SkalMsg: Invalid JSON: 'name' is required");
         return false;
     }
     if ('\0' == msg->sender[0]) {
@@ -819,8 +819,8 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "type") == 0) {
-        json = skalMsgParseJsonString(json, msg->type, sizeof(msg->type));
+    } else if (strcmp(name, "name") == 0) {
+        json = skalMsgParseJsonString(json, msg->name, sizeof(msg->name));
 
     } else if (strcmp(name, "sender") == 0) {
         json = skalMsgParseJsonString(json, msg->sender, sizeof(msg->sender));

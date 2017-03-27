@@ -59,9 +59,9 @@ const char* gOptString = "hnw:u:S:f:F:m:i:d:s:b:";
 
 static void usage(int ret)
 {
-    printf( "Usage: skal-post [OPTIONS] TYPE RECIPIENT\n"
+    printf( "Usage: skal-post [OPTIONS] NAME RECIPIENT\n"
             "Send a SKAL message to the given recipient.\n"
-            "     TYPE        Message type\n"
+            "     NAME        Message name\n"
             "     RECIPIENT   Recipient of this message\n"
             "  -h             Print this usage information and exit\n"
             "  -n             Dry-run: print message to stdout and exit\n"
@@ -188,7 +188,7 @@ static bool doPost(Args* args)
     } // getopt loop
 
     if (args->argc - optind <= 1) {
-        fprintf(stderr, "TYPE and RECIPIENT are required arguments\n");
+        fprintf(stderr, "NAME and RECIPIENT are required arguments\n");
         fprintf(stderr, "Run '%s -h' for help\n", args->argv[0]);
         exit(2);
     }
@@ -323,7 +323,7 @@ static bool doPost(Args* args)
 
 static bool processMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgType(msg), "skal-post-kick") == 0) {
+    if (strcmp(SkalMsgName(msg), "skal-post-kick") == 0) {
         return doPost((Args*)cookie);
     }
 

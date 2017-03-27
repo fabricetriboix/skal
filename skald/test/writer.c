@@ -63,7 +63,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 {
     bool ok = true;
     int64_t* count = (int64_t*)cookie;
-    if (strcmp(SkalMsgType(msg), "kick") == 0) {
+    if (strcmp(SkalMsgName(msg), "kick") == 0) {
         SkalMsg* pkt = SkalMsgCreate("test-pkt", gRecipient, 0, NULL);
         SkalMsgAddInt(pkt, "number", *count);
         (*count)++;

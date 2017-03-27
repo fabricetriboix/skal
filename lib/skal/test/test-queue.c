@@ -70,9 +70,9 @@ RTT_TEST_START(skal_should_pop_urgent_msg)
 {
     SkalMsg* msg = SkalQueuePop_BLOCKING(gQueue, false);
     RTT_ASSERT(msg != NULL);
-    const char* type = SkalMsgType(msg);
-    RTT_ASSERT(type != NULL);
-    RTT_EXPECT(strcmp(type, "UrgentMsg") == 0);
+    const char* name = SkalMsgName(msg);
+    RTT_ASSERT(name != NULL);
+    RTT_EXPECT(strcmp(name, "UrgentMsg") == 0);
     SkalMsgUnref(msg);
 }
 RTT_TEST_END
@@ -81,9 +81,9 @@ RTT_TEST_START(skal_should_pop_regular_msg)
 {
     SkalMsg* msg = SkalQueuePop_BLOCKING(gQueue, false);
     RTT_ASSERT(msg != NULL);
-    const char* type = SkalMsgType(msg);
-    RTT_ASSERT(type != NULL);
-    RTT_EXPECT(strcmp(type, "TestMsg") == 0);
+    const char* name = SkalMsgName(msg);
+    RTT_ASSERT(name != NULL);
+    RTT_EXPECT(strcmp(name, "TestMsg") == 0);
     SkalMsgUnref(msg);
 }
 RTT_TEST_END

@@ -68,7 +68,7 @@ static void pseudoSkald(void* arg)
                 SKALASSERT(hasnull);
                 SkalMsg* msg = SkalMsgCreateFromJson(json);
                 SKALASSERT(msg != NULL);
-                if (strcmp(SkalMsgType(msg), "skal-init-master-born") == 0) {
+                if (strcmp(SkalMsgName(msg), "skal-init-master-born") == 0) {
                     SkalMsg* resp = SkalMsgCreate("skal-init-domain",
                             "skal-master", 0, NULL);
                     SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
@@ -152,12 +152,12 @@ static int gResult = -1;
 
 static bool testSimpleProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgType(msg), "quit") == 0) {
+    if (strcmp(SkalMsgName(msg), "quit") == 0) {
         return false;
     }
     if (cookie != (void*)0xdeadbabe) {
         gError = 1;
-    } else if (strcmp(SkalMsgType(msg), "ping") != 0) {
+    } else if (strcmp(SkalMsgName(msg), "ping") != 0) {
         gError = 2;
     } else if (strcmp(SkalMsgSender(msg), "TestThread@local")!=0) {
         gError = 3;
@@ -220,7 +220,7 @@ static int gMsgRecv = 0;
 
 static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgType(msg), "ping") == 0) {
+    if (strcmp(SkalMsgName(msg), "ping") == 0) {
         int64_t count = SkalMsgGetInt(msg, "count");
         if (count != (int64_t)gMsgRecv) {
             gError++;
@@ -233,7 +233,7 @@ static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
 
 static bool testStufferProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgType(msg), "kick") == 0) {
+    if (strcmp(SkalMsgName(msg), "kick") == 0) {
         SkalMsg* msg2 = SkalMsgCreate("ping", "receiver", 0, NULL);
         SkalMsgAddInt(msg2, "count", gMsgSend);
         SkalMsgSend(msg2);

@@ -30,7 +30,7 @@
 struct SkalAlarm {
     CdsListItem        item;
     int                ref;
-    char               type[SKAL_NAME_MAX];
+    char               name[SKAL_NAME_MAX];
     SkalAlarmSeverityE severity;
     char               origin[SKAL_NAME_MAX];
     bool               isOn;
@@ -103,14 +103,14 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm);
  +---------------------------------*/
 
 
-SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverityE severity,
+SkalAlarm* SkalAlarmCreate(const char* name, SkalAlarmSeverityE severity,
         bool isOn, bool autoOff, const char* format, ...)
 {
-    SKALASSERT(SkalIsAsciiString(type, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
 
     SkalAlarm* alarm = SkalMallocZ(sizeof(*alarm));
     alarm->ref = 1;
-    strncpy(alarm->type, type, sizeof(alarm->type) - 1);
+    strncpy(alarm->name, name, sizeof(alarm->name) - 1);
     alarm->severity = severity;
     if (SkalPlfThreadGetSpecific() != NULL) {
         // The current thread is managed by SKAL
@@ -148,10 +148,10 @@ void SkalAlarmUnref(SkalAlarm* alarm)
 }
 
 
-const char* SkalAlarmType(const SkalAlarm* alarm)
+const char* SkalAlarmName(const SkalAlarm* alarm)
 {
     SKALASSERT(alarm != NULL);
-    return alarm->type;
+    return alarm->name;
 }
 
 
@@ -234,7 +234,7 @@ char* SkalAlarmToJson(const SkalAlarm* alarm, int nindent)
 
     char* json = SkalSPrintf(
             "%s{\n"
-            "%s \"type\": \"%s\",\n"
+            "%s \"name\": \"%s\",\n"
             "%s \"severity\": \"%s\",\n"
             "%s \"origin\": \"%s\",\n"
             "%s \"isOn\": %s,\n"
@@ -243,7 +243,7 @@ char* SkalAlarmToJson(const SkalAlarm* alarm, int nindent)
             "%s \"comment\": \"%s\"\n"
             "%s}",
             indent,
-            indent, alarm->type,
+            indent, alarm->name,
             indent, severity,
             indent, origin,
             indent, alarm->isOn ? "true" : "false",
@@ -412,9 +412,9 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
         json = skalAlarmSkipSpaces(json);
 
         // Parse property value
-        if (strcmp(buffer, "type") == 0) {
+        if (strcmp(buffer, "name") == 0) {
             json = skalAlarmParseJsonString(json,
-                    alarm->type, sizeof(alarm->type));
+                    alarm->name, sizeof(alarm->name));
 
         } else if (strcmp(buffer, "severity") == 0) {
             json = skalAlarmParseJsonString(json, buffer, sizeof(buffer));
@@ -498,8 +498,8 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
     json++;
 
     // Check that we have all properties required to define an alarm
-    if ('\0' == alarm->type[0]) {
-        SkalLog("SkalAlarm: Invalid JSON alarm object: \"type\" required");
+    if ('\0' == alarm->name[0]) {
+        SkalLog("SkalAlarm: Invalid JSON alarm object: \"name\" required");
         return NULL;
     }
     if (!severityParsed) {
