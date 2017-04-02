@@ -32,13 +32,11 @@ bool SkalInit(const char* skaldUrl,
     SkalPlfInit();
     SkalBlobInit(allocators, nallocators);
 
-    const char* sktpath = SKAL_DEFAULT_SKALD_PATH;
-    if (skaldUrl != NULL) {
-        SKALASSERT(strncmp(skaldUrl, "unix://", 7) == 0);
-        sktpath = skaldUrl + 7;
+    if (NULL == skaldUrl) {
+        skaldUrl = SKAL_DEFAULT_SKALD_URL;
     }
 
-    bool ok = SkalThreadInit(sktpath);
+    bool ok = SkalThreadInit(skaldUrl);
     if (!ok) {
         SkalBlobExit();
         SkalPlfExit();

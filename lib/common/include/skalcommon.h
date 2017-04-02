@@ -224,6 +224,19 @@ bool SkalIsUtf8String(const char* str, int maxlen);
 int SkalStringCompare(void* leftkey, void* rightkey, void* cookie);
 
 
+/** Standard binary comparison function suitable for CdsMap
+ *
+ * @param leftKey  [in] LHS token; must not be NULL
+ * @param rightKey [in] RHS token; must not be NULL
+ * @param cookie   [in] Actually a `size_t` value, which is the number of bytes
+ *                      to compare; must be >0
+ *
+ * @return -1 if `leftkey` < `rightkey`, 0 if `leftkey` == `rightkey`,
+ *         +1 if `leftkey` > `rightkey`
+ */
+int SkalMemCompare(void* leftKey, void* rightKey, void* cookie);
+
+
 /** Encode up to 3 bytes into 4 base64 characters
  *
  * *IMPORTANT* no null character will be added at the end.

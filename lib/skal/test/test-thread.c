@@ -24,6 +24,7 @@
 
 
 #define SOCKPATH "pseudo-skald.sock"
+
 static SkalNet* gNet = NULL;
 static int gServerSockid = -1;
 static int gClientSockid = -1;
@@ -102,9 +103,7 @@ static RTBool testThreadEnterGroup(void)
     gNet = SkalNetCreate(NULL);
 
     // Create pipe to allow pseudo-skald to terminate cleanly
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_PIPE;
-    gSockidPipeServer = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
+    gSockidPipeServer = SkalNetServerCreate(gNet, "pipe://", 0, NULL, 0);
     SKALASSERT(gSockidPipeServer >= 0);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
@@ -113,13 +112,11 @@ static RTBool testThreadEnterGroup(void)
     gSockidPipeClient = event->conn.commSockid;
     SkalNetEventUnref(event);
 
-    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
     unlink(SOCKPATH);
-    snprintf(addr.unix.path, sizeof(addr.unix.path), SOCKPATH);
-    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
+    gServerSockid = SkalNetServerCreate(gNet, "unix://" SOCKPATH, 0, NULL, 0);
     SKALASSERT(gServerSockid >= 0);
     gPseudoSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
-    bool connected = SkalThreadInit(SOCKPATH);
+    bool connected = SkalThreadInit("unix://" SOCKPATH);
     SKALASSERT(connected);
     return RTTrue;
 }

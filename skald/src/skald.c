@@ -302,8 +302,10 @@ void SkaldRun(const SkaldParams* params)
     SKALASSERT(NULL == gAlarms);
 
     SKALASSERT(params != NULL);
-    SKALASSERT(params->localAddrPath != NULL);
-    SKALASSERT(params->localAddrPath[0] != '\0');
+    const char* localUrl = params->localUrl;
+    if (NULL == localUrl) {
+        localUrl = SKAL_DEFAULT_SKALD_URL;
+    }
 
     if (NULL == params->domain) {
         SkalSetDomain("local");
@@ -333,9 +335,7 @@ void SkaldRun(const SkaldParams* params)
     skaldSocketCtx* ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_PIPE_SERVER;
     snprintf(ctx->name, sizeof(ctx->name), "pipe-server");
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_PIPE;
-    int sockid = SkalNetServerCreate(gNet, &addr, 0, ctx, 0);
+    int sockid = SkalNetServerCreate(gNet, "pipe://", 0, ctx, 0);
     SKALASSERT(sockid >= 0);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
@@ -353,10 +353,7 @@ void SkaldRun(const SkaldParams* params)
     ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_SERVER;
     snprintf(ctx->name, sizeof(ctx->name), "local-server");
-    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
-    snprintf(addr.unix.path, sizeof(addr.unix.path),
-            "%s", params->localAddrPath);
-    sockid = SkalNetServerCreate(gNet, &addr, 0, ctx, 0);
+    sockid = SkalNetServerCreate(gNet, localUrl, 0, ctx, 0);
     SKALASSERT(sockid >= 0);
 
     // Start skald thread

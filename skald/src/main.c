@@ -22,9 +22,6 @@
 #include <errno.h>
 
 
-#define SKALD_SOCKNAME "skald.sock"
-
-
 static enum {
     STARTING,
     RUNNING,
@@ -60,10 +57,10 @@ static void handleSignal(int signum)
 static void usage(void)
 {
     printf( "%s",
-            "skald [-h] [-d DOMAIN] [-s SOCKPATH]\n"
+            "skald [-h] [-d DOMAIN] [-b LOCALURL]\n"
             "  -h            Print this message and exit\n"
             "  -d DOMAIN     Set the skald domain\n"
-            "  -s SOCKPATH   Set the path of the UNIX socket file\n"
+            "  -b LOCALURL   Local URL to listen to\n"
             "  -f PIDFILE    Fork and write skald PID in PIDFILE\n"
           );
     exit(0);
@@ -73,7 +70,7 @@ static void usage(void)
 static void parseArgs(int argc, char** argv, SkaldParams* params)
 {
     int opt;
-    while ((opt = getopt(argc, argv, "hd:s:f:")) != -1) {
+    while ((opt = getopt(argc, argv, "hd:b:f:")) != -1) {
         switch (opt) {
         case 'h' :
             usage();
@@ -81,8 +78,8 @@ static void parseArgs(int argc, char** argv, SkaldParams* params)
         case 'd' :
             params->domain = optarg;
             break;
-        case 's' :
-            params->localAddrPath = optarg;
+        case 'b' :
+            params->localUrl = optarg;
             break;
         case 'f' :
             fprintf(stderr, "TODO: Fork not implemented yet\n");
@@ -119,7 +116,6 @@ int main(int argc, char** argv)
     SkaldParams params;
     memset(&params, 0, sizeof(params));
     parseArgs(argc, argv, &params);
-    unlink(params.localAddrPath);
 
     SkaldRun(&params);
 

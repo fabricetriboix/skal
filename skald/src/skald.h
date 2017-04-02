@@ -97,7 +97,7 @@ typedef struct {
      * This is where processes on this computer will connect to. This is
      * typically a UNIX socket. Must not be NULL.
      */
-    const char* localAddrPath;
+    const char* localUrl;
 } SkaldParams;
 
 

@@ -327,7 +327,12 @@ static SkalNet* gNet = NULL;
 static int gSockid = -1;
 
 
-/** Id of read-side of skal-master pipe */
+/** Id of read-side of skal-master pipe
+ *
+ * This is used to wake up skal-master when a message is pushed into its queue.
+ * This is necessary because the only point of synchronisation for the
+ * skal-master thread is its `SkalNet` set of sockets.
+ */
 static int gPipeServerId = -1;
 
 
@@ -341,7 +346,7 @@ static int gPipeClientId = -1;
  +---------------------------------*/
 
 
-bool SkalThreadInit(const char* skaldPath)
+bool SkalThreadInit(const char* skaldUrl)
 {
     SKALASSERT(NULL == gMutex);
     SKALASSERT(NULL == gThreads);
@@ -353,16 +358,12 @@ bool SkalThreadInit(const char* skaldPath)
 
     SkalPlfGetPThreadName(gProcessName, sizeof(gProcessName));
 
-    // Create UNIX socket and connect to skald
-    if (NULL == skaldPath) {
-        skaldPath = SKAL_DEFAULT_SKALD_PATH;
+    // Connect to skald
+    if (NULL == skaldUrl) {
+        skaldUrl = SKAL_DEFAULT_SKALD_URL;
     }
     gNet = SkalNetCreate(NULL);
-    SkalNetAddr addr;
-    SKALASSERT(strlen(skaldPath) < sizeof(addr.unix.path));
-    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
-    strcpy(addr.unix.path, skaldPath);
-    gSockid = SkalNetCommCreate(gNet, NULL, &addr, 0, NULL, 0);
+    gSockid = SkalNetCommCreate(gNet, NULL, skaldUrl, 0, NULL, 0);
     if (gSockid < 0) {
         SkalNetDestroy(gNet);
         gNet = NULL;
@@ -394,9 +395,8 @@ bool SkalThreadInit(const char* skaldPath)
                             NULL,              // keyUnref
                             (void(*)(CdsMapItem*))skalThreadUnref); // itemUnref
 
-    // Create pipe
-    addr.type = SKAL_NET_TYPE_PIPE;
-    gPipeServerId = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
+    // Create pipe to wake up skal-master when a message is pushed into its q
+    gPipeServerId = SkalNetServerCreate(gNet, "pipe://", 0, NULL, 0);
     SKALASSERT(gPipeServerId >= 0);
     event = SkalNetPoll_BLOCKING(gNet);
     SKALASSERT(event != NULL);
@@ -404,7 +404,7 @@ bool SkalThreadInit(const char* skaldPath)
     gPipeClientId = event->conn.commSockid;
     SkalNetEventUnref(event);
 
-    // Create master thread
+    // Create skal-master thread
     gMasterRunningMutex = SkalPlfMutexCreate();
     gMasterRunningCondVar = SkalPlfCondVarCreate();
     gMaster = SkalMallocZ(sizeof(*gMaster));
@@ -459,15 +459,11 @@ void SkalThreadExit(void)
     SkalPlfMutexDestroy(gMutex);
     gMutex = NULL;
 
-    if (gMasterRunningMutex != NULL) {
-        SkalPlfMutexDestroy(gMasterRunningMutex);
-        gMasterRunningMutex = NULL;
-    }
+    SkalPlfMutexDestroy(gMasterRunningMutex);
+    gMasterRunningMutex = NULL;
 
-    if (gMasterRunningCondVar != NULL) {
-        SkalPlfCondVarDestroy(gMasterRunningCondVar);
-        gMasterRunningCondVar = NULL;
-    }
+    SkalPlfCondVarDestroy(gMasterRunningCondVar);
+    gMasterRunningCondVar = NULL;
 }
 
 
@@ -567,7 +563,7 @@ static bool skalDoSendMsg(SkalMsg* msg, bool fallBackToSkald)
         }
     } else if (fallBackToSkald) {
         // Recipient is not in this process => Send to skald for routing
-        // NB: This may block the current thread for a very short while if skald
+        // NB: This may block the current thread for a very short time if skald
         // is overloaded.
         char* json = SkalMsgToJson(msg);
         SkalNetSendResult result = SkalNetSend_BLOCKING(gNet, gSockid,
@@ -834,7 +830,7 @@ static void skalMasterThreadRun(void* arg)
     SKALASSERT(event->in.data != NULL);
     SKALASSERT(event->in.size_B > 0);
     char* json = (char*)(event->in.data);
-    json[event->in.size_B - 1] = '\0';
+    json[event->in.size_B - 1] = '\0'; // ensure null-termination
     msg = SkalMsgCreateFromJson(json);
     if (NULL == msg) {
         SKALPANIC_MSG("Invalid message received from skald; wrong message format version?");
