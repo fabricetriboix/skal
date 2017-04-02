@@ -65,7 +65,7 @@
  *    is performed to resolve the host name
  */
 
-#include "skalcommon.h"
+#include "skal-common.h"
 #include "cdslist.h"
 
 

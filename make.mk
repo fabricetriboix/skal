@@ -38,7 +38,7 @@ INCS = $(foreach i,$(MODULES),-I$(i)/include) \
 HDRS = $(foreach i,$(MODULES),$(wildcard $(i)/include/*.h))
 
 # List of object files for various targets
-LIBSKAL_OBJS = skalplf.o skalcommon.o skal-net.o skal-blob.o skal-alarm.o \
+LIBSKAL_OBJS = skal-plf.o skal-common.o skal-net.o skal-blob.o skal-alarm.o \
 		skal-msg.o skal-queue.o skal-thread.o skal.o
 SKALD_OBJS = skald.o main.o
 RTTEST_MAIN_OBJ = rttestmain.o

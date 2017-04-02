@@ -29,7 +29,7 @@
  * mentioned in comments. Please note strict checks are perfomed on all strings.
  */
 
-#include "skalcommon.h"
+#include "skal-common.h"
 
 
 

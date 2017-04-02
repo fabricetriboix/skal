@@ -24,7 +24,7 @@
  * @{
  */
 
-#include "skalplf.h"
+#include "skal-plf.h"
 #include <stdarg.h>
 
 

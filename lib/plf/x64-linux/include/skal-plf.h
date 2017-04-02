@@ -24,7 +24,7 @@
  * @{
  */
 
-#include "skalcfg.h"
+#include "skal-cfg.h"
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>

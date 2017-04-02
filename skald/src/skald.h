@@ -74,7 +74,7 @@
  * TODO: Implement `skal-query-alarms`
  */
 
-#include "skalcommon.h"
+#include "skal-common.h"
 #include "skal-net.h"
 
 

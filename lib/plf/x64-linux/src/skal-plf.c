@@ -19,7 +19,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include "skalplf.h"
+#include "skal-plf.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>

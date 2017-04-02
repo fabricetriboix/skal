@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "skalplf.h"
+#include "skal-plf.h"
 #include "rttest.h"
 #include <string.h>
 #include <unistd.h>
