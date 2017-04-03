@@ -30,6 +30,13 @@
  +----------------*/
 
 
+/** Reason why a message is being dropped */
+typedef enum {
+    SKALD_DROP_TTL,         ///< Message TTL has reached 0
+    SKALD_DROP_NO_RECIPIENT ///< Message recipient does not exist
+} skaldDropReason;
+
+
 /** Item of the alarm map
  *
  * We don't keep track of the reference count because this item is only
@@ -190,9 +197,10 @@ static void skaldThreadUnref(CdsMapItem* item);
  * This function will inform the sender if it requested so. It will also raise
  * an alarm. This function takes ownership of `msg`.
  *
- * @param msg [in,out] Message to drop; must not be NULL
+ * @param msg    [in,out] Message to drop; must not be NULL
+ * @param reason [in]     Why is this message dropped
  */
-static void skaldDropMsg(SkalMsg* msg);
+static void skaldDropMsg(SkalMsg* msg, skaldDropReason reason);
 
 
 /** Route a message
@@ -619,7 +627,7 @@ static void skaldHandleMsgFromProcess(int sockid,
         if (    (strcmp(domain, SkalDomain()) == 0)
              && (CdsMapSearch(gThreads, (void*)recipient) == NULL)) {
             // Unblock `sender` and don't forward the original msg
-            SkalMsg* resp = SkalMsgCreate("skal-xon", sender, 0, NULL);
+            SkalMsg* resp = SkalMsgCreate("skal-xon", sender);
             SkalMsgSetSender(resp, recipient);
             SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
             skaldRouteMsg(resp);
@@ -659,8 +667,7 @@ static void skaldProcessMsgFromProcess(int sockid,
             snprintf(ctx->name, sizeof(ctx->name), "%s", name);
 
             // Respond with the domain name
-            SkalMsg* resp = SkalMsgCreate("skal-init-domain",
-                    "skal-master", 0, NULL);
+            SkalMsg* resp = SkalMsgCreate("skal-init-domain", "skal-master");
             SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
             SkalMsgAddString(resp, "domain", SkalDomain());
             skaldMsgSendTo(resp, sockid);
@@ -733,7 +740,7 @@ static void skaldProcessMsgFromProcess(int sockid,
         }
 
     } else if (strcmp(msgName, "skal-ping") == 0) {
-        SkalMsg* resp = SkalMsgCreate("skal-pong", sender, 0, NULL);
+        SkalMsg* resp = SkalMsgCreate("skal-pong", sender);
         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
         skaldRouteMsg(resp);
 
@@ -749,30 +756,51 @@ static void skaldProcessMsgFromProcess(int sockid,
 }
 
 
-static void skaldDropMsg(SkalMsg* msg)
+static void skaldDropMsg(SkalMsg* msg, skaldDropReason reason)
 {
     SKALASSERT(msg != NULL);
 
-    SkalAlarm* alarm = SkalAlarmCreate("skal-drop-no-recipient",
-            SKAL_ALARM_WARNING, true, false,
-            "Can't route message '%s' because I know nothing about its recipient '%s'; message dropped",
-            SkalMsgName(msg), SkalMsgRecipient(msg));
+    SkalAlarm* alarm = NULL;
+    const char* reasonStr = NULL;
+    char* extraStr = NULL;
+    switch (reason) {
+    case SKALD_DROP_TTL :
+        alarm = SkalAlarmCreate("skal-drop-ttl",
+                SKAL_ALARM_WARNING, true, false,
+                "Message '%s' TTL has reached 0; message dropped",
+                SkalMsgName(msg));
+        reasonStr = "ttl-expired";
+        break;
+    case SKALD_DROP_NO_RECIPIENT :
+        alarm = SkalAlarmCreate("skal-drop",
+                SKAL_ALARM_WARNING, true, false,
+                "Can't route message '%s' because I know nothing about its recipient '%s'; message dropped",
+                SkalMsgName(msg), SkalMsgRecipient(msg));
+        reasonStr = "no-recipient";
+        extraStr = SkalSPrintf("Thread '%s' does not exist",
+                SkalMsgRecipient(msg));
+        break;
+    default :
+        SKALPANIC_MSG("Unknown drop reason: %d", (int)reason);
+    }
     skaldAlarmProcess(alarm);
 
     if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_NTF_DROP) {
         char* XXX = SkalMsgToJson(msg);
         fprintf(stderr, "XXX %s: drop msg & notify sender >>>%s<<<\n", __func__, XXX);
         free(XXX);
-        SkalMsg* resp = SkalMsgCreate("skal-error-drop",
-                SkalMsgSender(msg), 0, NULL);
+        SkalMsg* resp = SkalMsgCreate("skal-error-drop", SkalMsgSender(msg));
         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
-        SkalMsgAddString(resp, "original-marker", SkalMsgMarker(msg));
-        SkalMsgAddString(resp, "reason", "no-recipient");
-        SkalMsgAddFormattedString(resp, "extra",
-                "Thread '%s' does not exist", SkalMsgRecipient(msg));
+        if (reasonStr != NULL) {
+            SkalMsgAddString(resp, "reason", reasonStr);
+        }
+        if (extraStr != NULL) {
+            SkalMsgAddString(resp, "extra", extraStr);
+        }
         skaldRouteMsg(resp);
     }
 
+    free(extraStr);
     SkalMsgUnref(msg);
 }
 
@@ -785,7 +813,11 @@ static void skaldRouteMsg(SkalMsg* msg)
     fprintf(stderr, "XXX %s: domain=%s >>>%s<<<\n", __func__, domain, XXX);
     free(XXX);
 
-    if (NULL == domain) {
+    SkalMsgDecrementTtl(msg);
+    if (SkalMsgTtl(msg) <= 0) {
+        skaldDropMsg(msg, SKALD_DROP_TTL);
+
+    } else if (NULL == domain) {
         SkalAlarm* alarm = SkalAlarmCreate("skal-protocol-recipient-has-no-domain",
                 SKAL_ALARM_WARNING, true, false,
                 "Can't route message '%s': recipient has no domain: '%s'",
@@ -807,7 +839,7 @@ static void skaldRouteMsg(SkalMsg* msg)
             skaldAlarmProcess(alarm);
         } else {
             fprintf(stderr, "XXX %s: calling skaldDropMsg()\n", __func__);
-            skaldDropMsg(msg);
+            skaldDropMsg(msg, SKALD_DROP_NO_RECIPIENT);
         }
 
     } else {

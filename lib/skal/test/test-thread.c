@@ -71,7 +71,7 @@ static void pseudoSkald(void* arg)
                 SKALASSERT(msg != NULL);
                 if (strcmp(SkalMsgName(msg), "skal-init-master-born") == 0) {
                     SkalMsg* resp = SkalMsgCreate("skal-init-domain",
-                            "skal-master", 0, NULL);
+                            "skal-master");
                     SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
                     SkalMsgAddString(resp, "domain", "local");
                     char* respjson = SkalMsgToJson(resp);
@@ -185,7 +185,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_simple_should_send_ping_msg)
 {
-    SkalMsg* msg = SkalMsgCreate("ping", "simple", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("ping", "simple");
     RTT_ASSERT(msg != NULL);
     SkalMsgSend(msg);
 }
@@ -231,14 +231,14 @@ static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
 static bool testStufferProcessMsg(void* cookie, SkalMsg* msg)
 {
     if (strcmp(SkalMsgName(msg), "kick") == 0) {
-        SkalMsg* msg2 = SkalMsgCreate("ping", "receiver", 0, NULL);
+        SkalMsg* msg2 = SkalMsgCreate("ping", "receiver");
         SkalMsgAddInt(msg2, "count", gMsgSend);
         SkalMsgSend(msg2);
         gMsgSend++;
 
         if (gMsgSend < 1000) {
             // Send a message to myself to keep going
-            SkalMsg* msg3 = SkalMsgCreate("kick", "stuffer", 0, NULL);
+            SkalMsg* msg3 = SkalMsgCreate("kick", "stuffer");
             SkalMsgSend(msg3);
         }
     }
@@ -265,7 +265,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_stress_kick_off)
 {
-    SkalMsg* msg = SkalMsgCreate("kick", "stuffer", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("kick", "stuffer");
     SkalMsgSend(msg);
 }
 RTT_TEST_END

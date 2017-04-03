@@ -664,21 +664,38 @@ int64_t SkalBlobSize_B(const SkalBlob* blob);
 
 /** Create an empty message
  *
- * @param name      [in] Message's name. This argument may not be NULL and may
+ * The time-to-live (TTL) counter works in the same way as for IP TTL. It will
+ * be decremented each time the message goes through a skald daemon. The message
+ * will be dropped if its TTL reaches zero.
+ *
+ * @param name      [in] Message name. This argument may not be NULL and may
  *                       not be an empty string. Please note that message names
  *                       starting with "skal-" are reserved for SKAL's own use,
  *                       so please avoid prefixing your message names with
  *                       "skal-".
  * @param recipient [in] Whom to send this message to
  * @param flags     [in] Message flags; please refer to `SKAL_MSG_FLAG_*`
- * @param marker    [in] A marker that helps uniquely identify this message.
- *                       This argument may be NULL, in which case a marker will
- *                       be automatically generated.
+ * @param ttl       [in] Time-to-live counter; <=0 for default value
  *
  * @return The newly created SKAL message; this function never returns NULL
  */
-SkalMsg* SkalMsgCreate(const char* name, const char* recipient,
-        uint8_t flags, const char* marker);
+SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
+        uint8_t flags, int8_t ttl);
+
+
+/** Create a simple message
+ *
+ * This is a simplified version of `SkalMsgCreateEx()`, which takes out
+ * often-unused arguments. The created message will have no flags set and a TTL
+ * set to the default value.
+ *
+ * @param name      [in] Message name; same as `SkalMsgCreateEx()`
+ * @param recipient [in] Message recipient; same as `SkalMsgCreateEx()`
+ *
+ *
+ * @return Created SKAL message; this function never returns NULL
+ */
+SkalMsg* SkalMsgCreate(const char* name, const char* recipient);
 
 
 /** Add a reference to a message
@@ -743,13 +760,20 @@ const char* SkalMsgRecipient(const SkalMsg* msg);
 uint8_t SkalMsgFlags(const SkalMsg* msg);
 
 
-/** Get the message marker
+/** Get the message TTL
  *
  * @param msg [in] Message to query; must not be NULL
  *
- * @return The message marker, never NULL
+ * @return The message TTL
  */
-const char* SkalMsgMarker(const SkalMsg* msg);
+int8_t SkalMsgTtl(const SkalMsg* msg);
+
+
+/** Decrement the message TTL
+ *
+ * @param msg [in,out] Message whose TTL to decrement by 1
+ */
+void SkalMsgDecrementTtl(SkalMsg* msg);
 
 
 /** Add an extra integer to the message

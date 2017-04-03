@@ -55,12 +55,13 @@ static void handleSignal(int signum)
 }
 
 
-const char* gOptString = "hnw:u:S:f:F:m:i:d:s:b:";
+const char* gOptString = "hnw:u:S:f:F:t:i:d:s:b:";
 
 static void usage(int ret)
 {
     printf( "Usage: skal-post [OPTIONS] NAME RECIPIENT\n"
             "Send a SKAL message to the given recipient.\n"
+            "Only NAME and RECIPIENT are mandatory.\n"
             "     NAME        Message name\n"
             "     RECIPIENT   Recipient of this message\n"
             "  -h             Print this usage information and exit\n"
@@ -70,7 +71,7 @@ static void usage(int ret)
             "  -S SENDER      Set message SENDER\n"
             "  -f FLAGS       Set message FLAGS (8-bit unsigned integer)\n"
             "  -F IFLAGS      Set message internal IFLAGS (8-bit unsigned integer)\n"
-            "  -m MARKER      Set message MARKER\n"
+            "  -t TTL         Set message TTL (must be >0 and <=127)\n"
             "  -i NAME=VALUE  Add 64-bit signed integer (NAME, VALUE)\n"
             "  -d NAME=VALUE  Add double (NAME, VALUE)\n"
             "  -s NAME=VALUE  Add string (NAME, VALUE)\n"
@@ -82,11 +83,7 @@ static void usage(int ret)
 
 static char* split(char** pValue)
 {
-    char* str = strdup(optarg);
-    if (NULL == str) {
-        fprintf(stderr, "strdup(%s) failed\n", optarg);
-        exit(1);
-    }
+    char* str = SkalStrdup(optarg);
     char* ptr = strchr(str, '=');
     if (NULL == ptr) {
         fprintf(stderr, "Invalid argument '%s'\n", optarg);
@@ -137,7 +134,7 @@ static bool doPost(Args* args)
 {
     // 2nd pass: parse arguments necessary to create the bare message
     uint8_t flags = 0;
-    char* marker = NULL;
+    int8_t ttl = 0;
     bool dryrun = false;
     optind = 1; // reset getopt
     int opt = 0;
@@ -175,11 +172,18 @@ static bool doPost(Args* args)
                 flags = tmp & 0xff;
             }
             break;
-        case 'm' :
-            marker = strdup(optarg);
-            if (NULL == marker) {
-                fprintf(stderr, "Failed to strdup(%s)\n", optarg);
-                exit(1);
+        case 't' :
+            {
+                int tmp;
+                if (sscanf(optarg, "%d", &tmp) != 1) {
+                    fprintf(stderr, "Invalid TTL: '%s'\n", optarg);
+                    exit(2);
+                }
+                if ((tmp <= 0) || (tmp > 127)) {
+                    fprintf(stderr, "Invalid TTL: %d\n", tmp);
+                    exit(2);
+                }
+                ttl = (int8_t)tmp;
             }
             break;
         default :
@@ -194,9 +198,8 @@ static bool doPost(Args* args)
     }
 
     // Create bare message
-    SkalMsg* msg = SkalMsgCreate(args->argv[optind], args->argv[optind+1],
-            flags, marker);
-    free(marker);
+    SkalMsg* msg = SkalMsgCreateEx(args->argv[optind], args->argv[optind+1],
+            flags, ttl);
 
     // 3rd pass: parse arguments to add stuff to the message
     optind = 1; // reset getopt(3)
@@ -357,24 +360,11 @@ int main(int argc, char** argv)
             usage(0);
             break;
         case 'u' :
+            SKALASSERT(optarg != NULL);
             if (strstr(optarg, "://") == NULL) {
-                int len = strlen(optarg) + 8; // to prepend "unix://"
-                url = malloc(len);
-                if (NULL == url) {
-                    fprintf(stderr, "Failed to allocate %d bytes\n", len);
-                    exit(1);
-                }
-                int n = snprintf(url, len, "unix://%s", optarg);
-                if (n >= len) {
-                    fprintf(stderr, "Impossible!\n");
-                    exit(1);
-                }
+                url = SkalSPrintf("unix://%s", optarg);
             } else {
-                url = strdup(optarg);
-                if (NULL == url) {
-                    fprintf(stderr, "Failed to strdup(%s)\n", optarg);
-                    exit(1);
-                }
+                url = SkalStrdup(optarg);
             }
             break;
         default :
@@ -420,7 +410,7 @@ int main(int argc, char** argv)
     SkalThreadCreate(&cfg);
 
     // Kick off the thread and wait for it to finish
-    SkalMsg* msg = SkalMsgCreate("skal-post-kick", "skal-post", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("skal-post-kick", "skal-post");
     SkalMsgSend(msg);
     SkalPause();
 

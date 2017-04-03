@@ -54,12 +54,12 @@
 #define SKAL_ALLOCATORS_MAX 500
 
 
-/** Maximum number of fields per message */
-#define SKAL_FIELDS_MAX 1000
-
-
 /** Maximum number of threads per process */
 #define SKAL_THREADS_MAX 10000
+
+
+/** Maximum number of fields per message */
+#define SKAL_FIELDS_MAX 1000
 
 
 /** Maximum number of messages that can be queued in a message list */
@@ -68,6 +68,10 @@
 
 /** Maximum number of xoff states that can be received by a single thread */
 #define SKAL_XOFF_MAX 1000
+
+
+/** Default TTL */
+#define SKAL_DEFAULT_TTL 4
 
 
 /** Default XOFF timeout (how long to wait before retrying to send) */

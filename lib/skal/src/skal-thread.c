@@ -432,8 +432,7 @@ void SkalThreadExit(void)
 
     gTerminating = true;
     SKALASSERT(gMaster != NULL);
-    SkalMsg* msg = SkalMsgCreate("skal-master-terminate",
-            "skal-master", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("skal-master-terminate", "skal-master");
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gMaster->queue, msg);
 
@@ -555,7 +554,7 @@ static bool skalDoSendMsg(SkalMsg* msg, bool fallBackToSkald)
                 // case, it will not be throttled by SKAL.
                 SKALASSERT(priv->thread != NULL);
                 SkalMsg* msg2 = SkalMsgCreate("skal-xoff",
-                        priv->thread->cfg.name, 0, NULL);
+                        priv->thread->cfg.name);
                 SkalMsgSetIFlags(msg2, SKAL_MSG_IFLAG_INTERNAL);
                 SkalMsgSetSender(msg2, SkalMsgRecipient(msg));
                 SkalQueuePush(priv->thread->queue, msg2);
@@ -653,7 +652,7 @@ static void skalThreadRun(void* arg)
     SkalPlfThreadSetSpecific(priv);
 
     // Inform skald that this thread is born
-    SkalMsg* msg = SkalMsgCreate("skal-born", "skald", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("skal-born", "skald");
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalMsgSend(msg);
 
@@ -697,11 +696,11 @@ static void skalThreadRun(void* arg)
     skalThreadSendXon(priv);
 
     // Notify skald
-    msg = SkalMsgCreate("skal-died", "skald", 0, NULL);
+    msg = SkalMsgCreate("skal-died", "skald");
     SkalMsgSend(msg);
 
     // Notify skal-master
-    msg = SkalMsgCreate("skal-terminated", "skal-master", 0, NULL);
+    msg = SkalMsgCreate("skal-terminated", "skal-master");
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gMaster->queue, msg);
 
@@ -730,7 +729,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
         }
 
         // Tell originating thread to notify me when I can send again
-        SkalMsg* msg2 = SkalMsgCreate("skal-ntf-xon", sender, 0, NULL);
+        SkalMsg* msg2 = SkalMsgCreate("skal-ntf-xon", sender);
         SkalMsgSetIFlags(msg2, SKAL_MSG_IFLAG_INTERNAL);
         SkalMsgSend(msg2);
 
@@ -776,7 +775,7 @@ static void skalThreadSendXon(skalThreadPrivate* priv)
             item != NULL;
             item = CdsMapIteratorNext(priv->ntfXon, NULL)) {
         skalNtfXonItem* ntfXonItem = (skalNtfXonItem*)item;
-        SkalMsg* msg = SkalMsgCreate("skal-xon", ntfXonItem->peer, 0, NULL);
+        SkalMsg* msg = SkalMsgCreate("skal-xon", ntfXonItem->peer);
         SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
         SkalMsgSend(msg);
     }
@@ -799,8 +798,7 @@ static void skalThreadRetryNtfXon(skalThreadPrivate* priv, int64_t now_us)
         if (elapsed_us > priv->thread->cfg.xoffTimeout_us) {
             // We waited quite long for a `skal-xon` message...
             //  => Poke the blocking thread
-            SkalMsg* msg = SkalMsgCreate("skal-ntf-xon",
-                    xoffItem->peer, 0, NULL);
+            SkalMsg* msg = SkalMsgCreate("skal-ntf-xon", xoffItem->peer);
             SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
             SkalMsgSend(msg);
             xoffItem->lastNtfXonTime_us = now_us;
@@ -818,7 +816,7 @@ static void skalMasterThreadRun(void* arg)
     SkalPlfThreadSetSpecific(priv);
 
     // Tell skald the master thread for this process is starting
-    SkalMsg* msg = SkalMsgCreate("skal-init-master-born", "skald", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("skal-init-master-born", "skald");
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalMsgAddString(msg, "name", gProcessName);
     SkalMsgSend(msg);
@@ -844,7 +842,7 @@ static void skalMasterThreadRun(void* arg)
     SkalPlfMutexLock(gMasterRunningMutex);
     gMasterRunning = true;
     SkalPlfMutexUnlock(gMasterRunningMutex);
-    msg = SkalMsgCreate("skal-master-init-done", "skal-main", 0, NULL);
+    msg = SkalMsgCreate("skal-master-init-done", "skal-main");
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gGlobalQueue, msg);
 
@@ -912,7 +910,7 @@ static void skalMasterThreadRun(void* arg)
     gMasterRunning = false;
     SkalPlfMutexUnlock(gMasterRunningMutex);
     SkalPlfCondVarSignal(gMasterRunningCondVar);
-    msg = SkalMsgCreate("skal-master-terminated", "skal-main", 0, NULL);
+    msg = SkalMsgCreate("skal-master-terminated", "skal-main");
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gGlobalQueue, msg);
     free(priv);
@@ -928,7 +926,7 @@ static void skalMasterRouteMsg(SkalMsg* msg)
         if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_NTF_DROP) {
             // The sender wants to be notified of dropped message
             SkalMsg* resp = SkalMsgCreate("skal-error-drop",
-                    SkalMsgSender(msg), 0, NULL);
+                    SkalMsgSender(msg));
             SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
             SkalMsgAddString(resp, "reason", "no recipient");
             SkalMsgAddFormattedString(resp, "extra",
@@ -959,7 +957,7 @@ static bool skalMasterProcessMsg(SkalMsg* msg)
                     item = CdsMapIteratorNext(gThreads, NULL) ) {
                 SkalThread* thread = (SkalThread*)item;
                 SkalMsg* msg = SkalMsgCreate("skal-terminate",
-                        thread->cfg.name, 0, NULL);
+                        thread->cfg.name);
                 SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
                 SkalQueuePush(thread->queue, msg);
             } // for each thread in this process

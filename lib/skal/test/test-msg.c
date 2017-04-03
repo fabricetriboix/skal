@@ -48,7 +48,7 @@ RTT_TEST_START(skal_should_create_msg)
     // Fool skal-msg into thinking this thread is managed by SKAL
     SkalPlfThreadSetSpecific((void*)0xcafedeca);
 
-    gMsg = SkalMsgCreate("TestName", "dummy-dst", 0, "TestMarker");
+    gMsg = SkalMsgCreateEx("TestName", "dummy-dst", 0, 19);
     RTT_ASSERT(gMsg != NULL);
 }
 RTT_TEST_END
@@ -77,11 +77,9 @@ RTT_TEST_START(skal_msg_should_have_correct_recipient)
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_msg_should_have_marker)
+RTT_TEST_START(skal_msg_should_have_correct_ttl)
 {
-    const char* marker = SkalMsgMarker(gMsg);
-    RTT_ASSERT(marker != NULL);
-    RTT_EXPECT(strcmp(marker, "TestMarker") == 0);
+    RTT_EXPECT(SkalMsgTtl(gMsg) == 19);
 }
 RTT_TEST_END
 
@@ -174,7 +172,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         " \"name\": \"TestName\",\n"
         " \"sender\": \"TestThread@mydomain\",\n"
         " \"recipient\": \"dummy-dst@mydomain\",\n"
-        " \"marker\": \"TestMarker\",\n"
+        " \"ttl\": 19,\n"
         " \"flags\": 0,\n"
         " \"iflags\": 0,\n"
         " \"fields\": [\n"
@@ -295,9 +293,9 @@ RTT_TEST_START(skal_msg_should_create_from_json)
     const char* json =
         "{\n"
         " \"name\": \"SomeName\",\n"
-        " \"sender\": \"SomeThread@domainA\",\n"
+        " \"sender\": \"Some\\\\Thread@domainA\",\n"
         " \"reci\\pient\": \"you@wonderland\",\n"
-        " \"marker\": \"Some\\\"Marker\",\n"
+        " \"ttl\": 27,\n"
         " \"flags\": 3,\n"
         " \"iflags\": 128,\n"
         " \"version\": 1,\n"
@@ -352,7 +350,7 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 
     s = SkalMsgSender(msg);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "SomeThread@domainA") == 0);
+    RTT_EXPECT(strcmp(s, "Some\\Thread@domainA") == 0);
 
     s = SkalMsgRecipient(msg);
     RTT_EXPECT(s != NULL);
@@ -364,9 +362,7 @@ RTT_TEST_START(skal_msg_should_create_from_json)
     i = SkalMsgIFlags(msg);
     RTT_EXPECT(SKAL_MSG_IFLAG_INTERNAL == i);
 
-    s = SkalMsgMarker(msg);
-    RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "Some\"Marker") == 0);
+    RTT_EXPECT(SkalMsgTtl(msg) == 27);
 
     RTT_EXPECT(SkalMsgHasField(msg, "SomeDouble"));
     double d = SkalMsgGetDouble(msg, "SomeDouble");
@@ -434,7 +430,7 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_should_have_correct_name,
         skal_msg_should_have_correct_sender,
         skal_msg_should_have_correct_recipient,
-        skal_msg_should_have_marker,
+        skal_msg_should_have_correct_ttl,
         skal_msg_add_int,
         skal_msg_add_double,
         skal_msg_add_string,

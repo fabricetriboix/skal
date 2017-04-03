@@ -64,7 +64,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
     bool ok = true;
     int64_t* count = (int64_t*)cookie;
     if (strcmp(SkalMsgName(msg), "kick") == 0) {
-        SkalMsg* pkt = SkalMsgCreate("test-pkt", gRecipient, 0, NULL);
+        SkalMsg* pkt = SkalMsgCreate("test-pkt", gRecipient);
         SkalMsgAddInt(pkt, "number", *count);
         (*count)++;
         if (*count >= gCount) {
@@ -73,7 +73,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
             ok = false;
         } else {
             // Send a message to ourselves to keep going
-            SkalMsg* kick = SkalMsgCreate("kick", "writer", 0, NULL);
+            SkalMsg* kick = SkalMsgCreate("kick", "writer");
             SkalMsgSend(kick);
         }
         SkalMsgSend(pkt);
@@ -138,7 +138,7 @@ int main(int argc, char** argv)
     SkalThreadCreate(&cfg);
 
     // Kickstart
-    SkalMsg* msg = SkalMsgCreate("kick", "writer", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("kick", "writer");
     SkalMsgSend(msg);
 
     SkalPause();

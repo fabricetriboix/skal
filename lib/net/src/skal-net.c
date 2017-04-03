@@ -1021,8 +1021,7 @@ static int skalNetUrlToPosix(const char* url,
         SkalLog("Invalid URL '%s': can't find ':' character", url);
         return -1;
     }
-    char* host = strdup(ptr);
-    SKALASSERT(host != NULL);
+    char* host = SkalStrdup(ptr);
     char* port = strchr(host, ':');
     SKALASSERT(port != NULL);
     *port = '\0';

@@ -72,10 +72,10 @@ struct SkalMsg {
     int         version;
     uint8_t     flags;
     uint8_t     iflags;
+    int8_t      ttl;
     char        name[SKAL_NAME_MAX];
     char        sender[SKAL_NAME_MAX];
     char        recipient[SKAL_NAME_MAX];
-    char        marker[SKAL_NAME_MAX];
     CdsMap*     fields; // Map of `skalMsgField`, indexed by field name
     CdsList*    alarms; // List of `SkalAlarm`
 };
@@ -173,10 +173,6 @@ static const char* skalMsgParseJsonString(const char* json,
  +------------------*/
 
 
-/** Message counter; use to make unique message markers */
-static uint64_t gMsgCounter = 0;
-
-
 /** Domain name */
 static char gDomain[SKAL_DOMAIN_NAME_MAX] = "^INVAL^";
 
@@ -191,16 +187,15 @@ static int64_t gMsgRefCount_DEBUG = 0;
  +---------------------------------*/
 
 
-SkalMsg* SkalMsgCreate(const char* name, const char* recipient,
-        uint8_t flags, const char* marker)
+SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
+        uint8_t flags, int8_t ttl)
 {
     SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
     SKALASSERT(SkalIsAsciiString(recipient, SKAL_NAME_MAX));
-    if (marker != NULL) {
-        SKALASSERT(SkalIsAsciiString(marker, SKAL_NAME_MAX));
+    if (ttl <= 0) {
+        ttl = SKAL_DEFAULT_TTL;
     }
 
-    unsigned long long n = ++gMsgCounter;
     SkalMsg* msg = SkalMallocZ(sizeof(*msg));
     msg->ref = 1;
     msg->version = SKAL_MSG_VERSION;
@@ -216,17 +211,19 @@ SkalMsg* SkalMsgCreate(const char* name, const char* recipient,
         skalSetThreadName(msg->sender, sizeof(msg->sender), "skal-external");
     }
     skalSetThreadName(msg->recipient, sizeof(msg->recipient), recipient);
-    if (marker != NULL) {
-        strncpy(msg->marker, marker, sizeof(msg->marker) - 1);
-    } else {
-        snprintf(msg->marker, sizeof(msg->marker), "%llu", n);
-    }
+    msg->ttl = ttl;
     msg->fields = CdsMapCreate(NULL, SKAL_FIELDS_MAX,
             SkalStringCompare, msg, NULL, skalFieldMapUnref);
     msg->alarms = CdsListCreate(NULL, SKAL_FIELDS_MAX,
             (void(*)(CdsListItem*))SkalAlarmUnref);
 
     return msg;
+}
+
+
+SkalMsg* SkalMsgCreate(const char* name, const char* recipient)
+{
+    return SkalMsgCreateEx(name, recipient, 0, 0);
 }
 
 
@@ -307,10 +304,19 @@ uint8_t SkalMsgFlags(const SkalMsg* msg)
 }
 
 
-const char* SkalMsgMarker(const SkalMsg* msg)
+int8_t SkalMsgTtl(const SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
-    return msg->marker;
+    return msg->ttl;
+}
+
+
+void SkalMsgDecrementTtl(SkalMsg* msg)
+{
+    SKALASSERT(msg != NULL);
+    if (msg->ttl > 0) {
+        msg->ttl--;
+    }
 }
 
 
@@ -508,7 +514,7 @@ char* SkalMsgToJson(const SkalMsg* msg)
             " \"name\": \"%s\",\n"
             " \"sender\": \"%s\",\n"
             " \"recipient\": \"%s\",\n"
-            " \"marker\": \"%s\",\n"
+            " \"ttl\": %d,\n"
             " \"flags\": %u,\n"
             " \"iflags\": %u,\n"
             " \"fields\": [\n",
@@ -516,7 +522,7 @@ char* SkalMsgToJson(const SkalMsg* msg)
             SkalMsgName(msg),
             SkalMsgSender(msg),
             SkalMsgRecipient(msg),
-            SkalMsgMarker(msg),
+            (int)SkalMsgTtl(msg),
             (unsigned int)SkalMsgFlags(msg),
             (unsigned int)SkalMsgIFlags(msg));
 
@@ -790,8 +796,8 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
         SkalLog("SkalMsg: Invalid JSON: 'recipient' is required");
         return false;
     }
-    if ('\0' == msg->marker[0]) {
-        SkalLog("SkalMsg: Invalid JSON: 'marker' is required");
+    if (msg->ttl <= 0) {
+        SkalLog("SkalMsg: Invalid JSON: 'ttl' is required");
         return false;
     }
 
@@ -829,8 +835,21 @@ static const char* skalMsgParseJsonProperty(const char* json,
         json = skalMsgParseJsonString(json,
                 msg->recipient, sizeof(msg->recipient));
 
-    } else if (strcmp(name, "marker") == 0) {
-        json = skalMsgParseJsonString(json, msg->marker, sizeof(msg->marker));
+    } else if (strcmp(name, "ttl") == 0) {
+        int tmp;
+        if (sscanf(json, "%d", &tmp) != 1) {
+            SkalLog("SkalMsg: Invalid JSON: Can't parse integer for 'ttl'");
+            return NULL;
+        }
+        if ((tmp <= 0) || (tmp > 127)) {
+            SkalLog("SkalMsg: Invalid JSON: 'ttl' must be >0 and <=127");
+            return NULL;
+        }
+        msg->ttl = (int8_t)tmp;
+        // Skip TTL
+        while ((*json != '\0') && isdigit(*json)) {
+            json++;
+        }
 
     } else if (strcmp(name, "flags") == 0) {
         unsigned int tmp;
