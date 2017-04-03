@@ -147,6 +147,23 @@ void* _SkalCalloc(int nItems, int itemSize_B, const char* file, int line)
 }
 
 
+char* _SkalStrdup(const char* s, const char* file, int line)
+{
+    if (NULL == s) {
+        return NULL;
+    }
+#ifndef SKAL_WITH_FLLOC
+    char* ptr = FllocStrdup(s, file, line);
+#else
+    (void)file;
+    (void)line;
+    char* ptr = strdup(s);
+#endif
+    SKALASSERT(ptr != NULL);
+    return ptr;
+}
+
+
 char* SkalSPrintf(const char* format, ...)
 {
     SKALASSERT(format != NULL);

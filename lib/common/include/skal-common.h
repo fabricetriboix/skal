@@ -125,6 +125,24 @@ void* _SkalCalloc(int nItems, int itemSize_B, const char* file, int line);
 /** @endcond */
 
 
+/** `strdup()` replacement
+ *
+ * The behaviour of this function is the same as for `strdup(3)`, but it asserts
+ * if it fails.
+ *
+ * @param s [in] String to copy; may be NULL; if not NULL, must be
+ *               null-terminated
+ *
+ * @return A pointer to the newly allocated string, or NULL if `s` is NULL;
+ *         please release with `free()` when you no longer need it
+ */
+#define SkalStrdup(s) _SkalStrdup((s), __FILE__, __LINE__)
+
+/** @cond hidden */
+char* _SkalStrdup(const char* s, const char* file, int line);
+/** @endcond */
+
+
 /** Helper function to sprintf a string
  *
  * @param format [in] A printf-like format string
