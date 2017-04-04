@@ -323,7 +323,7 @@ static const char* skalAlarmParseJsonString(const char* json,
     }
 
     if ('\0' == *json) {
-        SkalLog("SkalAlarm: Invalid JSON alarm object: no '\"' character terminating a string");
+        SkalLog("SkalAlarm: Invalid JSON alarm object: unterminated string");
         return NULL;
     }
     SKALASSERT('"' == *json);
@@ -448,6 +448,7 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
         } else if (strcmp(buffer, "timestamp_us") == 0) {
             long long tmp;
             if (sscanf(json, "%lld", &tmp) != 1) {
+                SkalLog("SkalAlarm: Invalid JSON alarm object: can't parse timestamp");
                 return NULL;
             }
             alarm->timestamp_us = tmp;

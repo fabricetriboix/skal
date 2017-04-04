@@ -776,6 +776,9 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
         json = skalMsgSkipSpaces(json);
 
         json = skalMsgParseJsonProperty(json, name, msg);
+        if (NULL == json) {
+            return false;
+        }
         json = skalMsgSkipSpaces(json);
     } // For each JSON property
 
@@ -889,11 +892,11 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json = skalMsgParseJsonField(json, field);
             if (NULL == json) {
                 skalFieldMapUnref((CdsMapItem*)field);
-            } else {
-                bool inserted = CdsMapInsert(msg->fields,
-                            field->name, &field->item);
-                SKALASSERT(inserted);
+                return NULL;
             }
+            bool inserted = CdsMapInsert(msg->fields,
+                        field->name, &field->item);
+            SKALASSERT(inserted);
             if (*json != '\0') {
                 json = skalMsgSkipSpaces(json);
             }
@@ -1145,6 +1148,7 @@ static const char* skalMsgParseJsonString(const char* json,
 {
     json = skalMsgSkipSpaces(json);
     if (*json != '"') {
+        SkalLog("SkalMsg: Invalid JSON: Expected '\"' character");
         return NULL;
     }
     json++;
@@ -1154,7 +1158,7 @@ static const char* skalMsgParseJsonString(const char* json,
         if ('\\' == *json) {
             json++;
             if ('\0' == *json) {
-                SkalLog("SkalMsg: Invalid JSON: Lone \\");
+                SkalLog("SkalMsg: Invalid JSON: null character after \\");
                 return NULL;
             }
         }
@@ -1162,7 +1166,8 @@ static const char* skalMsgParseJsonString(const char* json,
         count++;
         json++;
         if ((count >= size_B) && (*json != '"')) {
-            SkalLog("SkalMsg: Invalid JSON: String too long");
+            SkalLog("SkalMsg: Invalid JSON: String too long (expected max %d chars)",
+                    size_B);
             return NULL;
         }
     }

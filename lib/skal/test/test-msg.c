@@ -425,6 +425,66 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_should_survive_invalid_json1)
+{
+    const char* json =
+        "{\n"
+        " \"name\": \"SomeName\",\n"
+        " \"sender\": \"Some\\\\Thread@domainA\",\n"
+        " \"reci\\pient\": \"you@wonderland\",\n"
+        " \"ttl\": 27,\n"
+        " \"flags\": 3,\n"
+        " \"iflags\": 128,\n"
+        " \"version\": 1,\n"
+        " \"fields\": [\n"
+        "  {\n"
+        "   \"name\": \"Some\"Double\",\n"
+        "   \"value\": 3.456779999999999972715e+02,\n"
+        "   \"type\": \"double\",\n"
+        "  },\n"
+        "  {\n"
+        "   \"value\": \"ESIzRA==\",\n"
+        "   \"name\": \"SomeMiniblob\",\n"
+        "   \"type\": \"miniblob\",\n"
+        "  },\n"
+        "  {\n"
+        "   \"name\": \"SomeInt\",\n"
+        "   \"type\": \"int\",\n"
+        "   \"value\": -1789\n"
+        "  },\n"
+        "  {\n"
+        "   \"name\": \"SomeString\",\n"
+        "   \"type\": \"string\",\n"
+        "   \"value\": \"This is a test string2\"\n"
+        "  }\n"
+        " ],\n"
+        " \"alarms\": [\n"
+        "  {\n"
+        "   \"timestamp_us\": 1234567890,\n"
+        "   \"severity\": \"notice\",\n"
+        "   \"origin\": \"PanicAttak@wilderness\",\n"
+        "   \"isOn\": true,\n"
+        "   \"name\": \"AlarmNameA\",\n"
+        "   \"autoOff\": false\n"
+        "  },\n"
+        "  {\n"
+        "   \"timestamp_us\": 987654321,\n"
+        "   \"severity\": \"warning\",\n"
+        "   \"isOn\": false,\n"
+        "   \"name\": \"AlarmNameB\",\n"
+        "   \"autoOff\": true,\n"
+        "   \"comment\": \"This is a \\fake alarm\"\n"
+        "  }\n"
+        " ]\n"
+        "}\n";
+
+    SkalLogEnable(false);
+    SkalMsg* msg = SkalMsgCreateFromJson(json);
+    SkalLogEnable(true);
+    RTT_EXPECT(NULL == msg);
+}
+RTT_TEST_END
+
 RTT_GROUP_END(TestSkalMsg,
         skal_should_create_msg,
         skal_msg_should_have_correct_name,
@@ -446,4 +506,5 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_should_have_no_more_alarms,
         skal_msg_should_free,
         skal_should_have_no_more_msg_ref_1,
-        skal_msg_should_create_from_json)
+        skal_msg_should_create_from_json,
+        skal_should_survive_invalid_json1)
