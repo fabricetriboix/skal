@@ -336,6 +336,15 @@ void _SkalLog(const char* file, int line, const char* format, ...)
 /** @endcond */
 
 
+/** Enable logging through `SkalLog()`
+ *
+ * Logging is enabled by default.
+ *
+ * @param enable [in] Whether to enable or disable logging
+ */
+void SkalLogEnable(bool enable);
+
+
 
 /* @} */
 #endif /* SKAL_COMMON_h_ */

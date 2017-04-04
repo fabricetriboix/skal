@@ -77,6 +77,16 @@ static uint8_t base64CharToByte(char c);
 
 
 
+/*------------------+
+ | Global variables |
+ +------------------*/
+
+
+/** Whether to enable or not logging through `SkalLog()` */
+static bool gLogEnabled = true;
+
+
+
 /*---------------------------------+
  | Public function implementations |
  +---------------------------------*/
@@ -508,6 +518,9 @@ uint8_t* SkalBase64Decode(const char* base64, int* size_B)
 
 void _SkalLog(const char* file, int line, const char* format, ...)
 {
+    if (!gLogEnabled) {
+        return;
+    }
     va_list ap;
     va_start(ap, format);
     char* msg = malloc(SKAL_LOG_MAX);
@@ -516,6 +529,12 @@ void _SkalLog(const char* file, int line, const char* format, ...)
     fprintf(stderr, "SKAL ERROR [%s:%d] %s\n", file, line, msg);
     free(msg);
     va_end(ap);
+}
+
+
+void SkalLogEnable(bool enable)
+{
+    gLogEnabled = enable;
 }
 
 
