@@ -48,16 +48,16 @@ RTT_TEST_START(skal_should_create_msg)
     // Fool skal-msg into thinking this thread is managed by SKAL
     SkalPlfThreadSetSpecific((void*)0xcafedeca);
 
-    gMsg = SkalMsgCreate("TestType", "dummy-dst", 0, "TestMarker");
+    gMsg = SkalMsgCreateEx("TestName", "dummy-dst", 0, 19);
     RTT_ASSERT(gMsg != NULL);
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_msg_should_have_correct_type)
+RTT_TEST_START(skal_msg_should_have_correct_name)
 {
-    const char* type = SkalMsgType(gMsg);
-    RTT_ASSERT(type != NULL);
-    RTT_EXPECT(strcmp(type, "TestType") == 0);
+    const char* name = SkalMsgName(gMsg);
+    RTT_ASSERT(name != NULL);
+    RTT_EXPECT(strcmp(name, "TestName") == 0);
 }
 RTT_TEST_END
 
@@ -77,11 +77,9 @@ RTT_TEST_START(skal_msg_should_have_correct_recipient)
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_msg_should_have_marker)
+RTT_TEST_START(skal_msg_should_have_correct_ttl)
 {
-    const char* marker = SkalMsgMarker(gMsg);
-    RTT_ASSERT(marker != NULL);
-    RTT_EXPECT(strcmp(marker, "TestMarker") == 0);
+    RTT_EXPECT(SkalMsgTtl(gMsg) == 19);
 }
 RTT_TEST_END
 
@@ -171,10 +169,10 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
     char* expected = SkalSPrintf(
         "{\n"
         " \"version\": 1,\n"
-        " \"type\": \"TestType\",\n"
+        " \"name\": \"TestName\",\n"
         " \"sender\": \"TestThread@mydomain\",\n"
         " \"recipient\": \"dummy-dst@mydomain\",\n"
-        " \"marker\": \"TestMarker\",\n"
+        " \"ttl\": 19,\n"
         " \"flags\": 0,\n"
         " \"iflags\": 0,\n"
         " \"fields\": [\n"
@@ -201,7 +199,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         " ],\n"
         " \"alarms\": [\n"
         "  {\n"
-        "   \"type\": \"alarm1\",\n"
+        "   \"name\": \"alarm1\",\n"
         "   \"severity\": \"notice\",\n"
         "   \"origin\": \"TestThread@mydomain\",\n"
         "   \"isOn\": true,\n"
@@ -210,7 +208,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         "   \"comment\": \"\"\n"
         "  },\n"
         "  {\n"
-        "   \"type\": \"alarm2\",\n"
+        "   \"name\": \"alarm2\",\n"
         "   \"severity\": \"error\",\n"
         "   \"origin\": \"TestThread@mydomain\",\n"
         "   \"isOn\": false,\n"
@@ -236,7 +234,7 @@ RTT_TEST_START(skal_msg_should_detach_alarm1)
 {
     SkalAlarm* alarm = SkalMsgDetachAlarm(gMsg);
     RTT_EXPECT(alarm != NULL);
-    const char* s = SkalAlarmType(alarm);
+    const char* s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
     RTT_EXPECT(strcmp(s, "alarm1") == 0);
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_NOTICE);
@@ -254,7 +252,7 @@ RTT_TEST_START(skal_msg_should_detach_alarm2)
 {
     SkalAlarm* alarm = SkalMsgDetachAlarm(gMsg);
     RTT_EXPECT(alarm != NULL);
-    const char* s = SkalAlarmType(alarm);
+    const char* s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
     RTT_EXPECT(strcmp(s, "alarm2") == 0);
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_ERROR);
@@ -294,10 +292,10 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 {
     const char* json =
         "{\n"
-        " \"type\": \"SomeType\",\n"
-        " \"sender\": \"SomeThread@domainA\",\n"
+        " \"name\": \"SomeName\",\n"
+        " \"sender\": \"Some\\\\Thread@domainA\",\n"
         " \"reci\\pient\": \"you@wonderland\",\n"
-        " \"marker\": \"Some\\\"Marker\",\n"
+        " \"ttl\": 27,\n"
         " \"flags\": 3,\n"
         " \"iflags\": 128,\n"
         " \"version\": 1,\n"
@@ -329,14 +327,14 @@ RTT_TEST_START(skal_msg_should_create_from_json)
         "   \"severity\": \"notice\",\n"
         "   \"origin\": \"PanicAttak@wilderness\",\n"
         "   \"isOn\": true,\n"
-        "   \"type\": \"AlarmTypeA\",\n"
+        "   \"name\": \"AlarmNameA\",\n"
         "   \"autoOff\": false\n"
         "  },\n"
         "  {\n"
         "   \"timestamp_us\": 987654321,\n"
         "   \"severity\": \"warning\",\n"
         "   \"isOn\": false,\n"
-        "   \"type\": \"AlarmTypeB\",\n"
+        "   \"name\": \"AlarmNameB\",\n"
         "   \"autoOff\": true,\n"
         "   \"comment\": \"This is a \\fake alarm\"\n"
         "  }\n"
@@ -346,13 +344,13 @@ RTT_TEST_START(skal_msg_should_create_from_json)
     SkalMsg* msg = SkalMsgCreateFromJson(json);
     RTT_EXPECT(msg != NULL);
 
-    const char* s = SkalMsgType(msg);
+    const char* s = SkalMsgName(msg);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "SomeType") == 0);
+    RTT_EXPECT(strcmp(s, "SomeName") == 0);
 
     s = SkalMsgSender(msg);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "SomeThread@domainA") == 0);
+    RTT_EXPECT(strcmp(s, "Some\\Thread@domainA") == 0);
 
     s = SkalMsgRecipient(msg);
     RTT_EXPECT(s != NULL);
@@ -364,9 +362,7 @@ RTT_TEST_START(skal_msg_should_create_from_json)
     i = SkalMsgIFlags(msg);
     RTT_EXPECT(SKAL_MSG_IFLAG_INTERNAL == i);
 
-    s = SkalMsgMarker(msg);
-    RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "Some\"Marker") == 0);
+    RTT_EXPECT(SkalMsgTtl(msg) == 27);
 
     RTT_EXPECT(SkalMsgHasField(msg, "SomeDouble"));
     double d = SkalMsgGetDouble(msg, "SomeDouble");
@@ -394,9 +390,9 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 
     SkalAlarm* alarm = SkalMsgDetachAlarm(msg);
     RTT_EXPECT(alarm != NULL);
-    s = SkalAlarmType(alarm);
+    s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "AlarmTypeA") == 0);
+    RTT_EXPECT(strcmp(s, "AlarmNameA") == 0);
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_NOTICE);
     s = SkalAlarmOrigin(alarm);
     RTT_EXPECT(s != NULL);
@@ -409,9 +405,9 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 
     alarm = SkalMsgDetachAlarm(msg);
     RTT_EXPECT(alarm != NULL);
-    s = SkalAlarmType(alarm);
+    s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "AlarmTypeB") == 0);
+    RTT_EXPECT(strcmp(s, "AlarmNameB") == 0);
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_WARNING);
     RTT_EXPECT(SkalAlarmOrigin(alarm) == NULL);
     RTT_EXPECT(!SkalAlarmIsOn(alarm));
@@ -429,12 +425,72 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_should_survive_invalid_json1)
+{
+    const char* json =
+        "{\n"
+        " \"name\": \"SomeName\",\n"
+        " \"sender\": \"Some\\\\Thread@domainA\",\n"
+        " \"reci\\pient\": \"you@wonderland\",\n"
+        " \"ttl\": 27,\n"
+        " \"flags\": 3,\n"
+        " \"iflags\": 128,\n"
+        " \"version\": 1,\n"
+        " \"fields\": [\n"
+        "  {\n"
+        "   \"name\": \"Some\"Double\",\n"
+        "   \"value\": 3.456779999999999972715e+02,\n"
+        "   \"type\": \"double\",\n"
+        "  },\n"
+        "  {\n"
+        "   \"value\": \"ESIzRA==\",\n"
+        "   \"name\": \"SomeMiniblob\",\n"
+        "   \"type\": \"miniblob\",\n"
+        "  },\n"
+        "  {\n"
+        "   \"name\": \"SomeInt\",\n"
+        "   \"type\": \"int\",\n"
+        "   \"value\": -1789\n"
+        "  },\n"
+        "  {\n"
+        "   \"name\": \"SomeString\",\n"
+        "   \"type\": \"string\",\n"
+        "   \"value\": \"This is a test string2\"\n"
+        "  }\n"
+        " ],\n"
+        " \"alarms\": [\n"
+        "  {\n"
+        "   \"timestamp_us\": 1234567890,\n"
+        "   \"severity\": \"notice\",\n"
+        "   \"origin\": \"PanicAttak@wilderness\",\n"
+        "   \"isOn\": true,\n"
+        "   \"name\": \"AlarmNameA\",\n"
+        "   \"autoOff\": false\n"
+        "  },\n"
+        "  {\n"
+        "   \"timestamp_us\": 987654321,\n"
+        "   \"severity\": \"warning\",\n"
+        "   \"isOn\": false,\n"
+        "   \"name\": \"AlarmNameB\",\n"
+        "   \"autoOff\": true,\n"
+        "   \"comment\": \"This is a \\fake alarm\"\n"
+        "  }\n"
+        " ]\n"
+        "}\n";
+
+    SkalLogEnable(false);
+    SkalMsg* msg = SkalMsgCreateFromJson(json);
+    SkalLogEnable(true);
+    RTT_EXPECT(NULL == msg);
+}
+RTT_TEST_END
+
 RTT_GROUP_END(TestSkalMsg,
         skal_should_create_msg,
-        skal_msg_should_have_correct_type,
+        skal_msg_should_have_correct_name,
         skal_msg_should_have_correct_sender,
         skal_msg_should_have_correct_recipient,
-        skal_msg_should_have_marker,
+        skal_msg_should_have_correct_ttl,
         skal_msg_add_int,
         skal_msg_add_double,
         skal_msg_add_string,
@@ -450,4 +506,5 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_should_have_no_more_alarms,
         skal_msg_should_free,
         skal_should_have_no_more_msg_ref_1,
-        skal_msg_should_create_from_json)
+        skal_msg_should_create_from_json,
+        skal_should_survive_invalid_json1)

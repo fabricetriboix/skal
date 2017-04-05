@@ -20,6 +20,7 @@
 #include "cdslist.h"
 #include "cdsmap.h"
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
 #include <float.h>
@@ -71,10 +72,10 @@ struct SkalMsg {
     int         version;
     uint8_t     flags;
     uint8_t     iflags;
-    char        type[SKAL_NAME_MAX];
+    int8_t      ttl;
+    char        name[SKAL_NAME_MAX];
     char        sender[SKAL_NAME_MAX];
     char        recipient[SKAL_NAME_MAX];
-    char        marker[SKAL_NAME_MAX];
     CdsMap*     fields; // Map of `skalMsgField`, indexed by field name
     CdsList*    alarms; // List of `SkalAlarm`
 };
@@ -172,12 +173,8 @@ static const char* skalMsgParseJsonString(const char* json,
  +------------------*/
 
 
-/** Message counter; use to make unique message markers */
-static uint64_t gMsgCounter = 0;
-
-
 /** Domain name */
-static char gDomain[SKAL_DOMAIN_NAME_MAX] = "#INVAL#";
+static char gDomain[SKAL_DOMAIN_NAME_MAX] = "^INVAL^";
 
 
 /** Number of message references in this process */
@@ -190,23 +187,22 @@ static int64_t gMsgRefCount_DEBUG = 0;
  +---------------------------------*/
 
 
-SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
-        uint8_t flags, const char* marker)
+SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
+        uint8_t flags, int8_t ttl)
 {
-    SKALASSERT(SkalIsAsciiString(type, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
     SKALASSERT(SkalIsAsciiString(recipient, SKAL_NAME_MAX));
-    if (marker != NULL) {
-        SKALASSERT(SkalIsAsciiString(marker, SKAL_NAME_MAX));
+    if (ttl <= 0) {
+        ttl = SKAL_DEFAULT_TTL;
     }
 
-    unsigned long long n = ++gMsgCounter;
     SkalMsg* msg = SkalMallocZ(sizeof(*msg));
     msg->ref = 1;
     msg->version = SKAL_MSG_VERSION;
     gMsgRefCount_DEBUG++;
     msg->flags = flags;
-    strncpy(msg->type, type, sizeof(msg->type) - 1);
-    if (SkalPlfThreadGetSpecific() != NULL) {
+    strncpy(msg->name, name, sizeof(msg->name) - 1);
+    if (SkalPlfThreadIsSkal()) {
         // The current thread is managed by SKAL
         const char* name = SkalPlfThreadGetName();
         skalSetThreadName(msg->sender, sizeof(msg->sender), name);
@@ -215,17 +211,19 @@ SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
         skalSetThreadName(msg->sender, sizeof(msg->sender), "skal-external");
     }
     skalSetThreadName(msg->recipient, sizeof(msg->recipient), recipient);
-    if (marker != NULL) {
-        strncpy(msg->marker, marker, sizeof(msg->marker) - 1);
-    } else {
-        snprintf(msg->marker, sizeof(msg->marker), "%llu", n);
-    }
+    msg->ttl = ttl;
     msg->fields = CdsMapCreate(NULL, SKAL_FIELDS_MAX,
             SkalStringCompare, msg, NULL, skalFieldMapUnref);
     msg->alarms = CdsListCreate(NULL, SKAL_FIELDS_MAX,
             (void(*)(CdsListItem*))SkalAlarmUnref);
 
     return msg;
+}
+
+
+SkalMsg* SkalMsgCreate(const char* name, const char* recipient)
+{
+    return SkalMsgCreateEx(name, recipient, 0, 0);
 }
 
 
@@ -278,10 +276,10 @@ void SkalMsgUnref(SkalMsg* msg)
 }
 
 
-const char* SkalMsgType(const SkalMsg* msg)
+const char* SkalMsgName(const SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
-    return msg->type;
+    return msg->name;
 }
 
 
@@ -306,10 +304,19 @@ uint8_t SkalMsgFlags(const SkalMsg* msg)
 }
 
 
-const char* SkalMsgMarker(const SkalMsg* msg)
+int8_t SkalMsgTtl(const SkalMsg* msg)
 {
     SKALASSERT(msg != NULL);
-    return msg->marker;
+    return msg->ttl;
+}
+
+
+void SkalMsgDecrementTtl(SkalMsg* msg)
+{
+    SKALASSERT(msg != NULL);
+    if (msg->ttl > 0) {
+        msg->ttl--;
+    }
 }
 
 
@@ -336,6 +343,18 @@ void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s)
     field->size_B = strlen(s) + 1;
     field->s = SkalMallocZ(field->size_B);
     memcpy(field->s, s, field->size_B);
+}
+
+
+void SkalMsgAddFormattedString(SkalMsg* msg, const char* name,
+        const char* format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+    char* s = SkalVSPrintf(format, ap);
+    va_end(ap);
+    SkalMsgAddString(msg, name, s);
+    free(s);
 }
 
 
@@ -492,18 +511,18 @@ char* SkalMsgToJson(const SkalMsg* msg)
     SkalStringBuilderAppend(sb,
             "{\n"
             " \"version\": %d,\n"
-            " \"type\": \"%s\",\n"
+            " \"name\": \"%s\",\n"
             " \"sender\": \"%s\",\n"
             " \"recipient\": \"%s\",\n"
-            " \"marker\": \"%s\",\n"
+            " \"ttl\": %d,\n"
             " \"flags\": %u,\n"
             " \"iflags\": %u,\n"
             " \"fields\": [\n",
             (int)SKAL_MSG_VERSION,
-            SkalMsgType(msg),
+            SkalMsgName(msg),
             SkalMsgSender(msg),
             SkalMsgRecipient(msg),
-            SkalMsgMarker(msg),
+            (int)SkalMsgTtl(msg),
             (unsigned int)SkalMsgFlags(msg),
             (unsigned int)SkalMsgIFlags(msg));
 
@@ -757,6 +776,9 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
         json = skalMsgSkipSpaces(json);
 
         json = skalMsgParseJsonProperty(json, name, msg);
+        if (NULL == json) {
+            return false;
+        }
         json = skalMsgSkipSpaces(json);
     } // For each JSON property
 
@@ -765,8 +787,8 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
         SkalLog("SkalMsg: Invalid JSON: 'version' is required");
         return false;
     }
-    if ('\0' == msg->type[0]) {
-        SkalLog("SkalMsg: Invalid JSON: 'type' is required");
+    if ('\0' == msg->name[0]) {
+        SkalLog("SkalMsg: Invalid JSON: 'name' is required");
         return false;
     }
     if ('\0' == msg->sender[0]) {
@@ -777,8 +799,8 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
         SkalLog("SkalMsg: Invalid JSON: 'recipient' is required");
         return false;
     }
-    if ('\0' == msg->marker[0]) {
-        SkalLog("SkalMsg: Invalid JSON: 'marker' is required");
+    if (msg->ttl <= 0) {
+        SkalLog("SkalMsg: Invalid JSON: 'ttl' is required");
         return false;
     }
 
@@ -806,8 +828,8 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "type") == 0) {
-        json = skalMsgParseJsonString(json, msg->type, sizeof(msg->type));
+    } else if (strcmp(name, "name") == 0) {
+        json = skalMsgParseJsonString(json, msg->name, sizeof(msg->name));
 
     } else if (strcmp(name, "sender") == 0) {
         json = skalMsgParseJsonString(json, msg->sender, sizeof(msg->sender));
@@ -816,8 +838,21 @@ static const char* skalMsgParseJsonProperty(const char* json,
         json = skalMsgParseJsonString(json,
                 msg->recipient, sizeof(msg->recipient));
 
-    } else if (strcmp(name, "marker") == 0) {
-        json = skalMsgParseJsonString(json, msg->marker, sizeof(msg->marker));
+    } else if (strcmp(name, "ttl") == 0) {
+        int tmp;
+        if (sscanf(json, "%d", &tmp) != 1) {
+            SkalLog("SkalMsg: Invalid JSON: Can't parse integer for 'ttl'");
+            return NULL;
+        }
+        if ((tmp <= 0) || (tmp > 127)) {
+            SkalLog("SkalMsg: Invalid JSON: 'ttl' must be >0 and <=127");
+            return NULL;
+        }
+        msg->ttl = (int8_t)tmp;
+        // Skip TTL
+        while ((*json != '\0') && isdigit(*json)) {
+            json++;
+        }
 
     } else if (strcmp(name, "flags") == 0) {
         unsigned int tmp;
@@ -857,11 +892,11 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json = skalMsgParseJsonField(json, field);
             if (NULL == json) {
                 skalFieldMapUnref((CdsMapItem*)field);
-            } else {
-                bool inserted = CdsMapInsert(msg->fields,
-                            field->name, &field->item);
-                SKALASSERT(inserted);
+                return NULL;
             }
+            bool inserted = CdsMapInsert(msg->fields,
+                        field->name, &field->item);
+            SKALASSERT(inserted);
             if (*json != '\0') {
                 json = skalMsgSkipSpaces(json);
             }
@@ -1113,6 +1148,7 @@ static const char* skalMsgParseJsonString(const char* json,
 {
     json = skalMsgSkipSpaces(json);
     if (*json != '"') {
+        SkalLog("SkalMsg: Invalid JSON: Expected '\"' character");
         return NULL;
     }
     json++;
@@ -1122,7 +1158,7 @@ static const char* skalMsgParseJsonString(const char* json,
         if ('\\' == *json) {
             json++;
             if ('\0' == *json) {
-                SkalLog("SkalMsg: Invalid JSON: Lone \\");
+                SkalLog("SkalMsg: Invalid JSON: null character after \\");
                 return NULL;
             }
         }
@@ -1130,7 +1166,8 @@ static const char* skalMsgParseJsonString(const char* json,
         count++;
         json++;
         if ((count >= size_B) && (*json != '"')) {
-            SkalLog("SkalMsg: Invalid JSON: String too long");
+            SkalLog("SkalMsg: Invalid JSON: String too long (expected max %d chars)",
+                    size_B);
             return NULL;
         }
     }

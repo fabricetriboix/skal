@@ -24,7 +24,7 @@
  * @{
  */
 
-#include "skalplf.h"
+#include "skal-plf.h"
 #include <stdarg.h>
 
 
@@ -122,6 +122,24 @@ void* _SkalRealloc(void* ptr, int size_B, const char* file, int line);
 
 /** @cond hidden */
 void* _SkalCalloc(int nItems, int itemSize_B, const char* file, int line);
+/** @endcond */
+
+
+/** `strdup()` replacement
+ *
+ * The behaviour of this function is the same as for `strdup(3)`, but it asserts
+ * if it fails.
+ *
+ * @param s [in] String to copy; may be NULL; if not NULL, must be
+ *               null-terminated
+ *
+ * @return A pointer to the newly allocated string, or NULL if `s` is NULL;
+ *         please release with `free()` when you no longer need it
+ */
+#define SkalStrdup(s) _SkalStrdup((s), __FILE__, __LINE__)
+
+/** @cond hidden */
+char* _SkalStrdup(const char* s, const char* file, int line);
 /** @endcond */
 
 
@@ -224,6 +242,19 @@ bool SkalIsUtf8String(const char* str, int maxlen);
 int SkalStringCompare(void* leftkey, void* rightkey, void* cookie);
 
 
+/** Standard binary comparison function suitable for CdsMap
+ *
+ * @param leftKey  [in] LHS token; must not be NULL
+ * @param rightKey [in] RHS token; must not be NULL
+ * @param cookie   [in] Actually a `size_t` value, which is the number of bytes
+ *                      to compare; must be >0
+ *
+ * @return -1 if `leftkey` < `rightkey`, 0 if `leftkey` == `rightkey`,
+ *         +1 if `leftkey` > `rightkey`
+ */
+int SkalMemCompare(void* leftKey, void* rightKey, void* cookie);
+
+
 /** Encode up to 3 bytes into 4 base64 characters
  *
  * *IMPORTANT* no null character will be added at the end.
@@ -303,6 +334,15 @@ uint8_t* SkalBase64Decode(const char* base64, int* size_B);
 void _SkalLog(const char* file, int line, const char* format, ...)
     __attribute__(( format(printf, 3, 4) ));
 /** @endcond */
+
+
+/** Enable logging through `SkalLog()`
+ *
+ * Logging is enabled by default.
+ *
+ * @param enable [in] Whether to enable or disable logging
+ */
+void SkalLogEnable(bool enable);
 
 
 

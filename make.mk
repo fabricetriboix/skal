@@ -25,7 +25,7 @@ MODULES = $(TOPDIR)/lib/plf/$(PLF) $(TOPDIR)/lib/common \
 
 # Path for make to search for source files
 VPATH = $(foreach i,$(MODULES),$(i)/src) $(foreach i,$(MODULES),$(i)/test) \
-		$(TOPDIR)/skald/src $(TOPDIR)/skald/test
+		$(TOPDIR)/skald/src $(TOPDIR)/skald/test $(TOPDIR)/utils
 
 # Output libraries
 OUTPUT_LIBS = libskal.a
@@ -38,14 +38,14 @@ INCS = $(foreach i,$(MODULES),-I$(i)/include) \
 HDRS = $(foreach i,$(MODULES),$(wildcard $(i)/include/*.h))
 
 # List of object files for various targets
-LIBSKAL_OBJS = skalplf.o skalcommon.o skal-net.o skal-blob.o skal-alarm.o \
-		skal-msg.o skal-queue.o skal-thread.o
-SKALD_OBJS := skald.o main.o
+LIBSKAL_OBJS = skal-plf.o skal-common.o skal-net.o skal-blob.o skal-alarm.o \
+		skal-msg.o skal-queue.o skal-thread.o skal.o
+SKALD_OBJS = skald.o main.o
 RTTEST_MAIN_OBJ = rttestmain.o
 SKAL_TEST_OBJS = test-plf.o test-common.o test-net.o test-blob.o test-alarm.o \
-		test-msg.o test-queue.o test-thread.o test-skald.o
+		test-msg.o test-queue.o test-thread.o
 
-# Libraries to link against when building test programs
+# Libraries to link against when building programs
 LINKLIBS = -lskal -lcds -lrttest -lrtsys
 ifeq ($(V),debug)
 LINKLIBS += -lflloc
@@ -54,7 +54,7 @@ endif
 
 # Standard targets
 
-all: $(OUTPUT_LIBS) skald skal_unit_tests doc
+all: $(OUTPUT_LIBS) skald skal-post skal_unit_tests writer reader doc
 
 doc: doc/html/index.html
 
@@ -113,6 +113,15 @@ skald: $(SKALD_OBJS) $(OUTPUT_LIBS)
 skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(OUTPUT_LIBS) skald.o
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
+skal-post: skal-post.o $(OUTPUT_LIBS)
+	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
+
+writer: writer.o $(OUTPUT_LIBS)
+	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
+
+reader: reader.o $(OUTPUT_LIBS)
+	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
+
 
 doc/html/index.html: $(HDRS)
 ifeq ($(DOXYGEN),)
@@ -136,7 +145,7 @@ else
 	$$cmd
 endif
 
-test: skal_unit_tests
+test: skal_unit_tests writer reader
 	@set -eu; \
 	if ! which rttest2text.py > /dev/null 2>&1; then \
 		echo "ERROR: rttest2text.py not found in PATH"; \

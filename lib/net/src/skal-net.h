@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +22,50 @@
  * @defgroup skalnet Platform-dependent network encapsulation for SKAL
  * @addtogroup skalnet
  * @{
+ *
+ * The skal-net module is not MT-safe (unless noted otherwise). This module
+ * works on a `SkalNet` object, which is essentially a set of sockets. To use
+ * this module, just create a `SkalNet` object, and create sockets on it. There
+ * are essentially 2 kinds of sockets:
+ *  - "server" socket: this is used to accept incoming connections; please note
+ *    that connection-less socket types (like for the UDP protocol) still have a
+ *    concept of "server" socket, this is all emulated in skal-net to provide a
+ *    unifed interface
+ *  - "comm" socket: this is a socket which can send and receive data; it can
+ *    be created either from a server socket (when a peer wants to connect), or
+ *    when you when to connect to a peer server
+ *  - In addition, skal-net has support for unnamed pipes, which behave like
+ *    "comm" sockets, except that one end can only receive data, and the other
+ *    can only send data.
+ *
+ * Functions that can potentially block have their names ending in "_BLOCKING",
+ * to make you aware of that fact.
+ *
+ * The skal-net module uses URL representations of socket addresses; this is a
+ * combination of family domain, socket type, protocol and socket address. The
+ * best way to understand it is probably by way of examples:
+ *  - "tcp://10.1.2.3:http": IPv4 TCP socket, bound to address 10.1.2.3, port 80
+ *  - "tcp6://google.com:7": IPv6 TCP socket, bound to whatever "google.com"
+ *    resolves to, port 7
+ *  - "udp://127.0.0.1:9001": IPv4 UDP socket, bound to localhost, port 9001
+ *  - "unix:///tmp/my.sock": UNIX socket of type SEQPACKET, path "/tmp/my.sock"
+ *  - "unixs:///tmp/xyz": UNIX socket of type SOCK_STREAM, path "/tmp/xyz"
+ *  - "unixd://local.sock" UNIX socket of type SOCK_DGRAM, path "local.sock"
+ *    (so a relative path, if that's useful at all)
+ *  - "pipe://": an unnamed pipe, as in `pipe(2)`
+ *
+ * Some comments:
+ *  - UNIX sockets are of type SOCK_SEQPACKET by default, use "unixs://" to
+ *    create a UNIX socket of type SOCK_STREAM, and "unixd://" to create a UNIX
+ *    socket of type SOCK_DGRAM
+ *  - It is possible to create pipes with "pipe://" and to use them as if they
+ *    were sockets (except that one end of the pipe can only be written to, and
+ *    the other end can only be read from)
+ *  - When a host name is specified instead of a numerical address, a DNS lookup
+ *    is performed to resolve the host name
  */
 
-#include "skalcommon.h"
+#include "skal-common.h"
 #include "cdslist.h"
 
 
@@ -43,74 +84,11 @@
 typedef struct SkalNet SkalNet;
 
 
-/** The different types of socket available
- *
- * If you know the BSD socket API, this is a combination of address family, type
- * and protocol.
- */
-typedef enum {
-    /** Unnamed pipes
-     *
-     * To create a pipe, call `SkalNetServerCreate()` with `type` set to
-     * `SKAL_NET_TYPE_PIPE`. The returned sockid will be for reading data from
-     * the pipe. It is not possible to write data into the pipe using this
-     * sockid.
-     *
-     * A `SKAL_NET_EV_CONN` event will be generated automatically, and the
-     * `SkalNetEventConn.commSockid` will be the sockid for writing data into
-     * the pipe (please note the `SkalNetEventConn.peer` is meaningless for
-     * pipes). It is not possible to read from the pipe using this sockid.
-     */
-    SKAL_NET_TYPE_PIPE,
-
-    /** UNIX domain - stream */
-    SKAL_NET_TYPE_UNIX_STREAM,
-
-    /** UNIX domain - datagram */
-    SKAL_NET_TYPE_UNIX_DGRAM,
-
-    /** UNIX domain - sequential packets */
-    SKAL_NET_TYPE_UNIX_SEQPACKET,
-
-    /** IPv4 domain - TCP */
-    SKAL_NET_TYPE_IP4_TCP,
-
-    /** IPv4 domain - UDP */
-    SKAL_NET_TYPE_IP4_UDP
-
-    // TODO: Add support for SCTP
-    // TODO: Add support for IPv6
-} SkalNetType;
-
-
-/** A UNIX address */
-typedef struct {
-    SkalNetType type;      ///< Address type, must be `SKAL_NET_TYPE_UNIX_*`
-    char        path[108]; ///< UNIX socket path
-} SkalNetAddrUnix;
-
-
-/** An IPv4 address; used for TCP, UDP and SCTP */
-typedef struct {
-    SkalNetType type;    ///< Address type; must be `SKAL_NET_TYPE_IP4_*`
-    uint32_t    address; ///< IP address, host byte order
-    uint16_t    port;    ///< Port number, host byte order
-} SkalNetAddrIp4;
-
-
-/** A network address */
-typedef union {
-    SkalNetType     type; ///< Address type
-    SkalNetAddrUnix unix; ///< UNIX address, for `SKAL_NET_TYPE_UNIX_*`
-    SkalNetAddrIp4  ip4;  ///< IPv4 address, for `SKAL_NET_TYPE_IP4_*`
-} SkalNetAddr;
-
-
 /** The different socket events that can happen on a socket set */
 typedef enum {
     /** A server socket accepted a connection request from a client
      *
-     * Please note that skal-net simulates this behaviour on connection-less
+     * Please note that skal-net emulates this behaviour on connection-less
      * sockets as well. When data is received from an unknown peer, a
      * connection-less comm socket is created for exclusive communication with
      * that peer and a `SKAL_NET_EV_CONN` event is generated. That socket will
@@ -127,17 +105,18 @@ typedef enum {
      * indication that no activity took place during `timeout_us`. Hence this
      * socket is considered inactive and should be closed.
      *
-     * However, nothing precludes the peer to continue sending packets after
-     * this timeout period. If you closed the socket, a new connection-less comm
-     * socket will be created as usual. If you didn't close the socket, you will
-     * receive `SKAL_NET_EV_IN` events after the `SKAL_NET_EV_DISCONN` event.
+     * However, nothing precludes the peer to continue sending and receiving
+     * packets after this timeout period. If data is received after you closed
+     * the socket, a new connection-less comm socket will be created as usual.
+     * If you didn't close the socket, you will receive `SKAL_NET_EV_IN` events
+     * after the `SKAL_NET_EV_DISCONN` event.
      */
     SKAL_NET_EV_DISCONN,
 
     /** We received data from a peer */
     SKAL_NET_EV_IN,
 
-    /** We can send on a socket */
+    /** We can now send on a socket without blocking */
     SKAL_NET_EV_OUT,
 
     /** A comm socket has established a connection to its server */
@@ -163,13 +142,6 @@ typedef enum {
 /** Event extra data: Connection accepted */
 typedef struct {
     int commSockid; /**< Id of newly created comm socket */
-
-    /** Address of who connected to us
-     *
-     * This is meaningless for pipes and UNIX sockets, in which case this field
-     * contains random junk.
-     */
-    SkalNetAddr peer;
 } SkalNetEventConn;
 
 
@@ -193,8 +165,8 @@ typedef struct {
     int              sockid;  /**< Id of socket that originated the event */
     void*            context; /**< Your private context for above socket */
     union {
-        SkalNetEventConn conn; /**< For `SKAL_NET_EV_CONN` */
-        SkalNetEventIn   in;   /**< For `SKAL_NET_EV_IN` */
+        SkalNetEventConn conn; /**< Extra data for `SKAL_NET_EV_CONN` */
+        SkalNetEventIn   in;   /**< Extra data for `SKAL_NET_EV_IN` */
     };
 } SkalNetEvent;
 
@@ -210,7 +182,7 @@ typedef enum
 
     /** The packet was too big to be sent atomically
      *
-     * No data has been sent. This can happen only on packet-based sockets,
+     * No data has been sent. This can happen only on packet-based sockets
      * where the chosen underlying protocol requires packets to be sent
      * atomically.
      */
@@ -224,9 +196,16 @@ typedef enum
 
     /** Connection has been reset by peer while we were sending
      *
-     * This can happen only on connection-based sockets.
+     * This can happen only on connection-oriented sockets. It is recommended
+     * you destroy this socket whenever convenient.
      */
-    SKAL_NET_SEND_RESET
+    SKAL_NET_SEND_RESET,
+
+    /** Unexpected error
+     *
+     * This should not happen and is likely to be a bug in skal-net...
+     */
+    SKAL_NET_SEND_ERROR
 } SkalNetSendResult;
 
 
@@ -238,25 +217,6 @@ typedef void (*SkalNetCtxUnref)(void* ctx);
 /*------------------------------+
  | Public function declarations |
  +------------------------------*/
-
-
-/** Convert a string to an IPv4 address
- *
- * @param str [in]  String to parse; must not be NULL
- * @param ip4 [out] Parsed IPv4 address; must not be NULL
- *
- * @return `true` if success, `false` if `str` is not a valid IP address
- */
-bool SkalNetStringToIp4(const char* str, uint32_t* ip4);
-
-
-/** Convert an IPv4 address to a string
- *
- * @param ip4      [in]  IPv4 address to convert
- * @param str      [out] Where to write the result string
- * @param capacity [in]  Capacity if `str`, in char
- */
-void SkalNetIp4ToString(uint32_t ip4, char* str, int capacity);
 
 
 /** Add a reference to an event object */
@@ -274,13 +234,12 @@ void SkalNetEventUnref(SkalNetEvent* event);
 
 /** Create a socket set
  *
- * @param pollTimeout_us [in] Polling timeout, in us; <=0 for default value
- * @param ctxUnref       [in] Function to call to de-reference a socket context;
- *                            may be NULL if not needed
+ * @param ctxUnref [in] Function to call to de-reference a socket context; may
+ *                      be NULL if not needed
  *
  * @return A newly created socket set; this function never returns NULL
  */
-SkalNet* SkalNetCreate(int64_t pollTimeout_us, SkalNetCtxUnref ctxUnref);
+SkalNet* SkalNetCreate(SkalNetCtxUnref ctxUnref);
 
 
 /** Destroy a socket set
@@ -297,22 +256,19 @@ void SkalNetDestroy(SkalNet* net);
  * If created successfully, the server socket will become part of the `net`
  * socket set.
  *
- * When creating a UNIX server socket, you must ensure that `localAddr->path`
- * does not exist, or is a socket and both readable and writeable by the current
- * process.
+ * When creating a UNIX server socket, you must ensure that its path points to a
+ * non-existent file, or that the file it points to is a socket file and both
+ * readable and writeable by the current process.
  *
- * The server socket will be connection-less if `type` is one of the following:
- *  - `SKAL_NET_TYPE_UNIX_DGRAM`
- *  - `SKAL_NET_TYPE_IP4_TCP`
- *
- * For all other types, the socket will be connection-oriented.
+ * The server socket will be connection-less for datagram-based socket types,
+ * and connection-oriented for everything else.
  *
  * NB: For UNIX/Linux developers: please note the returned socket id is NOT the
  * socket file descriptor!
  *
  * @param net       [in,out] Socket set to add server socket to; must not be
  *                           NULL
- * @param localAddr [in]     Local address to listen to; must not be NULL
+ * @param localUrl  [in]     Local address to listen to; must be a valid URL
  * @param bufsize_B [in]     Buffer size for comm sockets created out of this
  *                           server socket, in bytes; <=0 for default value
  * @param context   [in]     Private context to associate with the server
@@ -324,12 +280,12 @@ void SkalNetDestroy(SkalNet* net);
  *                           default value.
  *                           If the server socket is connection-oriented, this
  *                           is the maximum pending connections before denying
- *                           incoming connection requests; <=0 for default
- *                           value.
+ *                           incoming connection requests; 0 for default value.
  *
- * @return Id of the newly created server socket; this function never fails
+ * @return Id of the newly created server socket, or -1 in case of system error
+ *         or invalid `localUrl`.
  */
-int SkalNetServerCreate(SkalNet* net, const SkalNetAddr* localAddr,
+int SkalNetServerCreate(SkalNet* net, const char* localUrl,
         int bufsize_B, void* context, int extra);
 
 
@@ -339,47 +295,51 @@ int SkalNetServerCreate(SkalNet* net, const SkalNetAddr* localAddr,
  * and thus is performed asynchronously. Consequently, when this function
  * returns, you can't yet send or receive data through it. You will be notified
  * once the connection has been established by a `SKAL_NET_EV_ESTABLISED` event.
- * If the connection can't be established, you will receive a
+ * If the connection can't be established for any reason, you will receive a
  * `SKAL_NET_EV_NOT_ESTABLISED` event.
  *
  * @param net        [in,out] Socket set to add comm socket to; must not be NULL
- * @param localAddr  [in]     Local address to bind to; may be NULL; ignored for
- *                            UNIX sockets; must not be `SKAL_NET_TYPE_PIPE`; if
- *                            not NULL, must be of the same type a `remoteAddr`
- * @param remoteAddr [in]     Remote address to connect to; must not be NULL
- * @param bufsize_B  [in]     Socket buffer size, in bytes; <=0 for default
- * @param context    [in]     Private context to associate with the comm
- *                            socket; this context will be provided back when
- *                            events occur on this socket for your conveninence
+ * @param localUrl   [in]     Local address to bind to; may be NULL; if not
+ *                            NULL, must have the same type and protocol as
+ *                            `peerUrl`; ignored for UNIX sockets
+ * @param peerUrl    [in]     Remote address to connect to; must be a valid URL;
+ *                            must not be "pipe://"
+ * @param bufsize_B  [in]     Socket buffer size, in bytes; 0 for default
+ * @param context    [in]     Private context to associate with the comm socket;
+ *                            this context will be provided back when events
+ *                            occur on this socket for your conveninence
  * @param timeout_us [in]     Idle timeout in us (for connection-less comm
- *                            sockets only, ignored for other sockets);
- *                            <=0 for default
+ *                            sockets only, ignored for other sockets); 0 for
+ *                            default
  *
- * @return Id of the newly created comm socket
+ * @return Id of the newly created comm socket, or -1 in case of a system error
+ *         or invalid URL(s)
  */
-int SkalNetCommCreate(SkalNet* net,
-        const SkalNetAddr* localAddr, const SkalNetAddr* remoteAddr,
+int SkalNetCommCreate(SkalNet* net, const char* localUrl, const char* peerUrl,
         int bufsize_B, void* context, int64_t timeout_us);
 
 
 /** Wait for something to happen
  *
- * This function blocks until something happens on one (or more) socket in the
- * set.
+ * This function blocks until something happens in the socket set.
  *
  * @param net [in,out] Socket set to poll; must not be NULL
  *
- * @return The event that occurred, or NULL if timeout; when you are finished
- *         with the event, please call `SkalNetEventUnref()` on it
+ * @return The event that occurred; this function never returns NULL; the
+ *         ownership of the event is transferred to you, so please call
+ *         `SkalNetEventUnref()` when you're finished with it
  */
 SkalNetEvent* SkalNetPoll_BLOCKING(SkalNet* net);
 
 
 /** Assign a context to a socket
  *
- * The previous context value is overwritten. The main purpose of this function
- * is to assign a context to a comm socket automatically created by a server
- * socket when a peer wants to connect to us.
+ * If the socket currently has a context which is not NULL, and if the
+ * unreferencing function `SkalNetCtxUnref` (set when `SkalNetCreate()` was
+ * called) is not null, the current context will be unreferenced.
+ *
+ * The main purpose of this function is to assign a context to a comm socket
+ * automatically created by a server socket when a peer wants to connect to us.
  *
  * @param net     [in,out] Socket set to modify; must not be NULL
  * @param sockid  [in]     Id of the socket to modify
@@ -406,25 +366,31 @@ void* SkalNetGetContext(const SkalNet* net, int sockid);
  * Calling this function will mark the given comm socket as having data to be
  * sent. The next call to `SkalNetPoll_BLOCKING()` will generate an
  * `SKAL_NET_EV_OUT` event when data can be sent through the socket without
- * blocking. Please note that sending a large buffer might still block depending
- * on the socket buffer size.
+ * blocking. Please note that sending a large buffer in one go might still block
+ * depending on the socket buffer size and how full the socket buffer currently
+ * is.
  *
  * The above operation is optional and available mainly to efficiently throttle
- * sending of a large amount of data in chunks without blocking the sending
- * thread. You can do that only on a stream-oriented comm socket.
+ * sending large amounts of data in chunks without blocking the sending thread.
+ * This makes sense only on a stream-oriented comm socket (like TCP). A
+ * connection-less socket (like UDP) will simply see packets dropped by the
+ * local machine, the peer, or any router/switch in between.
  *
  * The `flag` is not reset automatically, you must call this function again
  * with a `flag` value of `false` to disable this behaviour. If you don't reset
  * the flag and don't send data over the socket, the poll function will always
  * return immediately because the socket can always send data.
  *
- * @param net    [in,out] Socket set to modify; must not be NULL
- * @param sockid [in]     Id of socket to modify; must be a stream-oriented comm
- *                        socket
- * @param flag   [in]     `true` to be notified when socket can send, `false` to
- *                        not be notified.
+ * When a socket is created, this behaviour is disabled by default.
  *
- * @return `true` if OK, `false` if `sockid` is not valid
+ * @param net    [in,out] Socket set to modify; must not be NULL
+ * @param sockid [in]     Id of socket to modify; should be a stream-oriented
+ *                        comm socket
+ * @param flag   [in]     `true` to be notified when socket can send without
+ *                        blocking, `false` to not be notified
+ *
+ * @return `true` if OK, `false` if `sockid` is not a stream-oriented comm
+ *         socket
  */
 bool SkalNetWantToSend(SkalNet* net, int sockid, bool flag);
 
@@ -444,10 +410,10 @@ bool SkalNetWantToSend(SkalNet* net, int sockid, bool flag);
  *
  * *DESIGN NOTE*: Because you can be asynchronously notified that a socket is
  * available for sending, a non-blocking version of this function has not been
- * made available.
+ * implemented.
  *
  * Although this function is marked as blocking, it should not block if you use
- * the `SKAL_NET_EV_OUT` mechanism.
+ * the `SKAL_NET_EV_OUT` mechanism and send small enough buffers.
  *
  * @param net    [in,out] Socket set; must not be NULL
  * @param sockid [in]     Id of comm socket to send from; must point to a comm
@@ -464,11 +430,9 @@ SkalNetSendResult SkalNetSend_BLOCKING(SkalNet* net, int sockid,
 /** Destroy a socket from a socket set
  *
  * @param net    [in,out] Socket set to destroy socket from; must not be NULL
- * @param sockid [in]     Id of the socket to destroy
- *
- * @return `true` if success, `false` if `sockid` it not valid
+ * @param sockid [in]     Id of the socket to destroy; must be valid
  */
-bool SkalNetSocketDestroy(SkalNet* net, int sockid);
+void SkalNetSocketDestroy(SkalNet* net, int sockid);
 
 
 

@@ -19,7 +19,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include "skalplf.h"
+#include "skal-plf.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -260,14 +260,6 @@ SkalPlfThread* SkalPlfThreadCreate(const char* name,
 }
 
 
-void SkalPlfThreadCancel(SkalPlfThread* thread)
-{
-    SKALASSERT(thread != NULL);
-    int ret = pthread_cancel(thread->id);
-    SKALASSERT(ret == 0);
-}
-
-
 void SkalPlfThreadJoin(SkalPlfThread* thread)
 {
     SKALASSERT(thread != NULL);
@@ -301,6 +293,15 @@ const char* SkalPlfThreadGetName(void)
 }
 
 
+void SkalPlfGetPThreadName(char* name, int size_B)
+{
+    SKALASSERT(name != NULL);
+    SKALASSERT(size_B > 0);
+    int ret = pthread_getname_np(pthread_self(), name, size_B);
+    SKALASSERT(0 == ret);
+}
+
+
 void SkalPlfThreadSetSpecific(void* value)
 {
     SkalPlfThread* thread = pthread_getspecific(gKey);
@@ -311,9 +312,18 @@ void SkalPlfThreadSetSpecific(void* value)
 
 void* SkalPlfThreadGetSpecific(void)
 {
+    void* specific = NULL;
     SkalPlfThread* thread = pthread_getspecific(gKey);
-    SKALASSERT(thread != NULL);
-    return thread->specific;
+    if (thread != NULL) {
+        specific = thread->specific;
+    }
+    return specific;
+}
+
+
+bool SkalPlfThreadIsSkal(void)
+{
+    return (pthread_getspecific(gKey) != NULL);
 }
 
 

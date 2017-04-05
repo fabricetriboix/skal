@@ -40,25 +40,69 @@ RTT_GROUP_START(TestNetBasic, 0x00110001u,
 
 static SkalNet* gNet = NULL;
 
-RTT_TEST_START(skal_net_basic_should_parse_ip4_string)
+RTT_TEST_START(skal_net_basic_should_parse_unix_url)
 {
-    uint32_t ip4;
-    RTT_EXPECT(SkalNetStringToIp4("1.2.3.4", &ip4));
-    RTT_EXPECT(0x01020304 == ip4);
+    // TODO
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_net_basic_should_print_ip4)
+RTT_TEST_START(skal_net_basic_should_parse_unixs_url)
 {
-    char buffer[32];
-    SkalNetIp4ToString(0xDEADBEEF, buffer, sizeof(buffer));
-    RTT_EXPECT(strncmp(buffer, "222.173.190.239", sizeof(buffer)) == 0);
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_parse_unixd_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_parse_tcp_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_parse_udp_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_unix_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_unixs_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_unixd_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_tcp_url)
+{
+    // TODO
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_net_basic_should_make_udp_url)
+{
+    // TODO
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_basic_should_create_set)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(NULL);
     RTT_ASSERT(gNet != NULL);
 }
 RTT_TEST_END
@@ -71,8 +115,16 @@ RTT_TEST_START(skal_net_basic_should_destroy_set)
 RTT_TEST_END
 
 RTT_GROUP_END(TestNetBasic,
-        skal_net_basic_should_parse_ip4_string,
-        skal_net_basic_should_print_ip4,
+        skal_net_basic_should_parse_unix_url,
+        skal_net_basic_should_parse_unixs_url,
+        skal_net_basic_should_parse_unixd_url,
+        skal_net_basic_should_parse_tcp_url,
+        skal_net_basic_should_parse_udp_url,
+        skal_net_basic_should_make_unix_url,
+        skal_net_basic_should_make_unixs_url,
+        skal_net_basic_should_make_unixd_url,
+        skal_net_basic_should_make_tcp_url,
+        skal_net_basic_should_make_udp_url,
         skal_net_basic_should_create_set,
         skal_net_basic_should_destroy_set)
 
@@ -85,16 +137,15 @@ static int gClientSockid = -1;
 
 RTT_TEST_START(skal_net_pipe_should_create_set)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(NULL);
     RTT_ASSERT(gNet != NULL);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_pipe_should_create_server)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_PIPE;
-    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, (void*)0xcafedeca, 0);
+    gServerSockid = SkalNetServerCreate(gNet,
+            "pipe://", 0, (void*)0xcafedeca, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
@@ -126,8 +177,8 @@ RTT_TEST_START(skal_net_pipe_should_receive_data)
 {
     char buffer[16];
     int index = 0;
-    int count = 14;
-    while (count > 0) {
+    int remaining = 14;
+    while (remaining > 0) {
         SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
         RTT_ASSERT(event != NULL);
         RTT_ASSERT(SKAL_NET_EV_IN == event->type);
@@ -135,10 +186,10 @@ RTT_TEST_START(skal_net_pipe_should_receive_data)
         RTT_ASSERT((void*)0xcafedeca == event->context);
         RTT_ASSERT(event->in.data != NULL);
         RTT_ASSERT(event->in.size_B > 0);
-        RTT_ASSERT(event->in.size_B <= count);
+        RTT_ASSERT(event->in.size_B <= remaining);
         memcpy(buffer + index, event->in.data, event->in.size_B);
         index += event->in.size_B;
-        count -= event->in.size_B;
+        remaining -= event->in.size_B;
         SkalNetEventUnref(event);
     }
     RTT_EXPECT(strncmp(buffer, "Hello, World!", sizeof(buffer)) == 0);
@@ -169,38 +220,31 @@ static int gCommSockid = -1;
 
 RTT_TEST_START(skal_net_unix_stream_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(0, NULL);
+    gCommNet = SkalNetCreate(NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_stream_should_create_server)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_UNIX_STREAM;
-    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
-    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, gNet, 0);
+    gServerSockid = SkalNetServerCreate(gNet, "unixs://test.sock", 0, gNet, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_stream_should_create_client)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_UNIX_STREAM;
-    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
     gCommSockid = SkalNetCommCreate(gCommNet,
-            NULL, &addr, 0, (void*)0xdeadbabe, 0);
+            NULL, "unixs://test.sock", 0, (void*)0xdeadbabe, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_stream_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
@@ -214,7 +258,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_stream_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -226,7 +269,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_stream_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END
@@ -304,38 +347,31 @@ RTT_GROUP_START(TestNetUnixDgram, 0x00110004u,
 
 RTT_TEST_START(skal_net_unix_dgram_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(-1, NULL);
+    gCommNet = SkalNetCreate(NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_dgram_should_create_server)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_UNIX_DGRAM;
-    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
-    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, gNet, 0);
+    gServerSockid = SkalNetServerCreate(gNet, "unixd://test.sock", 0, gNet, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_dgram_should_create_client)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_UNIX_DGRAM;
-    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
     gCommSockid = SkalNetCommCreate(gCommNet,
-            NULL, &addr, 0, (void*)0xdeadbabe, 0);
+            NULL, "unixd://test.sock", 0, (void*)0xdeadbabe, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_dgram_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -363,7 +399,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_dgram_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
@@ -377,7 +412,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_dgram_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END
@@ -462,38 +497,32 @@ RTT_GROUP_START(TestNetUnixSeqpkt, 0x00110005u,
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(-1, NULL);
+    gCommNet = SkalNetCreate(NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_create_server)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
-    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
-    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, (void*)0xdeadbeef, 0);
+    gServerSockid = SkalNetServerCreate(gNet,
+            "unix://test.sock", 0, (void*)0xdeadbeef, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_create_client)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
-    snprintf(addr.unix.path, sizeof(addr.unix.path), "test.sock");
     gCommSockid = SkalNetCommCreate(gCommNet,
-            NULL, &addr, 0, (void*)0xdeadbabe, 0);
+            NULL, "unix://test.sock", 0, (void*)0xdeadbabe, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
@@ -507,7 +536,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -535,14 +563,13 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_recv_hello)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_IN == event->type);
@@ -556,7 +583,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_unix_seqpkt_should_recv_world)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_IN == event->type);
@@ -622,39 +648,32 @@ RTT_GROUP_START(TestNetTcp, 0x00110006u,
 
 RTT_TEST_START(skal_net_tcp_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(0, NULL);
+    gCommNet = SkalNetCreate(NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_tcp_should_create_server)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_IP4_TCP;
-    RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
-    addr.ip4.port = 5678;
-    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
+    gServerSockid = SkalNetServerCreate(gNet,
+            "tcp://127.0.0.1:5678", 0, NULL, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_tcp_should_create_client)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_IP4_TCP;
-    RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
-    addr.ip4.port = 5678;
-    gCommSockid = SkalNetCommCreate(gCommNet, NULL, &addr, 0, NULL, 0);
+    gCommSockid = SkalNetCommCreate(gCommNet,
+            NULL, "tcp://127.0.0.1:5678", 0, NULL, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_tcp_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
@@ -668,7 +687,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_tcp_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -680,7 +698,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_tcp_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END
@@ -758,43 +776,33 @@ RTT_GROUP_START(TestNetUdp, 0x00110007u,
 
 RTT_TEST_START(skal_net_udp_should_create_sets)
 {
-    gNet = SkalNetCreate(0, NULL);
+    gNet = SkalNetCreate(NULL);
     RTT_ASSERT(gNet != NULL);
 
-    gCommNet = SkalNetCreate(-1, NULL);
+    gCommNet = SkalNetCreate(NULL);
     RTT_ASSERT(gCommNet != NULL);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_udp_should_create_server)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_IP4_UDP;
-    RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
-    addr.ip4.port = 6789;
-    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, gNet, 0);
+    gServerSockid = SkalNetServerCreate(gNet,
+            "udp://localhost:6789", 0, gNet, 0);
     RTT_ASSERT(gServerSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_udp_should_create_client)
 {
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_IP4_UDP;
-    RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &addr.ip4.address));
-    addr.ip4.port = 6789;
-    SkalNetAddr localaddr;
-    RTT_ASSERT(SkalNetStringToIp4("127.0.0.1", &localaddr.ip4.address));
-    localaddr.ip4.port = 9000;
     gCommSockid = SkalNetCommCreate(gCommNet,
-            &localaddr, &addr, 0, (void*)0xdeadbabe, 0);
+            "udp://127.0.0.1:9000", "udp://127.0.0.1:6789",
+            0, (void*)0xdeadbabe, 0);
     RTT_ASSERT(gCommSockid >= 0);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_net_udp_should_recv_estab_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gCommNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_ESTABLISHED == event->type);
@@ -822,7 +830,6 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_udp_should_recv_conn_ev)
 {
-    usleep(1000);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
     RTT_ASSERT(event != NULL);
     RTT_ASSERT(SKAL_NET_EV_CONN == event->type);
@@ -836,7 +843,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_net_udp_should_close_server)
 {
-    RTT_EXPECT(SkalNetSocketDestroy(gNet, gServerSockid));
+    SkalNetSocketDestroy(gNet, gServerSockid);
     gServerSockid = -1;
 }
 RTT_TEST_END

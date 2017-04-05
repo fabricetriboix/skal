@@ -74,7 +74,7 @@
  * TODO: Implement `skal-query-alarms`
  */
 
-#include "skalcommon.h"
+#include "skal-common.h"
 #include "skal-net.h"
 
 
@@ -97,25 +97,7 @@ typedef struct {
      * This is where processes on this computer will connect to. This is
      * typically a UNIX socket. Must not be NULL.
      */
-    const char* localAddrPath;
-
-    /** Other skald daemons to connect to
-     *
-     * These can be in this domain or different domains.
-     *
-     * This is an array of `npeers` items. May be NULL if you want this skald to
-     * be alone.
-     */
-    const SkalNetAddr* peers;
-
-    /** Number of items in the `peers` array - must be >= 0 */
-    int npeers;
-
-    /** Timeout when polling for network events, in us
-     *
-     * Set this to <= 0 to use the default value.
-     */
-    int pollTimeout_us;
+    const char* localUrl;
 } SkaldParams;
 
 
@@ -127,16 +109,15 @@ typedef struct {
 
 /** Run skald
  *
- * This function does not return, except when `SkaldTerminate` is called.
+ * This function returns when skald is up and running.
  */
 void SkaldRun(const SkaldParams* params);
 
 
 /** Terminate skald
  *
- * This function does not block and is typically called from a signal handler.
- * This function returns immediately; skald will be stopped only once
- * `SkaldRun()` returns.
+ * This function might block for a very short time while skald is shutting down.
+ * When this function returns, skald has been terminated.
  */
 void SkaldTerminate(void);
 

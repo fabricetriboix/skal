@@ -22,31 +22,31 @@
 #include <errno.h>
 
 
-#define SKALD_DEFAULT_CFGPATH "/etc/skal/skald.cfg"
-
-#define SKALD_SOCKNAME "skald.sock"
-
-
-static unsigned int gSigCount = 0;
+static enum {
+    STARTING,
+    RUNNING,
+    TERMINATING
+} gState = STARTING;
 
 static void handleSignal(int signum)
 {
-    switch (gSigCount) {
-    case 0 :
-        fprintf(stderr, "Received signal %d, terminating...\n", signum);
-        gSigCount++;
-        SkaldTerminate();
-        break;
-
-    case 1 :
-        fprintf(stderr, "Received signal %d, but termination is in progress\n",
+    switch (gState) {
+    case STARTING :
+        fprintf(stderr,
+                "Received signal %d, but skald has not started yet; forcing termination\n",
                 signum);
-        fprintf(stderr, "Send signal again to force termination\n");
-        gSigCount++;
+        exit(2);
         break;
 
+    case RUNNING :
+        fprintf(stderr, "Received signal %d, terminating...\n", signum);
+        fprintf(stderr, "  (send signal again to force termination)\n");
+        gState = TERMINATING;
+        break;
+
+    case TERMINATING :
     default :
-        fprintf(stderr, "Received signal %d for a third time, forcing termination now\n",
+        fprintf(stderr, "Received signal %d again, forcing termination now\n",
                 signum);
         exit(2);
         break;
@@ -54,8 +54,49 @@ static void handleSignal(int signum)
 }
 
 
+static void usage(void)
+{
+    printf( "%s",
+            "skald [-h] [-d DOMAIN] [-b LOCALURL]\n"
+            "  -h            Print this message and exit\n"
+            "  -d DOMAIN     Set the skald domain\n"
+            "  -b LOCALURL   Local URL to listen to\n"
+            "  -f PIDFILE    Fork and write skald PID in PIDFILE\n"
+          );
+    exit(0);
+}
+
+
+static void parseArgs(int argc, char** argv, SkaldParams* params)
+{
+    int opt;
+    while ((opt = getopt(argc, argv, "hd:b:f:")) != -1) {
+        switch (opt) {
+        case 'h' :
+            usage();
+            break;
+        case 'd' :
+            params->domain = optarg;
+            break;
+        case 'b' :
+            params->localUrl = optarg;
+            break;
+        case 'f' :
+            fprintf(stderr, "TODO: Fork not implemented yet\n");
+            exit(2);
+            break;
+        default :
+            fprintf(stderr, "Unknown argument -%c\n", (char)opt);
+            exit(2);
+        }
+    }
+}
+
+
 int main(int argc, char** argv)
 {
+    SkalPlfInit();
+
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handleSignal;
@@ -72,14 +113,18 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // TODO: parse config file
-    //const char* cfgpath = SKALD_DEFAULT_CFGPATH;
-
     SkaldParams params;
     memset(&params, 0, sizeof(params));
-    params.localAddrPath = "/tmp/skald.sock";
-    unlink(params.localAddrPath);
+    parseArgs(argc, argv, &params);
 
     SkaldRun(&params);
+
+    gState = RUNNING;
+    while (RUNNING == gState) {
+        pause();
+    }
+
+    SkaldTerminate();
+    SkalPlfExit();
     return 0;
 }

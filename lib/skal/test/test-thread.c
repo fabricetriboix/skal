@@ -24,11 +24,14 @@
 
 
 #define SOCKPATH "pseudo-skald.sock"
+
 static SkalNet* gNet = NULL;
 static int gServerSockid = -1;
 static int gClientSockid = -1;
 static bool gHasConnected = false;
-static SkalPlfThread* gSkaldThread = NULL;
+static SkalPlfThread* gPseudoSkaldThread = NULL;
+static int gSockidPipeServer = -1;
+static int gSockidPipeClient = -1;
 
 static void pseudoSkald(void* arg)
 {
@@ -38,56 +41,56 @@ static void pseudoSkald(void* arg)
     bool stop = false;
     while (!stop) {
         SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
-        if (event != NULL) {
-            switch (event->type) {
-            case SKAL_NET_EV_CONN :
-                SKALASSERT(-1 == gClientSockid);
-                gClientSockid = event->conn.commSockid;
-                gHasConnected = true;
-                break;
-            case SKAL_NET_EV_DISCONN :
-                {
-                    SKALASSERT(gClientSockid == event->sockid);
-                    bool destroyed = SkalNetSocketDestroy(gNet, gClientSockid);
-                    SKALASSERT(destroyed);
-                    gClientSockid = -1;
-                }
-                break;
-            case SKAL_NET_EV_IN :
-                {
-                    const char* json = (const char*)(event->in.data);
-                    bool hasnull = false;
-                    for (int i = 0; (i < event->in.size_B) && !hasnull; i++) {
-                        if ('\0' == json[i]) {
-                            hasnull = true;
-                        }
-                    }
-                    SKALASSERT(hasnull);
-                    SkalMsg* msg = SkalMsgCreateFromJson(json);
-                    SKALASSERT(msg != NULL);
-                    if (strcmp(SkalMsgType(msg), "skal-master-born") == 0) {
-                        SkalMsg* resp = SkalMsgCreate("skal-domain",
-                                "skal-master", 0, NULL);
-                        SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
-                        SkalMsgAddString(resp, "domain", "local");
-                        char* respjson = SkalMsgToJson(resp);
-                        SkalMsgUnref(resp);
-                        SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
-                                event->sockid, respjson, strlen(respjson) + 1);
-                        SKALASSERT(SKAL_NET_SEND_OK == result);
-                        free(respjson);
-                    }
-                    // else: discard all other messages
-                    SkalMsgUnref(msg);
-                }
-                break;
-            default :
-                SKALPANIC_MSG("Pseudo-skald does not expect SkalNet of type %d",
-                        (int)event->type);
-                break;
+        SKALASSERT(event != NULL);
+        switch (event->type) {
+        case SKAL_NET_EV_CONN :
+            SKALASSERT(-1 == gClientSockid);
+            gClientSockid = event->conn.commSockid;
+            gHasConnected = true;
+            break;
+        case SKAL_NET_EV_DISCONN :
+            {
+                SKALASSERT(gClientSockid == event->sockid);
+                SkalNetSocketDestroy(gNet, gClientSockid);
+                gClientSockid = -1;
             }
-            SkalNetEventUnref(event);
+            break;
+        case SKAL_NET_EV_IN :
+            if (event->sockid == gSockidPipeServer) {
+                stop = true;
+            } else {
+                const char* json = (const char*)(event->in.data);
+                bool hasnull = false;
+                for (int i = 0; (i < event->in.size_B) && !hasnull; i++) {
+                    if ('\0' == json[i]) {
+                        hasnull = true;
+                    }
+                }
+                SKALASSERT(hasnull);
+                SkalMsg* msg = SkalMsgCreateFromJson(json);
+                SKALASSERT(msg != NULL);
+                if (strcmp(SkalMsgName(msg), "skal-init-master-born") == 0) {
+                    SkalMsg* resp = SkalMsgCreate("skal-init-domain",
+                            "skal-master");
+                    SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
+                    SkalMsgAddString(resp, "domain", "local");
+                    char* respjson = SkalMsgToJson(resp);
+                    SkalMsgUnref(resp);
+                    SkalNetSendResult result = SkalNetSend_BLOCKING(gNet,
+                            event->sockid, respjson, strlen(respjson) + 1);
+                    SKALASSERT(SKAL_NET_SEND_OK == result);
+                    free(respjson);
+                }
+                // else: discard all other messages
+                SkalMsgUnref(msg);
+            }
+            break;
+        default :
+            SKALPANIC_MSG("Pseudo-skald does not expect SkalNet of type %d",
+                    (int)event->type);
+            break;
         }
+        SkalNetEventUnref(event);
     } // loop
 }
 
@@ -97,24 +100,34 @@ static RTBool testThreadEnterGroup(void)
     gHasConnected = false;
     SkalPlfInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread");
-    gNet = SkalNetCreate(0, NULL);
-    SkalNetAddr addr;
-    addr.type = SKAL_NET_TYPE_UNIX_SEQPACKET;
+    gNet = SkalNetCreate(NULL);
+
+    // Create pipe to allow pseudo-skald to terminate cleanly
+    gSockidPipeServer = SkalNetServerCreate(gNet, "pipe://", 0, NULL, 0);
+    SKALASSERT(gSockidPipeServer >= 0);
+    SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
+    SKALASSERT(event != NULL);
+    SKALASSERT(SKAL_NET_EV_CONN == event->type);
+    SKALASSERT(gSockidPipeServer == event->sockid);
+    gSockidPipeClient = event->conn.commSockid;
+    SkalNetEventUnref(event);
+
     unlink(SOCKPATH);
-    snprintf(addr.unix.path, sizeof(addr.unix.path), SOCKPATH);
-    gServerSockid = SkalNetServerCreate(gNet, &addr, 0, NULL, 0);
-    gSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
-    SkalThreadInit(SOCKPATH);
+    gServerSockid = SkalNetServerCreate(gNet, "unix://" SOCKPATH, 0, NULL, 0);
+    SKALASSERT(gServerSockid >= 0);
+    gPseudoSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
+    bool connected = SkalThreadInit("unix://" SOCKPATH);
+    SKALASSERT(connected);
     return RTTrue;
 }
 
 static RTBool testThreadExitGroup(void)
 {
     SkalThreadExit();
-    usleep(5000); // Wait for `skal-master` etc. to die
-    SkalPlfThreadCancel(gSkaldThread);
-    SkalPlfThreadJoin(gSkaldThread);
-    gSkaldThread = NULL;
+    char c ='x';
+    SkalNetSend_BLOCKING(gNet, gSockidPipeClient, &c, 1);
+    SkalPlfThreadJoin(gPseudoSkaldThread);
+    gPseudoSkaldThread = NULL;
     SkalNetDestroy(gNet);
     gNet = NULL;
     gServerSockid = -1;
@@ -130,32 +143,35 @@ static RTBool testThreadExitGroup(void)
 RTT_GROUP_START(TestThreadSimple, 0x00060001u,
         testThreadEnterGroup, testThreadExitGroup)
 
+static bool gPinged = false;
 static int gError = -1;
 static int gResult = -1;
 
 static bool testSimpleProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgType(msg), "quit") == 0) {
+    if (strcmp(SkalMsgName(msg), "quit") == 0) {
         return false;
     }
     if (cookie != (void*)0xdeadbabe) {
         gError = 1;
-    } else if (strcmp(SkalMsgType(msg), "ping") != 0) {
+    } else if (strcmp(SkalMsgName(msg), "ping") != 0) {
         gError = 2;
-    } else if (strcmp(SkalMsgSender(msg), "skal-external@local")!=0) {
+    } else if (strcmp(SkalMsgSender(msg), "TestThread@local")!=0) {
         gError = 3;
     } else if (strcmp(SkalMsgRecipient(msg), "simple@local") != 0) {
         gError = 4;
     } else {
+        gPinged = true;
         gError = 0;
         gResult = 1;
     }
-    usleep(1);
+    usleep(1); // simulate some work
     return true;
 }
 
 RTT_TEST_START(skal_simple_should_create_thread)
 {
+    gPinged = false;
     gError = -1;
     gResult = -1;
     SkalThreadCfg cfg;
@@ -169,7 +185,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_simple_should_send_ping_msg)
 {
-    SkalMsg* msg = SkalMsgCreate("ping", "simple", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("ping", "simple");
     RTT_ASSERT(msg != NULL);
     SkalMsgSend(msg);
 }
@@ -177,7 +193,11 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_simple_should_receive_ping_msg)
 {
-    usleep(5000); // give time to thread to receive and deal with ping msg
+    // Wait for thread to receive and deal with ping msg
+    for (int i = 0; (i < 10000) && !gPinged; i++) {
+        usleep(100);
+    }
+    RTT_EXPECT(gPinged);
     RTT_EXPECT(0 == gError);
     RTT_EXPECT(1 == gResult);
 }
@@ -197,28 +217,28 @@ static int gMsgRecv = 0;
 
 static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgType(msg), "ping") == 0) {
+    if (strcmp(SkalMsgName(msg), "ping") == 0) {
         int64_t count = SkalMsgGetInt(msg, "count");
         if (count != (int64_t)gMsgRecv) {
             gError++;
         }
         gMsgRecv++;
     }
-    usleep(100);
+    usleep(100); // simulate work
     return true;
 }
 
 static bool testStufferProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgType(msg), "kick") == 0) {
-        SkalMsg* msg2 = SkalMsgCreate("ping", "receiver", 0, NULL);
+    if (strcmp(SkalMsgName(msg), "kick") == 0) {
+        SkalMsg* msg2 = SkalMsgCreate("ping", "receiver");
         SkalMsgAddInt(msg2, "count", gMsgSend);
         SkalMsgSend(msg2);
         gMsgSend++;
 
         if (gMsgSend < 1000) {
             // Send a message to myself to keep going
-            SkalMsg* msg3 = SkalMsgCreate("kick", "stuffer", 0, NULL);
+            SkalMsg* msg3 = SkalMsgCreate("kick", "stuffer");
             SkalMsgSend(msg3);
         }
     }
@@ -245,16 +265,16 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_stress_kick_off)
 {
-    SkalMsg* msg = SkalMsgCreate("kick", "stuffer", 0, NULL);
+    SkalMsg* msg = SkalMsgCreate("kick", "stuffer");
     SkalMsgSend(msg);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_stress_should_have_sent_and_recv_100_msg)
 {
-    // Give enough time to send and process 1000 messages
-    for (int i = 0; i < 10000; i++) {
-        usleep(1000);
+    // Give enough time to send and process 1000 messages (at most 10s)
+    for (int i = 0; i < 100*1000; i++) {
+        usleep(100);
         if (gMsgRecv >= 1000) {
             break;
         }

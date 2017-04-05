@@ -32,13 +32,14 @@
  *
  * @param allocators [in] Array of custom blob allocators; may be NULL if you
  *                        don't have custom allocators
- * @param size       [in] Size of the previous array
+ * @param size       [in] Size of the above array
  */
 void SkalBlobInit(const SkalAllocator* allocators, int size);
 
 
 /* Deregister all allocators for this process */
 void SkalBlobExit(void);
+
 
 
 #endif /* SKAL_BLOB_h_ */

@@ -29,7 +29,7 @@
  * mentioned in comments. Please note strict checks are perfomed on all strings.
  */
 
-#include "skalcommon.h"
+#include "skal-common.h"
 
 
 
@@ -269,13 +269,12 @@ typedef struct SkalMsg SkalMsg;
  *
  * The arguments are:
  *  - `cookie`: Same as `SkalThreadCfg.cookie`
- *  - `msg`: Message that triggered this call; ownership of `msg` is transferred
- *    to you, it is up to you to free it when you're finished with it, or send
- *    it to another thread.
+ *  - `msg`: Message that triggered this call; ownership of `msg` remains with
+ *    the caller, do not call `SkalMsgUnref()` on that `msg`
  *
  * If you want to terminate the thread, this function should return `false` and
- * you wish will be executed with immediate effect. Otherwise, just return
- * `true`.
+ * you wish will be executed with immediate effect. Otherwise, return `true` to
+ * keep going.
  *
  * **This function is not allowed to block!**
  */
@@ -328,13 +327,14 @@ typedef struct
  * A skald daemon should be running on the same computer before this call is
  * made. You must call this function before any other function in this module.
  *
- * @param skaldUrl   [in] URL to connect to skald. This may be NULL. Actually,
- *                        this should be NULL unless you really know what you
- *                        are doing.
- * @param allocators [in] A NULL-teminated array of custom blob allocators. This
- *                        may be NULL. Actually, this should be NULL, unless you
- *                        have some special way to store data (like a video
- *                        card storing frame buffers).
+ * @param skaldUrl    [in] URL to connect to skald. This may be NULL. Actually,
+ *                         this should be NULL unless you really know what you
+ *                         are doing.
+ * @param allocators  [in] Array of custom blob allocators. This may be NULL.
+ *                         Actually, this should be NULL, unless you have some
+ *                         special way to store data (like a video card storing
+ *                         frame buffers).
+ * @param nallocators [in] Number of allocators in the above array
  *
  * If allocator names are not unique, the latest one will be used. This could be
  * used to override the pre-defined "malloc" and "shm" allocators, although this
@@ -348,12 +348,16 @@ typedef struct
  *
  * @return `true` if OK, `false` if can't connect to skald
  */
-bool SkalInit(const char* skaldUrl, const SkalAllocator* allocators);
+bool SkalInit(const char* skaldUrl,
+        const SkalAllocator* allocators, int nallocators);
 
 
-/** Terminate this process
+/** Terminate SKAL for this process
  *
- * This function can typically be called from a signal handler.
+ * This function terminates all threads managed by SKAL in this process and
+ * de-allocates all resources used by SKAL.
+ *
+ * This function is blocking.
  */
 void SkalExit(void);
 
@@ -370,30 +374,34 @@ void SkalExit(void);
 void SkalThreadCreate(const SkalThreadCfg* cfg);
 
 
-/** Subscribe the current thread to the given group
+/** Pause the calling thread until all threads have finished
  *
- * This function must be called from within the thread that must subscribe.
+ * This function will not return until all the threads have finished. Use this
+ * function to write an application that performs a certain tasks and terminates
+ * when finished.
  *
- * @param group [in] Group to subscribe to; must not be NULL
+ * **WARNING** You must call this function AFTER having called `SkalInit()`.
+ * Also, you MUST NOT call `SkalExit()` while a call to `SkalPause()` is in
+ * progress; this will result in a segmentation fault.
+ *
+ * @return `true` if all threads have finished, `false` if `SkalCancel()` has
+ *         been called (in which case, some threads are still probably running)
  */
-void SkalThreadSubscribe(const char* group);
+bool SkalPause(void);
 
 
-/** Unsubscribe the current thread from the given group
+/** Cancel a `SkalPause()`
  *
- * This function must be called from within the thread that must unsubscribe.
+ * Use this function to cause `SkalPause()` to return immediately. When you call
+ * `SkalCancel()`, `SkalPause()` will return `false`.
  *
- * @param group [in] Group to unsubscribe to; must not be NULL
+ * This function is typically called from signal handlers.
+ *
+ * **WARNING** You must call this function AFTER having called `SkalInit()`.
+ * Also, you MUST NOT call `SkalExit()` while a call to `SkalPause()` or
+ * `SkalCancel()` is in progress; this will result in a segmentation fault.
  */
-void SkalThreadUnsubscribe(const char* group);
-
-
-/** SKAL main loop
- *
- * This should be your last call in your `main()` function. This function does
- * not return.
- */
-void SkalLoop(void) __attribute__((noreturn));
+void SkalCancel(void);
 
 
 /** Create an alarm object
@@ -405,7 +413,7 @@ void SkalLoop(void) __attribute__((noreturn));
  *
  * The alarm comment can be a UTF-8 string.
  *
- * @param type     [in] Alarm type; must not be NULL; alarm types starting with
+ * @param name     [in] Alarm name; must not be NULL; alarm names starting with
  *                      "skal-" are reserved for SKAL
  * @param severity [in] Alarm severity
  * @param isOn     [in] Whether the condition related to the alarm started or
@@ -416,8 +424,10 @@ void SkalLoop(void) __attribute__((noreturn));
  * @param format   [in] Free-form comment: printf-style format; may be NULL if
  *                      you don't want to add a comment
  * @param ...      [in] Printf-style arguments
+ *
+ * @return The alarm object; this function never returns NULL
  */
-SkalAlarm* SkalAlarmCreate(const char* type, SkalAlarmSeverityE severity,
+SkalAlarm* SkalAlarmCreate(const char* name, SkalAlarmSeverityE severity,
         bool isOn, bool autoOff, const char* format, ...)
     __attribute__(( format(printf, 5, 6) ));
 
@@ -445,13 +455,13 @@ void SkalAlarmRef(SkalAlarm* alarm);
 void SkalAlarmUnref(SkalAlarm* alarm);
 
 
-/** Get the alarm type
+/** Get the alarm name
  *
  * @param alarm [in] Alarm to query; must not be NULL
  *
- * @return The alarm type; never NULL
+ * @return The alarm name; never NULL
  */
-const char* SkalAlarmType(const SkalAlarm* alarm);
+const char* SkalAlarmName(const SkalAlarm* alarm);
 
 
 /** Get the alarm severity
@@ -654,21 +664,38 @@ int64_t SkalBlobSize_B(const SkalBlob* blob);
 
 /** Create an empty message
  *
- * @param type      [in] Message's type. This argument may not be NULL and may
- *                       not be an empty string. Please note that message types
+ * The time-to-live (TTL) counter works in the same way as for IP TTL. It will
+ * be decremented each time the message goes through a skald daemon. The message
+ * will be dropped if its TTL reaches zero.
+ *
+ * @param name      [in] Message name. This argument may not be NULL and may
+ *                       not be an empty string. Please note that message names
  *                       starting with "skal-" are reserved for SKAL's own use,
- *                       so please avoid prefixing your message types with
+ *                       so please avoid prefixing your message names with
  *                       "skal-".
  * @param recipient [in] Whom to send this message to
  * @param flags     [in] Message flags; please refer to `SKAL_MSG_FLAG_*`
- * @param marker    [in] A marker that helps uniquely identify this message.
- *                       This argument may be NULL, in which case a marker will
- *                       be automatically generated.
+ * @param ttl       [in] Time-to-live counter; <=0 for default value
  *
  * @return The newly created SKAL message; this function never returns NULL
  */
-SkalMsg* SkalMsgCreate(const char* type, const char* recipient,
-        uint8_t flags, const char* marker);
+SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
+        uint8_t flags, int8_t ttl);
+
+
+/** Create a simple message
+ *
+ * This is a simplified version of `SkalMsgCreateEx()`, which takes out
+ * often-unused arguments. The created message will have no flags set and a TTL
+ * set to the default value.
+ *
+ * @param name      [in] Message name; same as `SkalMsgCreateEx()`
+ * @param recipient [in] Message recipient; same as `SkalMsgCreateEx()`
+ *
+ *
+ * @return Created SKAL message; this function never returns NULL
+ */
+SkalMsg* SkalMsgCreate(const char* name, const char* recipient);
 
 
 /** Add a reference to a message
@@ -697,13 +724,13 @@ void SkalMsgRef(SkalMsg* msg);
 void SkalMsgUnref(SkalMsg* msg);
 
 
-/** Get the message type
+/** Get the message name
  *
  * @param msg [in] Message to query; must not be NULL
  *
- * @return The message type; never NULL
+ * @return The message name; never NULL
  */
-const char* SkalMsgType(const SkalMsg* msg);
+const char* SkalMsgName(const SkalMsg* msg);
 
 
 /** Get the message sender
@@ -733,13 +760,20 @@ const char* SkalMsgRecipient(const SkalMsg* msg);
 uint8_t SkalMsgFlags(const SkalMsg* msg);
 
 
-/** Get the message marker
+/** Get the message TTL
  *
  * @param msg [in] Message to query; must not be NULL
  *
- * @return The message marker, never NULL
+ * @return The message TTL
  */
-const char* SkalMsgMarker(const SkalMsg* msg);
+int8_t SkalMsgTtl(const SkalMsg* msg);
+
+
+/** Decrement the message TTL
+ *
+ * @param msg [in,out] Message whose TTL to decrement by 1
+ */
+void SkalMsgDecrementTtl(SkalMsg* msg);
 
 
 /** Add an extra integer to the message
@@ -768,6 +802,20 @@ void SkalMsgAddDouble(SkalMsg* msg, const char* name, double d);
  *                      and null-terminated; can be of arbitrary length.
  */
 void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s);
+
+
+/** Add a formatted string to the message
+ *
+ * @param msg    [in,out] Message to manipulate; must not be NULL
+ * @param name   [in]     Name of the string; must not be NULL
+ * @param format [in]     Printf-like format of string to send; must not be
+ *                        NULL; must be UTF-8 encoded and null-terminated; can
+ *                        be of arbitrary length.
+ * @param ...    [in]     Printf-like arguments
+ */
+void SkalMsgAddFormattedString(SkalMsg* msg, const char* name,
+        const char* format, ...)
+    __attribute__(( format(printf, 3, 4) ));
 
 
 /** Add an extra binary field to the message
@@ -933,8 +981,8 @@ void SkalMsgSend(SkalMsg* msg);
 
 /** Get the current domain name
  *
- * The domain name is sent by skald immediately after we connect to it. Shortly
- * after `SkalInit()` returns, the domain will have its definitive value.
+ * The domain name is sent by skald just after we connect to it. Shortly after
+ * `SkalInit()` returns, the domain will have its definitive value.
  *
  * @return The current domain name, or NULL if not known yet
  */

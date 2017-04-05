@@ -54,12 +54,12 @@
 #define SKAL_ALLOCATORS_MAX 500
 
 
-/** Maximum number of fields per message */
-#define SKAL_FIELDS_MAX 1000
-
-
 /** Maximum number of threads per process */
 #define SKAL_THREADS_MAX 10000
+
+
+/** Maximum number of fields per message */
+#define SKAL_FIELDS_MAX 1000
 
 
 /** Maximum number of messages that can be queued in a message list */
@@ -70,6 +70,10 @@
 #define SKAL_XOFF_MAX 1000
 
 
+/** Default TTL */
+#define SKAL_DEFAULT_TTL 4
+
+
 /** Default XOFF timeout (how long to wait before retrying to send) */
 #define SKAL_DEFAULT_XOFF_TIMEOUT_us 50000
 
@@ -78,8 +82,8 @@
 #define SKAL_DEFAULT_QUEUE_THRESHOLD 100
 
 
-/** Default path to skald UNIX socket */
-#define SKAL_DEFAULT_SKALD_PATH "/tmp/skald.sock"
+/** Default skal-net style URL to connect to skald */
+#define SKAL_DEFAULT_SKALD_URL "unix:///tmp/skald.sock"
 
 
 /** Default backlog value for server sockets */
@@ -90,8 +94,12 @@
 #define SKAL_NET_DEFAULT_TIMEOUT_us (10 * 1000 * 1000)
 
 
-/** Default socket polling timeout */
-#define SKAL_NET_DEFAULT_POLL_TIMEOUT_us (1000 * 1000)
+/** Socket polling timeout
+ *
+ * Please note this affects only how often connectionless sockets are checked
+ * for termination.
+ */
+#define SKAL_NET_POLL_TIMEOUT_us (10 * 1000)
 
 
 /** Default socket buffer size, in bytes */

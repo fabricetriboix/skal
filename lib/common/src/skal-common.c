@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "skalcommon.h"
+#include "skal-common.h"
 #include <stdarg.h>
 #include <string.h>
 
@@ -74,6 +74,16 @@ static char nextValidBase64Char(const char** pBase64);
  * @return The decoded 6-bit byte
  */
 static uint8_t base64CharToByte(char c);
+
+
+
+/*------------------+
+ | Global variables |
+ +------------------*/
+
+
+/** Whether to enable or not logging through `SkalLog()` */
+static bool gLogEnabled = true;
 
 
 
@@ -147,8 +157,27 @@ void* _SkalCalloc(int nItems, int itemSize_B, const char* file, int line)
 }
 
 
+char* _SkalStrdup(const char* s, const char* file, int line)
+{
+    if (NULL == s) {
+        return NULL;
+    }
+#ifndef SKAL_WITH_FLLOC
+    char* ptr = FllocStrdup(s, file, line);
+#else
+    (void)file;
+    (void)line;
+    char* ptr = strdup(s);
+#endif
+    SKALASSERT(ptr != NULL);
+    return ptr;
+}
+
+
 char* SkalSPrintf(const char* format, ...)
 {
+    SKALASSERT(format != NULL);
+
     va_list ap;
     va_start(ap, format);
 
@@ -175,6 +204,8 @@ char* SkalSPrintf(const char* format, ...)
 
 char* SkalVSPrintf(const char* format, va_list ap)
 {
+    SKALASSERT(format != NULL);
+
     va_list ap1;
     va_copy(ap1, ap);
 
@@ -318,10 +349,17 @@ bool SkalIsUtf8String(const char* str, int maxlen)
 }
 
 
-int SkalStringCompare(void* leftkey, void* rightkey, void* cookie)
+int SkalStringCompare(void* leftKey, void* rightKey, void* cookie)
 {
     (void)cookie;
-    return strncmp((const char*)leftkey, (const char*)rightkey, SKAL_NAME_MAX);
+    return strncmp((const char*)leftKey, (const char*)rightKey, SKAL_NAME_MAX);
+}
+
+
+int SkalMemCompare(void* leftKey, void* rightKey, void* cookie)
+{
+    size_t len = (size_t)cookie;
+    return memcmp(leftKey, rightKey, len);
 }
 
 
@@ -480,6 +518,9 @@ uint8_t* SkalBase64Decode(const char* base64, int* size_B)
 
 void _SkalLog(const char* file, int line, const char* format, ...)
 {
+    if (!gLogEnabled) {
+        return;
+    }
     va_list ap;
     va_start(ap, format);
     char* msg = malloc(SKAL_LOG_MAX);
@@ -488,6 +529,12 @@ void _SkalLog(const char* file, int line, const char* format, ...)
     fprintf(stderr, "SKAL ERROR [%s:%d] %s\n", file, line, msg);
     free(msg);
     va_end(ap);
+}
+
+
+void SkalLogEnable(bool enable)
+{
+    gLogEnabled = enable;
 }
 
 

@@ -38,9 +38,11 @@ typedef struct SkalThread SkalThread;
 
 /** Initialise the thread module & create the master thread
  *
- * @param skaldPath [in] Path to skald socket, or NULL for default
+ * @param skaldUrl [in] skal-net style URL to skald socket, or NULL for default
+ *
+ * @return `true` if OK, `false` if it can't connect to skald
  */
-void SkalThreadInit(const char* skaldPath);
+bool SkalThreadInit(const char* skaldUrl);
 
 
 /** Terminate all threads and free up all resources
@@ -49,6 +51,18 @@ void SkalThreadInit(const char* skaldPath);
  * have been freed. The master thread will also be terminated.
  */
 void SkalThreadExit(void);
+
+
+/** Pause the calling thread until all threads have exited
+ *
+ * @return `true` if all threads have terminated, `false` if
+ *         `SkalThreadCancel()` has been called
+ */
+bool SkalThreadPause(void);
+
+
+/** Cancel a `SkalThreadPause()` */
+void SkalThreadCancel(void);
 
 
 

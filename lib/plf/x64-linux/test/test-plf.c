@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "skalplf.h"
+#include "skal-plf.h"
 #include "rttest.h"
 #include <string.h>
 #include <unistd.h>
@@ -42,9 +42,16 @@ static char gThreadName[100] = "nothing";
 static void* gThreadArg = (void*)0xcafedeca;
 static void* gThreadSpecific = NULL;
 
+static enum {
+    THREAD_STARTING,
+    THREAD_WAITING,
+    THREAD_FINISHED
+} gState = THREAD_STARTING;
+
 static void testSkalPlfThreadFn(void* arg)
 {
     SkalPlfThreadSetSpecific((void*)0xdeadbabe);
+    gState = THREAD_WAITING;
     SkalPlfMutexLock(gMutex);
     while (!gGoAhead) {
         SkalPlfCondVarWait(gCondVar, gMutex);
@@ -53,6 +60,7 @@ static void testSkalPlfThreadFn(void* arg)
     snprintf(gThreadName, sizeof(gThreadName), "%s", SkalPlfThreadGetName());
     SkalPlfMutexUnlock(gMutex);
     gThreadSpecific = SkalPlfThreadGetSpecific();
+    gState = THREAD_FINISHED;
 }
 
 
@@ -95,7 +103,9 @@ RTT_TEST_END
 RTT_TEST_START(skal_plf_thread_arg_should_be_changed_after_signal)
 {
     // Allow the thread to reach the stage where it will wait on the condvar
-    usleep(1000);
+    while (gState != THREAD_WAITING) {
+        usleep(100);
+    }
 
     // Tell the thread to go ahead
     SkalPlfMutexLock(gMutex);
@@ -104,7 +114,9 @@ RTT_TEST_START(skal_plf_thread_arg_should_be_changed_after_signal)
     SkalPlfCondVarSignal(gCondVar);
 
     // Allow the thread to run
-    usleep(1000);
+    while (gState != THREAD_FINISHED) {
+        usleep(100);
+    }
 
     RTT_EXPECT(((void*)0xdeadbeef) == gThreadArg);
 }
