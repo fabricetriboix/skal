@@ -1,4 +1,4 @@
-# Copyright (c) 2016  Fabrice Triboix
+# Copyright (c) 2016,2017  Fabrice Triboix
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,14 +21,17 @@ DOXYGEN := $(shell which doxygen 2> /dev/null)
 DOT := $(shell which dot 2> /dev/null)
 
 MODULES = $(TOPDIR)/lib/plf/$(PLF) $(TOPDIR)/lib/common \
-			$(TOPDIR)/lib/net $(TOPDIR)/lib/skal
+			$(TOPDIR)/lib/net $(TOPDIR)/lib/skal \
+			$(TOPDIR)/lib/bindings/cpp
 
 # Path for make to search for source files
 VPATH = $(foreach i,$(MODULES),$(i)/src) $(foreach i,$(MODULES),$(i)/test) \
 		$(TOPDIR)/skald/src $(TOPDIR)/skald/test $(TOPDIR)/utils
 
 # Output libraries
-OUTPUT_LIBS = libskal.a
+LIBSKAL = libskal.a
+LIBSKALCPP = libskalcpp.a
+OUTPUT_LIBS = $(LIBSKAL) $(LIBSKALCPP)
 
 # Include paths for compilation
 INCS = $(foreach i,$(MODULES),-I$(i)/include) \
@@ -40,6 +43,7 @@ HDRS = $(foreach i,$(MODULES),$(wildcard $(i)/include/*.h))
 # List of object files for various targets
 LIBSKAL_OBJS = skal-plf.o skal-common.o skal-net.o skal-blob.o skal-alarm.o \
 		skal-msg.o skal-queue.o skal-thread.o skal.o
+LIBSKALCPP_OBJS = skal-cpp.o
 SKALD_OBJS = skald.o main.o
 RTTEST_MAIN_OBJ = rttestmain.o
 SKAL_TEST_OBJS = test-plf.o test-common.o test-net.o test-blob.o test-alarm.o \
@@ -105,21 +109,23 @@ fi; \
 $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
 
-libskal.a: $(LIBSKAL_OBJS)
+$(LIBSKAL): $(LIBSKAL_OBJS)
 
-skald: $(SKALD_OBJS) $(OUTPUT_LIBS)
+$(LIBSKALCPP): $(LIBSKALCPP_OBJS)
+
+skald: $(SKALD_OBJS) $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(OUTPUT_LIBS) skald.o
+skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(LIBSKAL) skald.o
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-skal-post: skal-post.o $(OUTPUT_LIBS)
+skal-post: skal-post.o $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-writer: writer.o $(OUTPUT_LIBS)
+writer: writer.o $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-reader: reader.o $(OUTPUT_LIBS)
+reader: reader.o $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
 

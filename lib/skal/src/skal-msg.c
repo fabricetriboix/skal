@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -468,23 +468,6 @@ SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
     SkalBlob* blob = field->blob;
     SKALASSERT(blob != NULL);
     SkalBlobRef(blob);
-    return blob;
-}
-
-
-SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name)
-{
-    SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
-
-    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
-    SKALASSERT(field != NULL);
-    SKALASSERT(SKAL_MSG_FIELD_TYPE_BLOB == field->type);
-
-    SkalBlob* blob = field->blob;
-    SKALASSERT(blob != NULL);
-    SkalBlobRef(blob);
-    CdsMapItemRemove(msg->fields, &field->item);
     return blob;
 }
 

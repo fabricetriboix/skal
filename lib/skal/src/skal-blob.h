@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,11 @@
 
 #ifndef SKAL_BLOB_h_
 #define SKAL_BLOB_h_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 #include "skal.h"
 
@@ -41,5 +46,9 @@ void SkalBlobInit(const SkalAllocator* allocators, int size);
 void SkalBlobExit(void);
 
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SKAL_BLOB_h_ */

@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,10 @@
 
 #ifndef SKAL_h_
 #define SKAL_h_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** SKAL
  *
@@ -49,7 +53,7 @@
 #define SKAL_MSG_FLAG_OUT_OF_ORDER_OK 0x01
 
 
-/** Message flag: it's OK to drop this message
+/** Message flag: it's OK to silently drop this message
  *
  * Skal will send this message using a link that might drop packets, in
  * exchange of a faster transfer.
@@ -60,7 +64,7 @@
 #define SKAL_MSG_FLAG_DROP_OK 0x02
 
 
-/** Message flag: send the message over a UDP-like link
+/** Message flag: send this message over a UDP-like link
  *
  * Skal will send this message using a UDP-like link, i.e. is a combination of
  * the two previous flags.
@@ -71,7 +75,7 @@
 #define SKAL_MSG_FLAG_UDP (SKAL_MSG_FLAG_OUT_OF_ORDER_OK|SKAL_MSG_FLAG_DROP_OK)
 
 
-/** Message flag: notify sender of dropped packet
+/** Message flag: notify the sender if this packet is dropped
  *
  * A "skal-msg-drop" message will be sent to the sender of this message if
  * the message is dropped before reaching its destination. This flag has no
@@ -97,7 +101,7 @@
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
  *  - `id`: Optional identifier (eg: buffer slot on a video card)
- *  - `size_B`: Optional minimum size of the memory area to allocate
+ *  - `size_B`: Optional minimum size of the memory area to allocate, in bytes
  *
  * This function must return an object that will be used later to map and unmap
  * the memory area into the process/thread memory space. It must return NULL in
@@ -163,8 +167,7 @@ typedef void (*SkalUnmapF)(void* cookie, void* obj);
  * be copied to the new blob, and the old blob will be deleted and replaced by
  * the new blob.
  */
-typedef enum
-{
+typedef enum {
     /** The scope is limited to the current thread */
     SKAL_ALLOCATOR_SCOPE_THREAD,
 
@@ -195,13 +198,12 @@ typedef enum
  *  - "shm": Allocates memory accessible within the computer (this uses the
  *    operating system shared memory capabilities)
  */
-typedef struct
-{
+typedef struct {
     /** Allocator name
      *
      * This must be unique within the allocator's scope.
      */
-    const char name[SKAL_NAME_MAX];
+    char name[SKAL_NAME_MAX];
 
     /** Allocator scope
      *
@@ -282,12 +284,11 @@ typedef bool (*SkalProcessMsgF)(void* cookie, SkalMsg* msg);
 
 
 /** Structure representing a thread */
-typedef struct
-{
+typedef struct {
     /** Thread name
      *
      * This must be unique within this process. This must not be an empty
-     * string.
+     * string. It must not contain the character '@'.
      */
     char name[SKAL_THREAD_NAME_MAX];
 
@@ -374,7 +375,7 @@ void SkalExit(void);
 void SkalThreadCreate(const SkalThreadCfg* cfg);
 
 
-/** Pause the calling thread until all threads have finished
+/** Pause the calling thread until all SKAL threads have finished
  *
  * This function will not return until all the threads have finished. Use this
  * function to write an application that performs a certain tasks and terminates
@@ -906,7 +907,7 @@ const char* SkalMsgGetString(const SkalMsg* msg, const char* name);
  * @param name   [in]  Name of the binary field; must exists in this `msg`
  * @param size_B [out] Number of bytes in the miniblob
  *
- * @return The number of bytes of the binary field, which might be > `size_B`
+ * @return Read-only pointer to the miniblob; do NOT call `free()` on it!
  */
 const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
         int* size_B);
@@ -923,18 +924,6 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
  * @return The found blob; this function never returns NULL
  */
 SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name);
-
-
-/** Detach a blob from a message
- *
- * The ownership of the found blob will be transferred to you.
- *
- * @param msg  [in,out] Message to manipulate; must not be NULL
- * @param name [in]     Name of the blob; must exists in this `msg`
- *
- * @return The found blob; this function never returns NULL
- */
-SkalBlob* SkalMsgDetachBlob(SkalMsg* msg, const char* name);
 
 
 /** Detach an alarm from a message
@@ -991,4 +980,9 @@ const char* SkalDomain(void);
 
 
 /* @} */
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* SKAL_h_ */
