@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,11 @@
 
 #ifndef SKAL_MSG_h_
 #define SKAL_MSG_h_
+
+#ifdef __cplusplus
+extern "C"
+#endif
+
 
 #include "skal.h"
 
@@ -121,5 +126,9 @@ void SkalSetDomain(const char* domain);
 int64_t SkalMsgRefCount_DEBUG(void);
 
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SKAL_MSG_h_ */
