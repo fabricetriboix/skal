@@ -725,6 +725,15 @@ void SkalMsgRef(SkalMsg* msg);
 void SkalMsgUnref(SkalMsg* msg);
 
 
+/** Get the time of the message's birth
+ *
+ * The returned timestamp is the number of micro-seconds since the Epoch.
+ *
+ * @return Timestamp of when the message has been created
+ */
+int64_t SkalMsgTimestamp_us(const SkalMsg* msg);
+
+
 /** Get the message name
  *
  * @param msg [in] Message to query; must not be NULL

@@ -67,7 +67,8 @@ typedef struct {
 
 
 struct SkalMsg {
-    CdsListItem item; // SKAL messages can be enqueued and dequeued
+    CdsListItem item;         // SKAL messages can be enqueued and dequeued
+    int64_t     timestamp_us; // When has this message has been created
     int         ref;
     int         version;
     uint8_t     flags;
@@ -197,6 +198,7 @@ SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
     }
 
     SkalMsg* msg = SkalMallocZ(sizeof(*msg));
+    msg->timestamp_us = SkalPlfNow_us();
     msg->ref = 1;
     msg->version = SKAL_MSG_VERSION;
     gMsgRefCount_DEBUG++;
@@ -273,6 +275,13 @@ void SkalMsgUnref(SkalMsg* msg)
         CdsMapDestroy(msg->fields);
         free(msg);
     }
+}
+
+
+int64_t SkalMsgTimestamp_us(const SkalMsg* msg)
+{
+    SKALASSERT(msg != NULL);
+    return msg->timestamp_us;
 }
 
 
