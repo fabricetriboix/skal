@@ -143,7 +143,7 @@ void SkalPlfRandom(uint8_t* buffer, int size_B)
 int64_t SkalPlfNow_ns()
 {
     struct timespec ts;
-    int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    int ret = clock_gettime(CLOCK_REALTIME, &ts);
     SKALASSERT(ret == 0);
     return ((int64_t)ts.tv_sec * 1000000000LL) + (int64_t)ts.tv_nsec;
 }
@@ -152,7 +152,7 @@ int64_t SkalPlfNow_ns()
 int64_t SkalPlfNow_us()
 {
     struct timespec ts;
-    int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    int ret = clock_gettime(CLOCK_REALTIME, &ts);
     SKALASSERT(ret == 0);
     return ((int64_t)ts.tv_sec * 100000LL) + ((int64_t)ts.tv_nsec / 1000LL);
 }
