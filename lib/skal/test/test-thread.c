@@ -36,7 +36,6 @@ static int gSockidPipeClient = -1;
 static void pseudoSkald(void* arg)
 {
     (void)arg;
-    SkalPlfThreadSetName("skald");
     SkalPlfThreadSetSpecific((void*)0xcafedeca); // to fool skal-msg
     bool stop = false;
     while (!stop) {
@@ -115,7 +114,7 @@ static RTBool testThreadEnterGroup(void)
     unlink(SOCKPATH);
     gServerSockid = SkalNetServerCreate(gNet, "unix://" SOCKPATH, 0, NULL, 0);
     SKALASSERT(gServerSockid >= 0);
-    gPseudoSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
+    gPseudoSkaldThread = SkalPlfThreadCreate("skald", pseudoSkald, NULL);
     bool connected = SkalThreadInit("unix://" SOCKPATH);
     SKALASSERT(connected);
     return RTTrue;

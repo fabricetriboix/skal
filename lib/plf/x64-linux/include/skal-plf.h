@@ -259,13 +259,6 @@ SkalPlfThread* SkalPlfThreadCreate(const char* name,
 void SkalPlfThreadJoin(SkalPlfThread* thread);
 
 
-/** Set the current thread name
- *
- * @param name [in] New name for current thread
- */
-void SkalPlfThreadSetName(const char* name);
-
-
 /** Get the name of the current thread
  *
  * @return The thread name, or NULL if no name has been set
