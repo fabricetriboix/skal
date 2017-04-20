@@ -71,9 +71,7 @@ void skalCppAllocatorUnmap(void* cookie, void* obj)
 
 Allocator::Allocator(const std::string& name, Scope scope)
 {
-    int n = snprintf(mAllocator.name, sizeof(mAllocator.name),
-            "%s", name.c_str());
-    SKALASSERT(n < (int)sizeof(mAllocator.name));
+    mAllocator.name = SkalStrdup(name.c_str());
 
     switch (scope) {
     case Allocator::Scope::THREAD :
@@ -101,6 +99,7 @@ Allocator::Allocator(const std::string& name, Scope scope)
 
 Allocator::~Allocator()
 {
+    ::free(mAllocator.name);
 }
 
 

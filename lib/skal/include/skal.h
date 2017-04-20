@@ -203,7 +203,7 @@ typedef struct {
      *
      * This must be unique within the allocator's scope.
      */
-    char name[SKAL_NAME_MAX];
+    char* name;
 
     /** Allocator scope
      *

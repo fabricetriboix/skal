@@ -290,6 +290,7 @@ static void skalAllocatorMapUnref(CdsMapItem* litem)
     skalAllocatorItem* item = (skalAllocatorItem*)litem;
     item->ref--;
     if (item->ref <= 0) {
+        free(item->allocator.name);
         free(item);
     }
 }
@@ -299,7 +300,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 {
     SKALASSERT(gAllocatorMap != NULL);
     SKALASSERT(allocator != NULL);
-    SKALASSERT(SkalIsAsciiString(allocator->name, SKAL_NAME_MAX));
+    SKALASSERT(allocator->name != NULL);
     SKALASSERT(allocator->allocate != NULL);
     SKALASSERT(allocator->deallocate != NULL);
     SKALASSERT(allocator->map != NULL);
@@ -308,6 +309,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
     skalAllocatorItem* item = SkalMallocZ(sizeof(*item));
     item->ref = 1;
     memcpy(&(item->allocator), allocator, sizeof(*allocator));
+    item->allocator.name = SkalStrdup(allocator->name);
 
     // NB: If 2 allocators with the same names are inserted, the last one will
     // "overwrite" the previous one. This is intended.
