@@ -408,6 +408,51 @@ bool SkalMsgHasField(const SkalMsg* msg, const char* name)
 }
 
 
+bool SkalMsgHasIntField(const SkalMsg* msg, const char* name)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    return (field != NULL) && (SKAL_MSG_FIELD_TYPE_INT == field->type);
+}
+
+
+bool SkalMsgHasDoubleField(const SkalMsg* msg, const char* name)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    return (field != NULL) && (SKAL_MSG_FIELD_TYPE_DOUBLE == field->type);
+}
+
+
+bool SkalMsgHasStringField(const SkalMsg* msg, const char* name)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    return (field != NULL) && (SKAL_MSG_FIELD_TYPE_STRING == field->type);
+}
+
+
+bool SkalMsgHasMiniblobField(const SkalMsg* msg, const char* name)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    return (field != NULL) && (SKAL_MSG_FIELD_TYPE_MINIBLOB == field->type);
+}
+
+
+bool SkalMsgHasBlobField(const SkalMsg* msg, const char* name)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    return (field != NULL) && (SKAL_MSG_FIELD_TYPE_BLOB == field->type);
+}
+
+
 int64_t SkalMsgGetInt(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);

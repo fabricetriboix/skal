@@ -876,6 +876,46 @@ void SkalMsgAttachAlarm(SkalMsg* msg, SkalAlarm* alarm);
 bool SkalMsgHasField(const SkalMsg* msg, const char* name);
 
 
+/** Check if a message has an integer field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasIntField(const SkalMsg* msg, const char* name);
+
+
+/** Check if a message has a double field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasDoubleField(const SkalMsg* msg, const char* name);
+
+
+/** Check if a message has a string field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasStringField(const SkalMsg* msg, const char* name);
+
+
+/** Check if a message has a miniblob field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasMiniblobField(const SkalMsg* msg, const char* name);
+
+
+/** Check if a message has a blob field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasBlobField(const SkalMsg* msg, const char* name);
+
+
 /** Get the value of an integer previously added to a message
  *
  * @param msg  [in] Message to query; must not be NULL

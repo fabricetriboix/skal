@@ -40,7 +40,8 @@ extern "C"
  *
  * A group is akin to IP multicast. A group is a list of destination threads;
  * sending a message to a group will duplicate the message to all members of the
- * group.
+ * group. In addition, it is possible to add a filter on the message names, so
+ * that you receive messages only if their names match a pattern of your choice.
  *
  * Threads are classified in the following categories:
  *  - Managed threads: A managed thread is part of a process that is directly
@@ -80,7 +81,6 @@ extern "C"
  */
 
 #include "skal-common.h"
-#include "skal-net.h"
 
 
 
