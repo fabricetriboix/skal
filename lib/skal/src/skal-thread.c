@@ -408,7 +408,7 @@ bool SkalThreadInit(const char* skaldUrl)
     gMasterRunningMutex = SkalPlfMutexCreate();
     gMasterRunningCondVar = SkalPlfCondVarCreate();
     gMaster = SkalMallocZ(sizeof(*gMaster));
-    snprintf(gMaster->cfg.name, sizeof(gMaster->cfg.name), "skal-master");
+    gMaster->cfg.name = SkalStrdup("skal-master");
     gMaster->cfg.queueThreshold = SKAL_MSG_LIST_MAX;
     gMaster->queue = SkalQueueCreate("skal-master-queue",
             gMaster->cfg.queueThreshold);
@@ -580,17 +580,14 @@ static bool skalDoSendMsg(SkalMsg* msg, bool fallBackToSkald)
 static SkalThread* skalDoCreateThread(const SkalThreadCfg* cfg)
 {
     SKALASSERT(cfg != NULL);
-    SKALASSERT(SkalIsAsciiString(cfg->name, sizeof(cfg->name)));
+    SKALASSERT(cfg->name != NULL);
     SKALASSERT(strlen(cfg->name) > 0);
     SKALASSERT(strncmp(cfg->name, "skal-master", 11) != 0);
     SKALASSERT(cfg->processMsg != NULL);
 
     SkalThread* thread = SkalMallocZ(sizeof(*thread));
     thread->cfg = *cfg;
-    int n = strlen(thread->cfg.name);
-    int remaining = sizeof(thread->cfg.name) - n;
-    n = snprintf(&(thread->cfg.name[n]), remaining, "@%s", SkalDomain());
-    SKALASSERT(n < remaining);
+    thread->cfg.name = SkalSPrintf("%s@%s", cfg->name, SkalDomain());
     if (thread->cfg.queueThreshold <= 0) {
         thread->cfg.queueThreshold = SKAL_DEFAULT_QUEUE_THRESHOLD;
     }
@@ -615,6 +612,7 @@ static void skalThreadUnref(SkalThread* thread)
     SKALASSERT(thread != NULL);
     SkalPlfThreadJoin(thread->thread);
     SkalQueueDestroy(thread->queue);
+    free(thread->cfg.name);
     free(thread);
 }
 
@@ -629,6 +627,7 @@ static void skalThreadRun(void* arg)
 {
     SKALASSERT(arg != NULL);
     SkalThread* thread = (SkalThread*)arg;
+    SKALASSERT(thread->cfg.name != NULL);
     SKALASSERT(strncmp(thread->cfg.name, "skal-master", 11) != 0);
 
     skalThreadPrivate* priv = SkalMallocZ(sizeof(*priv));

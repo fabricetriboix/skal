@@ -175,7 +175,7 @@ RTT_TEST_START(skal_simple_should_create_thread)
     gResult = -1;
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "simple");
+    cfg.name = "simple";
     cfg.processMsg = testSimpleProcessMsg;
     cfg.cookie = (void*)0xdeadbabe;
     SkalThreadCreate(&cfg);
@@ -250,13 +250,13 @@ RTT_TEST_START(skal_stress_should_create_threads)
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "receiver");
+    cfg.name = "receiver";
     cfg.processMsg = testReceiverProcessMsg;
     cfg.queueThreshold = 5;
     SkalThreadCreate(&cfg);
 
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "stuffer");
+    cfg.name = "stuffer";
     cfg.processMsg = testStufferProcessMsg;
     SkalThreadCreate(&cfg);
 }

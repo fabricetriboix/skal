@@ -404,7 +404,7 @@ int main(int argc, char** argv)
     args->argv = argv;
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "skal-post");
+    cfg.name = "skal-post";
     cfg.processMsg = processMsg;
     cfg.cookie = args;
     SkalThreadCreate(&cfg);

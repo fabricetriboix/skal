@@ -410,8 +410,7 @@ void CreateThread(const std::string& name, std::function<bool(Msg&)> processMsg,
     Thread* t = new Thread(processMsg);
 
     SkalThreadCfg cfg;
-    int n = snprintf(cfg.name, sizeof(cfg.name), "%s", name.c_str());
-    SKALASSERT(n < (int)sizeof(cfg.name));
+    cfg.name = (char*)name.c_str();
     cfg.processMsg = skalCppProcessMsg;
     cfg.cookie = t;
     cfg.queueThreshold = queueThreshold;

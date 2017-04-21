@@ -115,7 +115,7 @@ int main(int argc, char** argv)
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "reader");
+    cfg.name = "reader";
     cfg.processMsg = processMsg;
     int64_t* count = malloc(sizeof(count));
     *count = 0;
