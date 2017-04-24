@@ -36,7 +36,7 @@ extern "C" {
  * The "malloc" and "shm" allocator will be automatically created.
  *
  * @param allocators [in] Array of custom blob allocators; may be NULL if you
- *                        don't have custom allocators
+ *                        don't have any custom allocators
  * @param size       [in] Size of the above array
  */
 void SkalBlobInit(const SkalAllocator* allocators, int size);
