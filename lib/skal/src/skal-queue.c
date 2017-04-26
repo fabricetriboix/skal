@@ -30,9 +30,8 @@
  +----------------*/
 
 
-struct SkalQueue
-{
-    char            name[SKAL_NAME_MAX];
+struct SkalQueue {
+    char*           name;
     SkalPlfMutex*   mutex;
     SkalPlfCondVar* condvar;
     int64_t         threshold;
@@ -57,7 +56,7 @@ SkalQueue* SkalQueueCreate(const char* name, int64_t threshold)
     SKALASSERT(threshold > 0);
 
     SkalQueue* queue = SkalMallocZ(sizeof(*queue));
-    strncpy(queue->name, name, SKAL_NAME_MAX - 1);
+    queue->name = SkalStrdup(name);
     queue->mutex = SkalPlfMutexCreate();
     queue->condvar = SkalPlfCondVarCreate();
     queue->threshold = threshold;
@@ -101,6 +100,7 @@ void SkalQueueDestroy(SkalQueue* queue)
     SkalPlfMutexUnlock(queue->mutex);
     SkalPlfCondVarDestroy(queue->condvar);
     SkalPlfMutexDestroy(queue->mutex);
+    free(queue->name);
     free(queue);
 }
 
