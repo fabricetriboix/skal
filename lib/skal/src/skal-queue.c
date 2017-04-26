@@ -53,7 +53,7 @@ struct SkalQueue
 
 SkalQueue* SkalQueueCreate(const char* name, int64_t threshold)
 {
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     SKALASSERT(threshold > 0);
 
     SkalQueue* queue = SkalMallocZ(sizeof(*queue));

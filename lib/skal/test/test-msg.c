@@ -24,6 +24,7 @@
 static RTBool testMsgGroupEnter(void)
 {
     SkalPlfInit();
+    SkalMsgInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread@mydomain");
     SkalSetDomain("mydomain");
     return RTTrue;
@@ -32,6 +33,7 @@ static RTBool testMsgGroupEnter(void)
 static RTBool testMsgGroupExit(void)
 {
     SkalPlfThreadUnmakeSkal_DEBUG();
+    SkalMsgExit();
     SkalPlfExit();
     return RTTrue;
 }

@@ -98,6 +98,7 @@ static RTBool testThreadEnterGroup(void)
 {
     gHasConnected = false;
     SkalPlfInit();
+    SkalMsgInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread");
     gNet = SkalNetCreate(NULL);
 
@@ -133,6 +134,7 @@ static RTBool testThreadExitGroup(void)
     gClientSockid = -1;
     unlink(SOCKPATH);
     SkalPlfThreadUnmakeSkal_DEBUG();
+    SkalMsgExit();
     SkalPlfExit();
     SKALASSERT(gHasConnected);
     return RTTrue;

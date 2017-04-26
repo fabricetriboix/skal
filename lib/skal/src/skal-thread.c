@@ -496,10 +496,9 @@ void SkalThreadCreate(const SkalThreadCfg* cfg)
         // NB: The domain name will be appended to the thread name
         SkalThread* thread = skalDoCreateThread(cfg);
         SkalPlfMutexLock(gMutex);
-        CdsMapItem* item = CdsMapSearch(gThreads, (void*)(thread->cfg.name));
+        CdsMapItem* item = CdsMapSearch(gThreads, thread->cfg.name);
         SKALASSERT(NULL == item);
-        bool inserted = CdsMapInsert(gThreads,
-                (void*)(thread->cfg.name), &thread->item);
+        bool inserted = CdsMapInsert(gThreads, thread->cfg.name, &thread->item);
         SKALASSERT(inserted);
         SkalPlfMutexUnlock(gMutex);
     }
@@ -722,7 +721,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
             skalXoffItem* xoffItem = SkalMallocZ(sizeof(*xoffItem));
             strncpy(xoffItem->peer, sender, sizeof(xoffItem->peer) - 1);
             bool inserted = CdsMapInsert(priv->xoff,
-                    (void*)xoffItem->peer, &xoffItem->item);
+                    xoffItem->peer, &xoffItem->item);
             SKALASSERT(inserted);
         }
 
@@ -751,7 +750,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
             skalNtfXonItem* ntfXonItem = SkalMallocZ(sizeof(*ntfXonItem));
             strncpy(ntfXonItem->peer, sender, sizeof(ntfXonItem->peer) - 1);
             bool inserted = CdsMapInsert(priv->ntfXon,
-                    (void*)ntfXonItem->peer, &ntfXonItem->item);
+                    ntfXonItem->peer, &ntfXonItem->item);
             SKALASSERT(inserted);
         }
 

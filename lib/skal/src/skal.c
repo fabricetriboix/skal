@@ -16,6 +16,7 @@
 
 #include "skal.h"
 #include "skal-thread.h"
+#include "skal-msg.h"
 #include "skal-blob.h"
 #include <string.h>
 
@@ -31,6 +32,7 @@ bool SkalInit(const char* skaldUrl,
 {
     SkalPlfInit();
     SkalBlobInit(allocators, nallocators);
+    SkalMsgInit();
 
     if (NULL == skaldUrl) {
         skaldUrl = SKAL_DEFAULT_SKALD_URL;
@@ -48,6 +50,7 @@ bool SkalInit(const char* skaldUrl,
 void SkalExit(void)
 {
     SkalThreadExit();
+    SkalMsgExit();
     SkalBlobExit();
     SkalPlfExit();
 }

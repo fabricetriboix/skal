@@ -211,26 +211,15 @@ void SkalStringBuilderTrim(SkalStringBuilder* sb, int n);
 char* SkalStringBuilderFinish(SkalStringBuilder* sb);
 
 
-/** Check the given string is pure ASCII with a terminating null char
+/** Check the given string is pure ASCII
  *
- * @param str    [in] String to check; must not be NULL
- * @param maxlen [in] Maximum string length, in bytes; must be > 0
+ * @param str [in] String to check; must not be NULL; must be null-terminated
  *
- * @return `true` if the string contains only printable ASCII characters and has
- *         a terminating null character within the first `maxlen` bytes
+ * @return `true` if the string contains only printable ASCII characters;
+ *         `false` if is contains one or more non-ASCII characters or
+ *         non-printable characters.
  */
-bool SkalIsAsciiString(const char* str, int maxlen);
-
-
-/** Check the given string is UTF-8 with a terminating null char
- *
- * @param str    [in] String to check; must not be NULL
- * @param maxlen [in] Maximum string length, in bytes; must be > 0
- *
- * @return `true` if the string contains valid UTF-8 characters and has a
- *         terminating null character within the first `maxlen` bytes
- */
-bool SkalIsUtf8String(const char* str, int maxlen);
+bool SkalIsAsciiString(const char* str);
 
 
 /** Standard string comparison function suitable for CdsMap

@@ -707,8 +707,7 @@ static void skaldProcessMsgFromProcess(int sockid,
 
             skaldNameMapItem* item = SkalMallocZ(sizeof(*item));
             snprintf(item->name, sizeof(item->name), "%s", sender);
-            inserted = CdsMapInsert(ctx->threadNames,
-                    (void*)(item->name), &item->item);
+            inserted = CdsMapInsert(ctx->threadNames, item->name, &item->item);
             SKALASSERT(inserted);
 
             if (SKALD_SOCKET_PROCESS == ctx->type) {

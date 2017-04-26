@@ -37,6 +37,14 @@
 
 
 typedef enum {
+    SKAL_MSG_FIELD_PROPERTY_INVALID,
+    SKAL_MSG_FIELD_PROPERTY_NAME,
+    SKAL_MSG_FIELD_PROPERTY_TYPE,
+    SKAL_MSG_FIELD_PROPERTY_VALUE
+} skalMsgFieldProperty;
+
+
+typedef enum {
     SKAL_MSG_FIELD_TYPE_NOTHING,
     SKAL_MSG_FIELD_TYPE_INT,
     SKAL_MSG_FIELD_TYPE_DOUBLE,
@@ -55,7 +63,7 @@ typedef struct {
     CdsMapItem       item;
     skalMsgFieldType type;
     int              size_B; // Used only for strings and miniblobs
-    char             name[SKAL_NAME_MAX];
+    char*            name;
     union {
         int64_t   i;
         double    d;
@@ -74,9 +82,9 @@ struct SkalMsg {
     uint8_t     flags;
     uint8_t     iflags;
     int8_t      ttl;
-    char        name[SKAL_NAME_MAX];
-    char        sender[SKAL_NAME_MAX];
-    char        recipient[SKAL_NAME_MAX];
+    char*       name;
+    char*       sender;
+    char*       recipient;
     CdsMap*     fields; // Map of `skalMsgField`, indexed by field name
     CdsList*    alarms; // List of `SkalAlarm`
 };
@@ -88,19 +96,25 @@ struct SkalMsg {
  +-------------------------------*/
 
 
-/** Set a thread name, appending the local domain if no domain is specified */
-static void skalSetThreadName(char* buffer, int size_B, const char* t);
+/** Set a thread name, appending the local domain if no domain is specified
+ *
+ * @param name [in] Name to set; must not be NULL
+ *
+ * @return The full thread name; this function never returns NULL; please call
+ *         `free(3)` on it when finished.
+ */
+static char* skalMsgThreadName(const char* name);
 
 
 /** Allocate a message field and add it to the `msg`
  *
- * @param msg  [in,out] Message the field will be added to
- * @param name [in]     Field name
+ * @param msg  [in,out] Message the field will be added to; must not be NULL
+ * @param name [in]     Field name; must not be NULL
  * @param type [in]     Field type
  *
  * @return The newly created field; this function never returns NULL
  */
-static skalMsgField* skalAllocMsgField(SkalMsg* msg,
+static skalMsgField* skalMsgFieldAllocate(SkalMsg* msg,
         const char* name, skalMsgFieldType type);
 
 
@@ -157,15 +171,24 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field);
  * by the backslash character are reproduced verbatim (mainly useful to have
  * double-quote characters in the string).
  *
- * @param json   [in]  JSON text to parse; must not be NULL
- * @param buffer [out] Parse JSON string
- * @param size_B [in]  Size of `buffer`, in characters
+ * @param json [in]  JSON text to parse; must not be NULL
+ * @param str  [out] The parsed string; must not be NULL; please call `free(3)`
+ *                   on it when finished
  *
- * @return Pointer to the JSON string after the closing double-quote, or NULL if
- *         error or if the JSON string is too big for the supplied buffer
+ * @return Pointer to the character in `json` just after the parsed string, or
+ *         NULL if invalid JSON (in such a case, `*str` will be set to NULL)
  */
-static const char* skalMsgParseJsonString(const char* json,
-        char* buffer, int size_B);
+static const char* skalMsgParseJsonString(const char* json, char** str);
+
+
+/** Convert a field property string to enum
+ *
+ * @param str [in] String to parse; must not be NULL
+ *
+ * @return The parsed field property; SKAL_MSG_FIELD_PROPERTY_INVALID if `str`
+ *         is invalid
+ */
+static skalMsgFieldProperty skalMsgFieldStrToProp(const char* str);
 
 
 
@@ -175,7 +198,7 @@ static const char* skalMsgParseJsonString(const char* json,
 
 
 /** Domain name */
-static char gDomain[SKAL_DOMAIN_NAME_MAX] = "^INVAL^";
+static char* gDomain = NULL;
 
 
 /** Number of message references in this process */
@@ -188,11 +211,23 @@ static int64_t gMsgRefCount_DEBUG = 0;
  +---------------------------------*/
 
 
+void SkalMsgInit(void)
+{
+    gDomain = SkalStrdup("^INVAL^");
+}
+
+
+void SkalMsgExit(void)
+{
+    free(gDomain);
+}
+
+
 SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
         uint8_t flags, int8_t ttl)
 {
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
-    SKALASSERT(SkalIsAsciiString(recipient, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
+    SKALASSERT(SkalIsAsciiString(recipient));
     if (ttl <= 0) {
         ttl = SKAL_DEFAULT_TTL;
     }
@@ -203,21 +238,19 @@ SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
     msg->version = SKAL_MSG_VERSION;
     gMsgRefCount_DEBUG++;
     msg->flags = flags;
-    strncpy(msg->name, name, sizeof(msg->name) - 1);
+    msg->name = SkalStrdup(name);
     if (SkalPlfThreadIsSkal()) {
         // The current thread is managed by SKAL
-        const char* name = SkalPlfThreadGetName();
-        skalSetThreadName(msg->sender, sizeof(msg->sender), name);
+        msg->sender = skalMsgThreadName(SkalPlfThreadGetName());
     } else {
         // The current thread is not managed by SKAL
-        skalSetThreadName(msg->sender, sizeof(msg->sender), "skal-external");
+        msg->sender = skalMsgThreadName("skal-external");
     }
-    skalSetThreadName(msg->recipient, sizeof(msg->recipient), recipient);
+    msg->recipient = skalMsgThreadName(recipient);
     msg->ttl = ttl;
-    msg->fields = CdsMapCreate(NULL, SKAL_FIELDS_MAX,
+    msg->fields = CdsMapCreate(NULL, 0,
             SkalStringCompare, msg, NULL, skalFieldMapUnref);
-    msg->alarms = CdsListCreate(NULL, SKAL_FIELDS_MAX,
-            (void(*)(CdsListItem*))SkalAlarmUnref);
+    msg->alarms = CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalAlarmUnref);
 
     return msg;
 }
@@ -232,7 +265,9 @@ SkalMsg* SkalMsgCreate(const char* name, const char* recipient)
 void SkalMsgSetSender(SkalMsg* msg, const char* sender)
 {
     SKALASSERT(msg != NULL);
-    skalSetThreadName(msg->sender, sizeof(msg->sender), sender);
+    SKALASSERT(SkalIsAsciiString(sender));
+    free(msg->sender);
+    msg->sender = skalMsgThreadName(sender);
 }
 
 
@@ -271,8 +306,11 @@ void SkalMsgUnref(SkalMsg* msg)
     gMsgRefCount_DEBUG--;
     msg->ref--;
     if (msg->ref <= 0) {
-        CdsListDestroy(msg->alarms);
+        free(msg->name);
+        free(msg->sender);
+        free(msg->recipient);
         CdsMapDestroy(msg->fields);
+        CdsListDestroy(msg->alarms);
         free(msg);
     }
 }
@@ -331,14 +369,15 @@ void SkalMsgDecrementTtl(SkalMsg* msg)
 
 void SkalMsgAddInt(SkalMsg* msg, const char* name, int64_t i)
 {
-    skalMsgField* field = skalAllocMsgField(msg, name, SKAL_MSG_FIELD_TYPE_INT);
+    skalMsgField* field = skalMsgFieldAllocate(msg, name,
+            SKAL_MSG_FIELD_TYPE_INT);
     field->i = i;
 }
 
 
 void SkalMsgAddDouble(SkalMsg* msg, const char* name, double d)
 {
-    skalMsgField* field = skalAllocMsgField(msg, name,
+    skalMsgField* field = skalMsgFieldAllocate(msg, name,
             SKAL_MSG_FIELD_TYPE_DOUBLE);
     field->d = d;
 }
@@ -347,11 +386,10 @@ void SkalMsgAddDouble(SkalMsg* msg, const char* name, double d)
 void SkalMsgAddString(SkalMsg* msg, const char* name, const char* s)
 {
     SKALASSERT(s != NULL);
-    skalMsgField* field = skalAllocMsgField(msg, name,
+    skalMsgField* field = skalMsgFieldAllocate(msg, name,
             SKAL_MSG_FIELD_TYPE_STRING);
-    field->size_B = strlen(s) + 1;
-    field->s = SkalMallocZ(field->size_B);
-    memcpy(field->s, s, field->size_B);
+    field->s = SkalStrdup(s);
+    field->size_B = strlen(field->s) + 1;
 }
 
 
@@ -360,10 +398,11 @@ void SkalMsgAddFormattedString(SkalMsg* msg, const char* name,
 {
     va_list ap;
     va_start(ap, format);
-    char* s = SkalVSPrintf(format, ap);
+    skalMsgField* field = skalMsgFieldAllocate(msg, name,
+            SKAL_MSG_FIELD_TYPE_STRING);
+    field->s = SkalVSPrintf(format, ap);
+    field->size_B = strlen(field->s) + 1;
     va_end(ap);
-    SkalMsgAddString(msg, name, s);
-    free(s);
 }
 
 
@@ -372,7 +411,7 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
 {
     SKALASSERT(miniblob != NULL);
     SKALASSERT(size_B > 0);
-    skalMsgField* field = skalAllocMsgField(msg, name,
+    skalMsgField* field = skalMsgFieldAllocate(msg, name,
             SKAL_MSG_FIELD_TYPE_MINIBLOB);
     field->miniblob = SkalMalloc(size_B);
     memcpy(field->miniblob, miniblob, size_B);
@@ -383,7 +422,7 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
 void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
 {
     SKALASSERT(blob != NULL);
-    skalMsgField* field = skalAllocMsgField(msg, name,
+    skalMsgField* field = skalMsgFieldAllocate(msg, name,
             SKAL_MSG_FIELD_TYPE_BLOB);
     field->blob = blob;
     SkalBlobRef(blob);
@@ -403,7 +442,7 @@ void SkalMsgAttachAlarm(SkalMsg* msg, SkalAlarm* alarm)
 bool SkalMsgHasField(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     return CdsMapSearch(msg->fields, (void*)name) != NULL;
 }
 
@@ -411,7 +450,7 @@ bool SkalMsgHasField(const SkalMsg* msg, const char* name)
 bool SkalMsgHasIntField(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     return (field != NULL) && (SKAL_MSG_FIELD_TYPE_INT == field->type);
 }
@@ -420,7 +459,7 @@ bool SkalMsgHasIntField(const SkalMsg* msg, const char* name)
 bool SkalMsgHasDoubleField(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     return (field != NULL) && (SKAL_MSG_FIELD_TYPE_DOUBLE == field->type);
 }
@@ -429,7 +468,7 @@ bool SkalMsgHasDoubleField(const SkalMsg* msg, const char* name)
 bool SkalMsgHasStringField(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     return (field != NULL) && (SKAL_MSG_FIELD_TYPE_STRING == field->type);
 }
@@ -438,7 +477,7 @@ bool SkalMsgHasStringField(const SkalMsg* msg, const char* name)
 bool SkalMsgHasMiniblobField(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     return (field != NULL) && (SKAL_MSG_FIELD_TYPE_MINIBLOB == field->type);
 }
@@ -447,7 +486,7 @@ bool SkalMsgHasMiniblobField(const SkalMsg* msg, const char* name)
 bool SkalMsgHasBlobField(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     return (field != NULL) && (SKAL_MSG_FIELD_TYPE_BLOB == field->type);
 }
@@ -456,7 +495,7 @@ bool SkalMsgHasBlobField(const SkalMsg* msg, const char* name)
 int64_t SkalMsgGetInt(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
 
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     SKALASSERT(field != NULL);
@@ -469,7 +508,7 @@ int64_t SkalMsgGetInt(const SkalMsg* msg, const char* name)
 double SkalMsgGetDouble(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
 
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     SKALASSERT(field != NULL);
@@ -482,7 +521,7 @@ double SkalMsgGetDouble(const SkalMsg* msg, const char* name)
 const char* SkalMsgGetString(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
 
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     SKALASSERT(field != NULL);
@@ -496,7 +535,7 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
         int* size_B)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     SKALASSERT(size_B != NULL);
 
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
@@ -513,7 +552,7 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
 SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
 
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     SKALASSERT(field != NULL);
@@ -599,9 +638,9 @@ SkalMsg* SkalMsgCreateFromJson(const char* json)
     SkalMsg* msg = SkalMallocZ(sizeof(*msg));
     msg->ref = 1;
     // Leave `version` at 0
-    msg->fields = CdsMapCreate(NULL, SKAL_FIELDS_MAX,
+    msg->fields = CdsMapCreate(NULL, 0,
             SkalStringCompare, msg, NULL, skalFieldMapUnref);
-    msg->alarms = CdsListCreate(NULL, SKAL_FIELDS_MAX,
+    msg->alarms = CdsListCreate(NULL, 0,
             (void(*)(CdsListItem*))SkalAlarmUnref);
     gMsgRefCount_DEBUG++;
 
@@ -616,16 +655,14 @@ SkalMsg* SkalMsgCreateFromJson(const char* json)
 
 void SkalSetDomain(const char* domain)
 {
-    SKALASSERT(SkalIsAsciiString(domain, sizeof(gDomain)));
-    snprintf(gDomain, sizeof(gDomain), "%s", domain);
+    SKALASSERT(SkalIsAsciiString(domain));
+    free(gDomain);
+    gDomain = SkalStrdup(domain);
 }
 
 
 const char* SkalDomain(void)
 {
-    if ('\0' == gDomain[0]) {
-        return NULL;
-    }
     return gDomain;
 }
 
@@ -642,28 +679,27 @@ int64_t SkalMsgRefCount_DEBUG(void)
  +----------------------------------*/
 
 
-static void skalSetThreadName(char* buffer, int size_B, const char* t)
+static char* skalMsgThreadName(const char* name)
 {
-    SKALASSERT(buffer != NULL);
-    SKALASSERT(size_B > 0);
-    SKALASSERT(SkalIsAsciiString(t, SKAL_NAME_MAX));
-    if (strchr(t, '@') != NULL) {
-        snprintf(buffer, size_B, "%s", t);
+    SKALASSERT(SkalIsAsciiString(name));
+    char* ret;
+    if (strchr(name, '@') != NULL) {
+        ret = SkalStrdup(name);
     } else {
-        int n = snprintf(buffer, size_B, "%s@%s", t, gDomain);
-        SKALASSERT(n < size_B);
+        ret = SkalSPrintf("%s@%s", name, gDomain);
     }
+    return ret;
 }
 
 
-static skalMsgField* skalAllocMsgField(SkalMsg* msg,
+static skalMsgField* skalMsgFieldAllocate(SkalMsg* msg,
         const char* name, skalMsgFieldType type)
 {
     SKALASSERT(msg != NULL);
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     skalMsgField* field = SkalMallocZ(sizeof(*field));
     field->type = type;
-    strncpy(field->name, name, sizeof(field->name) - 1);
+    field->name = SkalStrdup(name);
     SKALASSERT(CdsMapInsert(msg->fields, field->name, &field->item));
     return field;
 }
@@ -685,6 +721,7 @@ static void skalFieldMapUnref(CdsMapItem* item)
     default :
         break; // nothing to do
     }
+    free(field->name);
     free(field);
 }
 
@@ -692,7 +729,7 @@ static void skalFieldMapUnref(CdsMapItem* item)
 static void skalFieldToJson(SkalStringBuilder* sb,
         const char* name, const skalMsgField* field)
 {
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     SKALASSERT(field != NULL);
 
     switch (field->type) {
@@ -710,9 +747,8 @@ static void skalFieldToJson(SkalStringBuilder* sb,
     case SKAL_MSG_FIELD_TYPE_DOUBLE :
         // *IMPORTANT* Take care how the double is converted into string such
         // that it does not lose precision. The `DECIMAL_DIG` macro exists in
-        // C99 and is the number of digits needed in decimal representation
-        // needed to get back exactly the same number, which is what we need
-        // here.
+        // C99 and is the number of digits in decimal representation needed to
+        // get back exactly the same number, which is what we need here.
         SkalStringBuilderAppend(sb,
                 "  {\n"
                 "   \"name\": \"%s\",\n"
@@ -751,14 +787,20 @@ static void skalFieldToJson(SkalStringBuilder* sb,
         break;
 
     case SKAL_MSG_FIELD_TYPE_BLOB :
-        SkalStringBuilderAppend(sb,
-                "  {\n"
-                "   \"name\": \"%s\",\n"
-                "   \"type\": \"blob\",\n"
-                "   \"value\": \"%s\"\n"
-                "  },\n",
-                name,
-                SkalBlobId(field->blob));
+        {
+            const char* id = "";
+            if (SkalBlobId(field->blob) != NULL) {
+                id = SkalBlobId(field->blob);
+            }
+            SkalStringBuilderAppend(sb,
+                    "  {\n"
+                    "   \"name\": \"%s\",\n"
+                    "   \"type\": \"blob\",\n"
+                    "   \"value\": \"%s\"\n"
+                    "  },\n",
+                    name,
+                    id);
+        }
         break;
 
     default :
@@ -797,9 +839,9 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
     json = skalMsgSkipSpaces(json);
 
     // Parse JSON object properties one after the other
-    char name[SKAL_NAME_MAX];
     while ((*json != '\0') && (*json != '}')) {
-        json = skalMsgParseJsonString(json, name, sizeof(name));
+        char* str;
+        json = skalMsgParseJsonString(json, &str);
         if (NULL == json) {
             return false;
         }
@@ -807,12 +849,14 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
         json = skalMsgSkipSpaces(json);
         if (*json != ':') {
             SkalLog("SkalMsg: Invalid JSON: Expected ':'");
+            free(str);
             return false;
         }
         json++;
         json = skalMsgSkipSpaces(json);
 
-        json = skalMsgParseJsonProperty(json, name, msg);
+        json = skalMsgParseJsonProperty(json, str, msg);
+        free(str);
         if (NULL == json) {
             return false;
         }
@@ -866,14 +910,13 @@ static const char* skalMsgParseJsonProperty(const char* json,
         }
 
     } else if (strcmp(name, "name") == 0) {
-        json = skalMsgParseJsonString(json, msg->name, sizeof(msg->name));
+        json = skalMsgParseJsonString(json, &msg->name);
 
     } else if (strcmp(name, "sender") == 0) {
-        json = skalMsgParseJsonString(json, msg->sender, sizeof(msg->sender));
+        json = skalMsgParseJsonString(json, &msg->sender);
 
     } else if (strcmp(name, "recipient") == 0) {
-        json = skalMsgParseJsonString(json,
-                msg->recipient, sizeof(msg->recipient));
+        json = skalMsgParseJsonString(json, &msg->recipient);
 
     } else if (strcmp(name, "ttl") == 0) {
         int tmp;
@@ -996,15 +1039,22 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
     json = skalMsgSkipSpaces(json);
 
     field->type = SKAL_MSG_FIELD_TYPE_NOTHING;
-    char buffer[SKAL_NAME_MAX];
     const char* value = NULL;
-    int length = 0; // used only if the value is a string
     while ((*json != '\0') && (*json != '}')) {
         // Parse property name
-        json = skalMsgParseJsonString(json, buffer, sizeof(buffer));
+        char* str;
+        json = skalMsgParseJsonString(json, &str);
         if (NULL == json) {
             return NULL;
         }
+        skalMsgFieldProperty property = skalMsgFieldStrToProp(str);
+        if (SKAL_MSG_FIELD_PROPERTY_INVALID == property) {
+            SkalLog("SkalMsg: Invalid JSON: Unknown field property '%s'", str);
+            free(str);
+            return NULL;
+        }
+        free(str);
+
         json = skalMsgSkipSpaces(json);
         if (*json != ':') {
             SkalLog("SkalMsg: Invalid JSON: Expected ':'");
@@ -1014,35 +1064,34 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
         json = skalMsgSkipSpaces(json);
 
         // Parse property value
-        if (strcmp(buffer, "name") == 0) {
-            json = skalMsgParseJsonString(json,
-                    field->name, sizeof(field->name));
-            if (NULL == json) {
-                return NULL;
-            }
+        switch (property) {
+        case SKAL_MSG_FIELD_PROPERTY_NAME :
+            json = skalMsgParseJsonString(json, &field->name);
+            break;
 
-        } else if (strcmp(buffer, "type") == 0) {
-            json = skalMsgParseJsonString(json, buffer, sizeof(buffer));
-            if (NULL == json) {
-                return NULL;
+        case SKAL_MSG_FIELD_PROPERTY_TYPE :
+            json = skalMsgParseJsonString(json, &str);
+            if (json != NULL) {
+                if (strcmp(str, "int") == 0) {
+                    field->type = SKAL_MSG_FIELD_TYPE_INT;
+                } else if (strcmp(str, "double") == 0) {
+                    field->type = SKAL_MSG_FIELD_TYPE_DOUBLE;
+                } else if (strcmp(str, "string") == 0) {
+                    field->type = SKAL_MSG_FIELD_TYPE_STRING;
+                } else if (strcmp(str, "miniblob") == 0) {
+                    field->type = SKAL_MSG_FIELD_TYPE_MINIBLOB;
+                } else if (strcmp(str, "blob") == 0) {
+                    field->type = SKAL_MSG_FIELD_TYPE_BLOB;
+                } else {
+                    SkalLog("SkalMsg: Invalid JSON: Unknown field type '%s'",
+                            str);
+                    json = NULL;
+                }
+                free(str);
             }
-            if (strcmp(buffer, "int") == 0) {
-                field->type = SKAL_MSG_FIELD_TYPE_INT;
-            } else if (strcmp(buffer, "double") == 0) {
-                field->type = SKAL_MSG_FIELD_TYPE_DOUBLE;
-            } else if (strcmp(buffer, "string") == 0) {
-                field->type = SKAL_MSG_FIELD_TYPE_STRING;
-            } else if (strcmp(buffer, "miniblob") == 0) {
-                field->type = SKAL_MSG_FIELD_TYPE_MINIBLOB;
-            } else if (strcmp(buffer, "blob") == 0) {
-                field->type = SKAL_MSG_FIELD_TYPE_BLOB;
-            } else {
-                SkalLog("SkalMsg: Invalid JSON: Unknown field type '%s'",
-                        buffer);
-                return NULL;
-            }
+            break;
 
-        } else if (strcmp(buffer, "value") == 0) {
+        case SKAL_MSG_FIELD_PROPERTY_VALUE :
             // We will parse the field value later because we don't necessarily
             // know its type yet (happens if "value" is defined before "type" in
             // the JSON text). We memorise the start of the value string and
@@ -1066,7 +1115,6 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
                     return NULL;
                 }
                 SKALASSERT('"' == *json);
-                length = json - value; // Includes backslashes, but that's OK
                 json++;
 
             } else {
@@ -1079,22 +1127,25 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
                     return NULL;
                 }
             }
+            break;
 
-        } else {
-            SkalLog("SkalMsg: Invalid JSON: Unknown field property '%s'",
-                    buffer);
-            return NULL; // Unknown property name
+        default :
+            SKALPANIC_MSG("Internal bug! Fix me!");
+        }
+
+        if (NULL == json) {
+            return NULL;
         }
 
         json = skalMsgSkipSpaces(json);
         if (',' == *json) {
             json++;
+            json = skalMsgSkipSpaces(json);
         }
-        json = skalMsgSkipSpaces(json);
     }
 
     if ('\0' == *json) {
-        SkalLog("SkalMsg: Invalid JSON: Unexpected end of string");
+        SkalLog("SkalMsg: Invalid JSON: expected '}'");
         return NULL;
     }
     SKALASSERT('}' == *json);
@@ -1140,20 +1191,18 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
 
     case SKAL_MSG_FIELD_TYPE_STRING :
         {
-            field->size_B = length + 1;
-            field->s = SkalMalloc(field->size_B);
-            const char* tmp = skalMsgParseJsonString(value,
-                    field->s, field->size_B);
+            const char* tmp = skalMsgParseJsonString(value, &field->s);
             if (NULL == tmp) {
                 return NULL;
             }
+            field->size_B = strlen(field->s) + 1;
         }
         break;
 
     case SKAL_MSG_FIELD_TYPE_MINIBLOB :
         {
-            char* b64 = SkalMalloc(length + 1);
-            const char* tmp = skalMsgParseJsonString(value, b64, length + 1);
+            char* b64;
+            const char* tmp = skalMsgParseJsonString(value, &b64);
             if (NULL == tmp) {
                 free(b64);
                 return NULL;
@@ -1180,9 +1229,11 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
 }
 
 
-static const char* skalMsgParseJsonString(const char* json,
-        char* buffer, int size_B)
+static const char* skalMsgParseJsonString(const char* json, char** str)
 {
+    SKALASSERT(str != NULL);
+    *str = NULL;
+
     json = skalMsgSkipSpaces(json);
     if (*json != '"') {
         SkalLog("SkalMsg: Invalid JSON: Expected '\"' character");
@@ -1190,32 +1241,45 @@ static const char* skalMsgParseJsonString(const char* json,
     }
     json++;
 
-    int count = 0;
+    SkalStringBuilder* sb = SkalStringBuilderCreate(1024);
     while ((*json != '\0') && (*json != '"')) {
         if ('\\' == *json) {
             json++;
             if ('\0' == *json) {
                 SkalLog("SkalMsg: Invalid JSON: null character after \\");
+                char* tmp = SkalStringBuilderFinish(sb);
+                free(tmp);
                 return NULL;
             }
         }
-        buffer[count] = *json;
-        count++;
+        SkalStringBuilderAppend(sb, "%c", *json);
         json++;
-        if ((count >= size_B) && (*json != '"')) {
-            SkalLog("SkalMsg: Invalid JSON: String too long (expected max %d chars)",
-                    size_B);
-            return NULL;
-        }
     }
 
+    char* s = SkalStringBuilderFinish(sb);
     if ('\0' == *json) {
         SkalLog("SkalMsg: Invalid JSON: Unterminated string");
+        free(s);
         return NULL;
     }
     SKALASSERT('"' == *json);
     json++;
 
-    buffer[count] = '\0';
+    *str = s;
     return json;
+}
+
+
+static skalMsgFieldProperty skalMsgFieldStrToProp(const char* str)
+{
+    SKALASSERT(str != NULL);
+    skalMsgFieldProperty property = SKAL_MSG_FIELD_PROPERTY_INVALID;
+    if (strcmp(str, "name") == 0) {
+        property = SKAL_MSG_FIELD_PROPERTY_NAME;
+    } else if (strcmp(str, "type") == 0) {
+        property = SKAL_MSG_FIELD_PROPERTY_TYPE;
+    } else if (strcmp(str, "value") == 0) {
+        property = SKAL_MSG_FIELD_PROPERTY_VALUE;
+    }
+    return property;
 }

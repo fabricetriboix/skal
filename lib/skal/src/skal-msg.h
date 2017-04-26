@@ -45,6 +45,14 @@ extern "C"
  +------------------------------*/
 
 
+/** Initialise the skal-msg module */
+void SkalMsgInit(void);
+
+
+/** De-initialise the skal-msg module */
+void SkalMsgExit(void);
+
+
 /** Set the message sender
  *
  * You should use this function with extreme caution, as the sender is set

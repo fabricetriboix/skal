@@ -139,7 +139,7 @@ void SkalBlobInit(const SkalAllocator* allocators, int size)
     }
 
     SKALASSERT(gAllocatorMap == NULL);
-    gAllocatorMap = CdsMapCreate("SkalAllocators", SKAL_ALLOCATORS_MAX,
+    gAllocatorMap = CdsMapCreate("SkalAllocators", 0,
             SkalStringCompare, NULL, NULL, skalAllocatorMapUnref);
 
     SkalAllocator mallocAllocator = {
@@ -290,7 +290,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 {
     SKALASSERT(gAllocatorMap != NULL);
     SKALASSERT(allocator != NULL);
-    SKALASSERT(allocator->name != NULL);
+    SKALASSERT(SkalIsAsciiString(allocator->name));
     SKALASSERT(allocator->allocate != NULL);
     SKALASSERT(allocator->deallocate != NULL);
     SKALASSERT(allocator->map != NULL);
@@ -304,8 +304,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 
     // NB: If 2 allocators with the same names are inserted, the last one will
     // "overwrite" the previous one. This is intended.
-    SKALASSERT(CdsMapInsert(gAllocatorMap,
-                (void*)(item->allocator.name), &item->item));
+    SKALASSERT(CdsMapInsert(gAllocatorMap, item->allocator.name, &item->item));
 }
 
 
