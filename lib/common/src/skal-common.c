@@ -162,7 +162,7 @@ char* _SkalStrdup(const char* s, const char* file, int line)
     if (NULL == s) {
         return NULL;
     }
-#ifndef SKAL_WITH_FLLOC
+#ifdef SKAL_WITH_FLLOC
     char* ptr = FllocStrdup(s, file, line);
 #else
     (void)file;
@@ -174,7 +174,7 @@ char* _SkalStrdup(const char* s, const char* file, int line)
 }
 
 
-char* SkalSPrintf(const char* format, ...)
+char* _SkalSPrintf(const char* file, int line, const char* format, ...)
 {
     SKALASSERT(format != NULL);
 
@@ -187,7 +187,14 @@ char* SkalSPrintf(const char* format, ...)
     va_copy(ap2, ap);
 
     int capacity = SKAL_INITIAL_STRING_CAPACITY;
-    char* str = SkalMalloc(capacity);
+#ifdef SKAL_WITH_FLLOC
+    char* str = FllocMalloc(capacity, file, line);
+#else
+    (void)file;
+    (void)line;
+    char* str = malloc(capacity);
+#endif
+    SKALASSERT(str != NULL);
     int n = vsnprintf(str, capacity, format, ap);
     if (n >= capacity) {
         capacity = n + 1;
@@ -202,7 +209,7 @@ char* SkalSPrintf(const char* format, ...)
 }
 
 
-char* SkalVSPrintf(const char* format, va_list ap)
+char* _SkalVSPrintf(const char* file, int line, const char* format, va_list ap)
 {
     SKALASSERT(format != NULL);
 
@@ -215,7 +222,14 @@ char* SkalVSPrintf(const char* format, va_list ap)
     va_copy(ap2, ap1);
 
     int capacity = SKAL_INITIAL_STRING_CAPACITY;
-    char* str = SkalMalloc(capacity);
+#ifdef SKAL_WITH_FLLOC
+    char* str = FllocMalloc(capacity, file, line);
+#else
+    (void)file;
+    (void)line;
+    char* str = malloc(capacity);
+#endif
+    SKALASSERT(str != NULL);
     int n = vsnprintf(str, capacity, format, ap1);
     if (n >= capacity) {
         capacity = n + 1;

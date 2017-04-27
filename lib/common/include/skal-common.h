@@ -150,25 +150,35 @@ char* _SkalStrdup(const char* s, const char* file, int line);
 
 /** Helper function to sprintf a string
  *
- * @param format [in] A printf-like format string
- * @param ...    [in] Printf-like arguments
+ * @param _format [in] A printf-like format string
+ * @param ...     [in] Printf-like arguments
  *
  * @return The formatted string, never NULL; please release with `free()` when
  *         you no longer need it
  */
-char* SkalSPrintf(const char* format, ...)
-    __attribute__(( format(printf, 1, 2) ));
+#define SkalSPrintf(_format, ...) \
+        _SkalSPrintf(__FILE__, __LINE__, (_format), ## __VA_ARGS__)
+
+/** @cond hidden */
+char* _SkalSPrintf(const char* file, int line, const char* format, ...)
+    __attribute__(( format(printf, 3, 4) ));
+/** @endcond */
 
 
 /** Helper function to vsprintf a string
  *
- * @param format [in]     A printf-like format string
- * @param ap     [in,out] stdarg arguments
+ * @param _format [in]     A printf-like format string
+ * @param _ap     [in,out] stdarg arguments
  *
  * @return The formatted string, never NULL; please release with `free()` when
  *         you no longer need it
  */
-char* SkalVSPrintf(const char* format, va_list ap);
+#define SkalVSPrintf(_format, _ap) \
+        _SkalVSPrintf(__FILE__, __LINE__, (_format), (_ap))
+
+/** @cond hidden */
+char* _SkalVSPrintf(const char* file, int line, const char* format, va_list ap);
+/** @endcond */
 
 
 /** Create a string builder
