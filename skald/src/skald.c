@@ -15,6 +15,7 @@
  */
 
 #include "skald.h"
+#include "skald-alarm.h"
 #include "skal.h"
 #include "skal-msg.h"
 #include "skal-net.h"
@@ -35,18 +36,6 @@ typedef enum {
     SKALD_DROP_TTL,         ///< Message TTL has reached 0
     SKALD_DROP_NO_RECIPIENT ///< Message recipient does not exist
 } skaldDropReason;
-
-
-/** Item of the alarm map
- *
- * We don't keep track of the reference count because this item is only
- * ever referenced once by the `gAlarms` map.
- */
-typedef struct {
-    CdsMapItem item;
-    char*      key; /**< "alarm-type#alarm-origin" */
-    SkalAlarm* alarm;
-} skaldAlarm;
 
 
 /** The different types of sockets */
@@ -154,23 +143,8 @@ static void skaldRunThread(void* arg);
 static const char* skaldDomain(const char* threadName);
 
 
-/** Insert/remove an alarm from the alarm map
- *
- * The action (insert vs remove) depends on whether the `alarm` is on or off.
- *
- * The ownership of `alarm` is transferred to this function.
- *
- * @param alarm [in] Alarm to process; must not be NULL
- */
-static void skaldAlarmProcess(SkalAlarm* alarm);
-
-
 /** De-reference a name item */
 static void skaldNameMapItemUnref(CdsMapItem* mitem);
-
-
-/** De-reference an item from the alarm map */
-static void skaldAlarmUnref(CdsMapItem* mitem);
 
 
 /** Function to de-reference a skal-net socket context */
@@ -284,13 +258,6 @@ static int gPipeClientSockid = -1;
 static CdsMap* gThreads = NULL;
 
 
-/** Alarms currently active
- *
- * Map is made of `skaldAlarm`, and the key is `skaldAlarm->key`.
- */
-static CdsMap* gAlarms = NULL;
-
-
 /** Full name of this skald 'thread' */
 static char* gName = NULL;
 
@@ -307,8 +274,9 @@ void SkaldRun(const SkaldParams* params)
     SKALASSERT(NULL == gNet);
     SKALASSERT(-1 == gPipeClientSockid);
     SKALASSERT(NULL == gThreads);
-    SKALASSERT(NULL == gAlarms);
     SKALASSERT(NULL == gName);
+
+    SkaldAlarmInit();
 
     SKALASSERT(params != NULL);
     const char* localUrl = params->localUrl;
@@ -331,13 +299,6 @@ void SkaldRun(const SkaldParams* params)
                             NULL,              // cookie
                             NULL,              // keyUnref
                             skaldThreadUnref); // itemUnref
-
-    gAlarms = CdsMapCreate("alarms",          // name
-                           0,                 // capacity
-                           SkalStringCompare, // compare
-                           NULL,              // cookie
-                           NULL,              // keyUnref
-                           skaldAlarmUnref);  // itemUnref
 
     // Create pipe to allow skald to terminate cleanly
     skaldSocketCtx* ctx = SkalMallocZ(sizeof(*ctx));
@@ -381,10 +342,11 @@ void SkaldTerminate(void)
 
     SkalNetDestroy(gNet);
     CdsMapDestroy(gThreads);
-    CdsMapDestroy(gAlarms);
 
     free(gName);
     gName = NULL;
+
+    SkaldAlarmExit();
 }
 
 
@@ -462,10 +424,9 @@ static void skaldRunThread(void* arg)
                     fprintf(stderr, "XXX received >>>%s<<<\n", json);
                     SkalMsg* msg = SkalMsgCreateFromJson(json);
                     if (NULL == msg) {
-                        SkalAlarm* alarm = SkalAlarmCreate(
-                                "skal-protocol-invalid-json", SKAL_ALARM_ERROR,
-                                true, false, "From process '%s'", ctx->name);
-                        skaldAlarmProcess(alarm);
+                        SkaldAlarmNew("skal-protocol-invalid-json",
+                                SKAL_ALARM_ERROR, true, false,
+                                "From process '%s'", ctx->name);
                     } else {
                         skaldHandleMsgFromProcess(event->sockid, ctx, msg);
                     }
@@ -498,43 +459,10 @@ static const char* skaldDomain(const char* threadName)
 }
 
 
-static void skaldAlarmProcess(SkalAlarm* alarm)
-{
-    const char* origin = SkalAlarmOrigin(alarm);
-    if (NULL == origin) {
-        origin = "";
-    }
-    char* key = SkalSPrintf("%s#%s", origin, SkalAlarmName(alarm));
-
-    if (SkalAlarmIsOn(alarm)) {
-        skaldAlarm* item = SkalMallocZ(sizeof(*item));
-        item->key = key;
-        item->alarm = alarm;
-        bool inserted = CdsMapInsert(gAlarms, item->key, &item->item);
-        SKALASSERT(inserted);
-    } else {
-        (void)CdsMapRemove(gAlarms, key);
-        SkalAlarmUnref(alarm);
-        free(key);
-    }
-}
-
-
 static void skaldNameMapItemUnref(CdsMapItem* mitem)
 {
     skaldNameMapItem* item = (skaldNameMapItem*)mitem;
     free(item->name);
-    free(item);
-}
-
-
-static void skaldAlarmUnref(CdsMapItem* mitem)
-{
-    skaldAlarm* item = (skaldAlarm*)mitem;
-    SKALASSERT(item != NULL);
-    SKALASSERT(item->alarm != NULL);
-    SkalAlarmUnref(item->alarm);
-    free(item->key);
     free(item);
 }
 
@@ -589,25 +517,21 @@ static void skaldHandleMsgFromProcess(int sockid,
     SKALASSERT(msgName != NULL);
     const char* sender = SkalMsgSender(msg);
     if (NULL == skaldDomain(sender)) {
-        SkalAlarm* alarm = SkalAlarmCreate(
-                "skal-protocol-sender-has-no-domain",
+        SkaldAlarmNew("skal-protocol-sender-has-no-domain",
                 SKAL_ALARM_WARNING, true, false,
                 "Received a message where the sender has no domain: '%s' (message name: '%s')",
                 sender,
                 msgName);
-        skaldAlarmProcess(alarm);
         SkalMsgUnref(msg);
         return;
     }
     const char* recipient = SkalMsgRecipient(msg);
     if (NULL == skaldDomain(recipient)) {
-        SkalAlarm* alarm = SkalAlarmCreate(
-                "skal-protocol-recipient-has-no-domain",
+        SkaldAlarmNew("skal-protocol-recipient-has-no-domain",
                 SKAL_ALARM_WARNING, true, false,
                 "Received a message where the recipient has no domain: '%s' (message name: '%s')",
                 recipient,
                 msgName);
-        skaldAlarmProcess(alarm);
         SkalMsgUnref(msg);
         return;
     }
@@ -663,11 +587,10 @@ static void skaldProcessMsgFromProcess(int sockid,
     if (strcmp(msgName, "skal-init-master-born") == 0) {
         // The `skal-master` thread of a process is uttering its first words!
         if (!SkalMsgHasField(msg, "name")) {
-            SkalAlarm* alarm = SkalAlarmCreate("skal-protocol-missing-field",
+            SkaldAlarmNew("skal-protocol-missing-field",
                     SKAL_ALARM_WARNING, true, false,
                     "Received a 'skal-init-master-born' message from '%s' without a 'name' field",
                     sender);
-            skaldAlarmProcess(alarm);
 
         } else {
             const char* name = SkalMsgGetString(msg, "name");
@@ -687,25 +610,22 @@ static void skaldProcessMsgFromProcess(int sockid,
         const char* domain = skaldDomain(sender);
         SKALASSERT(domain != NULL);
         if (strcmp(domain, SkalDomain()) != 0) {
-            SkalAlarm* alarm = SkalAlarmCreate("skal-protocol-wrong-sender-domain",
+            SkaldAlarmNew("skal-protocol-wrong-sender-domain",
                     SKAL_ALARM_WARNING, true, false,
                     "Received a 'skal-born' message from '%s', which is on a different domain than mine (%s)",
                     sender, SkalDomain());
-            skaldAlarmProcess(alarm);
 
         } else if (CdsMapSearch(gThreads, (void*)sender) != NULL) {
-            SkalAlarm* alarm = SkalAlarmCreate("skal-conflict-duplicate-thread",
+            SkaldAlarmNew("skal-conflict-duplicate-thread",
                     SKAL_ALARM_WARNING, true, false,
                     "Received a 'skal-born' message from '%s', but a thread with that name is already registered",
                     sender);
-            skaldAlarmProcess(alarm);
 
         } else if (CdsMapSearch(ctx->threadNames, (void*)sender) != NULL) {
-            SkalAlarm* alarm = SkalAlarmCreate("skal-internal",
+            SkaldAlarmNew("skal-internal",
                     SKAL_ALARM_ERROR, true, false,
                     "Thread '%s' not registered globally, but is listed for process '%s'; this is impossible",
                     sender, ctx->name);
-            skaldAlarmProcess(alarm);
 
         } else {
             skaldThread* thread = SkalMallocZ(sizeof(*thread));
@@ -729,19 +649,17 @@ static void skaldProcessMsgFromProcess(int sockid,
         // A managed or domain thread just died
         bool removed = CdsMapRemove(gThreads, (void*)sender);
         if (!removed) {
-            SkalAlarm* alarm = SkalAlarmCreate("skal-conflict-unknown-thread",
+            SkaldAlarmNew("skal-conflict-unknown-thread",
                     SKAL_ALARM_WARNING, true, false,
                     "Received 'skal-died' for unknown thread '%s'",
                     sender);
-            skaldAlarmProcess(alarm);
         }
         removed = CdsMapRemove(ctx->threadNames, (void*)sender);
         if (!removed) {
-            SkalAlarm* alarm = SkalAlarmCreate("skal-internal",
+            SkaldAlarmNew("skal-internal",
                     SKAL_ALARM_ERROR, true, false,
                     "Thread '%s' is registered globally, but not for process '%s'; this is impossible",
                     sender, ctx->name);
-            skaldAlarmProcess(alarm);
         }
 
         if (SKALD_SOCKET_PROCESS == ctx->type) {
@@ -754,11 +672,10 @@ static void skaldProcessMsgFromProcess(int sockid,
         skaldRouteMsg(resp);
 
     } else {
-        SkalAlarm* alarm = SkalAlarmCreate("skal-protocol-unknown-message",
+        SkaldAlarmNew("skal-protocol-unknown-message",
                 SKAL_ALARM_NOTICE, true, false,
                 "Received unknown message '%s' from '%s'",
                 msgName, sender);
-        skaldAlarmProcess(alarm);
     }
 
     SkalMsgUnref(msg);
@@ -792,7 +709,7 @@ static void skaldDropMsg(SkalMsg* msg, skaldDropReason reason)
     default :
         SKALPANIC_MSG("Unknown drop reason: %d", (int)reason);
     }
-    skaldAlarmProcess(alarm);
+    SkaldAlarmProcess(alarm);
 
     if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_NTF_DROP) {
         char* XXX = SkalMsgToJson(msg);
@@ -827,11 +744,10 @@ static void skaldRouteMsg(SkalMsg* msg)
         skaldDropMsg(msg, SKALD_DROP_TTL);
 
     } else if (NULL == domain) {
-        SkalAlarm* alarm = SkalAlarmCreate("skal-protocol-recipient-has-no-domain",
+        SkaldAlarmNew("skal-protocol-recipient-has-no-domain",
                 SKAL_ALARM_WARNING, true, false,
                 "Can't route message '%s': recipient has no domain: '%s'",
                 SkalMsgName(msg), recipient);
-        skaldAlarmProcess(alarm);
         SkalMsgUnref(msg);
 
     } else if (strcmp(domain, SkalDomain()) == 0) {
@@ -841,11 +757,10 @@ static void skaldRouteMsg(SkalMsg* msg)
         if (thread != NULL) {
             skaldMsgSendTo(msg, thread->sockid);
         } else if (strcmp(recipient, gName) == 0) {
-            SkalAlarm* alarm = SkalAlarmCreate("skal-conflict-circular-msg",
+            SkaldAlarmNew("skal-conflict-circular-msg",
                     SKAL_ALARM_WARNING, true, false,
                     "Can't route message '%s': recipient '%s' is myself",
                     SkalMsgName(msg), recipient);
-            skaldAlarmProcess(alarm);
         } else {
             fprintf(stderr, "XXX %s: calling skaldDropMsg()\n", __func__);
             skaldDropMsg(msg, SKALD_DROP_NO_RECIPIENT);
@@ -882,10 +797,9 @@ static void skaldMsgSendTo(SkalMsg* msg, int sockid)
                     json, strlen(json) + 1);
             free(json);
             if (result != SKAL_NET_SEND_OK) {
-                SkalAlarm* alarm = SkalAlarmCreate("skal-io-send-fail",
+                SkaldAlarmNew("skal-io-send-fail",
                         SKAL_ALARM_ERROR, true, false,
                         "Failed to send over socket '%s'", ctx->name);
-                skaldAlarmProcess(alarm);
                 SkalNetSocketDestroy(gNet, sockid);
             }
         }

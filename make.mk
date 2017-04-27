@@ -44,7 +44,7 @@ HDRS = $(foreach i,$(MODULES),$(wildcard $(i)/include/*.h))
 LIBSKAL_OBJS = skal-plf.o skal-common.o skal-net.o skal-blob.o skal-alarm.o \
 		skal-msg.o skal-queue.o skal-thread.o skal.o
 LIBSKALCPP_OBJS = skal-cpp.o
-SKALD_OBJS = skald.o main.o
+SKALD_OBJS = skald.o main.o skald-alarm.o
 RTTEST_MAIN_OBJ = rttestmain.o
 SKAL_TEST_OBJS = test-plf.o test-common.o test-net.o test-blob.o test-alarm.o \
 		test-msg.o test-queue.o test-thread.o
@@ -116,7 +116,7 @@ $(LIBSKALCPP): $(LIBSKALCPP_OBJS)
 skald: $(SKALD_OBJS) $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(LIBSKAL) skald.o
+skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
 skal-post: skal-post.o $(LIBSKAL)
