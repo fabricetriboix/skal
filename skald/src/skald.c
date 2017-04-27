@@ -44,7 +44,7 @@ typedef enum {
  */
 typedef struct {
     CdsMapItem item;
-    char       key[SKAL_NAME_MAX * 2]; /**< "alarm-type#alarm-origin" */
+    char*      key; /**< "alarm-type#alarm-origin" */
     SkalAlarm* alarm;
 } skaldAlarm;
 
@@ -79,7 +79,7 @@ typedef enum {
  */
 typedef struct {
     CdsMapItem item;
-    char       name[SKAL_NAME_MAX];
+    char*      name;
 } skaldNameMapItem;
 
 
@@ -97,7 +97,7 @@ typedef struct {
     int sockid;
 
     /** Name of the thread in question - this is also the map key */
-    char name[SKAL_NAME_MAX];
+    char* name;
 } skaldThread;
 
 
@@ -111,14 +111,14 @@ typedef struct {
     skaldSocketType type;
 
     /** Name representative of that socket (for debug messages) */
-    char name[SKAL_NAME_MAX];
+    char* name;
 
     /** Domain of the peer on the other side of that socket
      *
      * Meaningful only if `type` is `SKALD_SOCKET_DOMAIN_PEER` or
      * `SKALD_SOCKET_FOREIGN_PEER`.
      */
-    char domain[SKAL_NAME_MAX];
+    char* domain;
 
     /** Map of thread names - made of `skaldNameMapItem`
      *
@@ -166,11 +166,11 @@ static void skaldAlarmProcess(SkalAlarm* alarm);
 
 
 /** De-reference a name item */
-static void skaldNameMapItemUnref(CdsMapItem* item);
+static void skaldNameMapItemUnref(CdsMapItem* mitem);
 
 
 /** De-reference an item from the alarm map */
-static void skaldAlarmUnref(CdsMapItem* item);
+static void skaldAlarmUnref(CdsMapItem* mitem);
 
 
 /** Function to de-reference a skal-net socket context */
@@ -189,7 +189,7 @@ static void skaldHandleProcessConnection(int commSockid);
  * If the last reference is taken out, any thread blocked on the de-referenced
  * thread will be sent a `skal-xon` message to be unblocked.
  */
-static void skaldThreadUnref(CdsMapItem* item);
+static void skaldThreadUnref(CdsMapItem* mitem);
 
 
 /** Drop a message
@@ -292,7 +292,7 @@ static CdsMap* gAlarms = NULL;
 
 
 /** Full name of this skald 'thread' */
-static char gName[SKAL_NAME_MAX];
+static char* gName = NULL;
 
 
 
@@ -308,6 +308,7 @@ void SkaldRun(const SkaldParams* params)
     SKALASSERT(-1 == gPipeClientSockid);
     SKALASSERT(NULL == gThreads);
     SKALASSERT(NULL == gAlarms);
+    SKALASSERT(NULL == gName);
 
     SKALASSERT(params != NULL);
     const char* localUrl = params->localUrl;
@@ -320,8 +321,7 @@ void SkaldRun(const SkaldParams* params)
     } else {
         SkalSetDomain(params->domain);
     }
-    int n = snprintf(gName, sizeof(gName), "skald@%s", SkalDomain());
-    SKALASSERT(n < (int)sizeof(gName));
+    gName = SkalSPrintf("skald@%s", SkalDomain());
 
     gNet = SkalNetCreate(skaldCtxUnref);
 
@@ -342,7 +342,7 @@ void SkaldRun(const SkaldParams* params)
     // Create pipe to allow skald to terminate cleanly
     skaldSocketCtx* ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_PIPE_SERVER;
-    snprintf(ctx->name, sizeof(ctx->name), "pipe-server");
+    ctx->name = SkalStrdup("pipe-server");
     int sockid = SkalNetServerCreate(gNet, "pipe://", 0, ctx, 0);
     SKALASSERT(sockid >= 0);
     SkalNetEvent* event = SkalNetPoll_BLOCKING(gNet);
@@ -351,7 +351,7 @@ void SkaldRun(const SkaldParams* params)
     SKALASSERT(sockid == event->sockid);
     ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_PIPE_CLIENT;
-    snprintf(ctx->name, sizeof(ctx->name), "pipe-client");
+    ctx->name = SkalStrdup("pipe-client");
     bool contextSet = SkalNetSetContext(gNet, event->conn.commSockid, ctx);
     gPipeClientSockid = event->conn.commSockid;
     SKALASSERT(contextSet);
@@ -360,7 +360,7 @@ void SkaldRun(const SkaldParams* params)
     // Create skald local socket
     ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_SERVER;
-    snprintf(ctx->name, sizeof(ctx->name), "local-server");
+    ctx->name = SkalStrdup("local-server");
     sockid = SkalNetServerCreate(gNet, localUrl, 0, ctx, 0);
     SKALASSERT(sockid >= 0);
 
@@ -382,6 +382,9 @@ void SkaldTerminate(void)
     SkalNetDestroy(gNet);
     CdsMapDestroy(gThreads);
     CdsMapDestroy(gAlarms);
+
+    free(gName);
+    gName = NULL;
 }
 
 
@@ -501,37 +504,38 @@ static void skaldAlarmProcess(SkalAlarm* alarm)
     if (NULL == origin) {
         origin = "";
     }
-    skaldAlarm* item;
-    char key[sizeof(item->key)];
-    int n = snprintf(key, sizeof(key), "%s#%s", origin, SkalAlarmName(alarm));
-    SKALASSERT(n < (int)sizeof(key));
+    char* key = SkalSPrintf("%s#%s", origin, SkalAlarmName(alarm));
 
     if (SkalAlarmIsOn(alarm)) {
-        item = SkalMallocZ(sizeof(*item));
-        snprintf(item->key, sizeof(item->key), "%s", key);
+        skaldAlarm* item = SkalMallocZ(sizeof(*item));
+        item->key = key;
         item->alarm = alarm;
         bool inserted = CdsMapInsert(gAlarms, item->key, &item->item);
         SKALASSERT(inserted);
     } else {
         (void)CdsMapRemove(gAlarms, key);
         SkalAlarmUnref(alarm);
+        free(key);
     }
 }
 
 
-static void skaldNameMapItemUnref(CdsMapItem* item)
+static void skaldNameMapItemUnref(CdsMapItem* mitem)
 {
+    skaldNameMapItem* item = (skaldNameMapItem*)mitem;
+    free(item->name);
     free(item);
 }
 
 
-static void skaldAlarmUnref(CdsMapItem* item)
+static void skaldAlarmUnref(CdsMapItem* mitem)
 {
-    skaldAlarm* alarmItem = (skaldAlarm*)item;
-    SKALASSERT(alarmItem != NULL);
-    SKALASSERT(alarmItem->alarm != NULL);
-    SkalAlarmUnref(alarmItem->alarm);
-    free(alarmItem);
+    skaldAlarm* item = (skaldAlarm*)mitem;
+    SKALASSERT(item != NULL);
+    SKALASSERT(item->alarm != NULL);
+    SkalAlarmUnref(item->alarm);
+    free(item->key);
+    free(item);
 }
 
 
@@ -542,6 +546,8 @@ static void skaldCtxUnref(void* context)
     if (ctx->threadNames != NULL) {
         CdsMapDestroy(ctx->threadNames);
     }
+    free(ctx->name);
+    free(ctx->domain);
     free(ctx);
 }
 
@@ -550,7 +556,7 @@ static void skaldHandleProcessConnection(int commSockid)
 {
     skaldSocketCtx* ctx = SkalMallocZ(sizeof(*ctx));
     ctx->type = SKALD_SOCKET_PROCESS;
-    snprintf(ctx->name, sizeof(ctx->name), "process (%d)", commSockid);
+    ctx->name = SkalSPrintf("process (%d)", commSockid);
     ctx->threadNames = CdsMapCreate(NULL,                   // name
                                     0,                      // capacity
                                     SkalStringCompare,      // compare
@@ -562,10 +568,11 @@ static void skaldHandleProcessConnection(int commSockid)
 }
 
 
-static void skaldThreadUnref(CdsMapItem* item)
+static void skaldThreadUnref(CdsMapItem* mitem)
 {
-    skaldThread* thread = (skaldThread*)item;
+    skaldThread* thread = (skaldThread*)mitem;
     SKALASSERT(thread != NULL);
+    free(thread->name);
     free(thread);
 }
 
@@ -664,7 +671,9 @@ static void skaldProcessMsgFromProcess(int sockid,
 
         } else {
             const char* name = SkalMsgGetString(msg, "name");
-            snprintf(ctx->name, sizeof(ctx->name), "%s", name);
+            // `ctx->name` should be NULL here, but let's just be safe
+            free(ctx->name);
+            ctx->name = SkalStrdup(name);
 
             // Respond with the domain name
             SkalMsg* resp = SkalMsgCreate("skal-init-domain", "skal-master");
@@ -701,12 +710,13 @@ static void skaldProcessMsgFromProcess(int sockid,
         } else {
             skaldThread* thread = SkalMallocZ(sizeof(*thread));
             thread->sockid = sockid;
-            snprintf(thread->name, sizeof(thread->name), "%s", sender);
-            bool inserted = CdsMapInsert(gThreads, (void*)sender, &thread->item);
+            thread->name = SkalStrdup(sender);
+            bool inserted = CdsMapInsert(gThreads,
+                    (void*)thread->name, &thread->item);
             SKALASSERT(inserted);
 
             skaldNameMapItem* item = SkalMallocZ(sizeof(*item));
-            snprintf(item->name, sizeof(item->name), "%s", sender);
+            item->name = SkalStrdup(sender);
             inserted = CdsMapInsert(ctx->threadNames, item->name, &item->item);
             SKALASSERT(inserted);
 

@@ -15,6 +15,7 @@
  */
 
 #include "skald.h"
+#include "skal-msg.h"
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
@@ -96,6 +97,7 @@ static void parseArgs(int argc, char** argv, SkaldParams* params)
 int main(int argc, char** argv)
 {
     SkalPlfInit();
+    SkalMsgInit();
 
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -125,6 +127,7 @@ int main(int argc, char** argv)
     }
 
     SkaldTerminate();
+    SkalMsgExit();
     SkalPlfExit();
     return 0;
 }

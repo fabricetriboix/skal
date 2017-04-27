@@ -33,14 +33,6 @@ extern "C" {
 
 
 
-/** Maximum length of names or other strings, in chars
- *
- * That includes the terminating null character. This setting essentially
- * applies to all strings unless otherwise specified.
- */
-#define SKAL_NAME_MAX 128
-
-
 /** Default TTL */
 #define SKAL_DEFAULT_TTL 4
 
