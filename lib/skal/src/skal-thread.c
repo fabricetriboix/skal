@@ -34,12 +34,11 @@
  * NB: We do not count references because we know by design it's referenced only
  * once at creation.
  */
-typedef struct
-{
+typedef struct {
     CdsMapItem item;
 
     /** Name of the recipient that got its queue full because of me */
-    char peer[SKAL_NAME_MAX];
+    char* peer;
 
     /** Last time we sent a 'skal-ntf-xon' message to `peer` */
     int64_t lastNtfXonTime_us;
@@ -51,12 +50,11 @@ typedef struct
  * NB: We do not count references because we know by design it's referenced only
  * once at creation.
  */
-typedef struct
-{
+typedef struct {
     CdsMapItem item;
 
     /** Name of the thread to notify */
-    char peer[SKAL_NAME_MAX];
+    char* peer;
 } skalNtfXonItem;
 
 
@@ -68,8 +66,7 @@ typedef struct
  * NB: We do not count references because we know by design it's referenced only
  * once at creation.
  */
-struct SkalThread
-{
+struct SkalThread {
     CdsMapItem item;
 
     /** Thread configuration */
@@ -88,8 +85,7 @@ struct SkalThread
  * Each thread will allocate one such structure and will store its pointer as
  * thread-specific data.
  */
-typedef struct
-{
+typedef struct {
     /** Back pointer to the thread structure
      *
      * This structure is guaranteed to exist and not be modified (except for its
@@ -155,8 +151,12 @@ static SkalThread* skalDoCreateThread(const SkalThreadCfg* cfg);
 static void skalThreadUnref(SkalThread* thread);
 
 
-/** Function to unreference a map item where the item just needs to be freed */
-static void skalMapUnrefFree(CdsMapItem* item);
+/** Function to unreference a `skalXoffItem` */
+static void skalMapXoffUnref(CdsMapItem* mitem);
+
+
+/** Function to unreference a `skalNtfXonItem` */
+static void skalMapNtfXonUnref(CdsMapItem* mitem);
 
 
 /** Run a SKAL thread
@@ -255,7 +255,7 @@ static void skalMasterPushHook(void* cookie);
 
 
 /** Name of this process */
-static char gProcessName[SKAL_NAME_MAX] = "";
+static char* gProcessName = NULL;
 
 
 /** Mutex to protect the `gThreads` map */
@@ -348,6 +348,7 @@ static int gPipeClientId = -1;
 
 bool SkalThreadInit(const char* skaldUrl)
 {
+    SKALASSERT(NULL == gProcessName);
     SKALASSERT(NULL == gMutex);
     SKALASSERT(NULL == gThreads);
     SKALASSERT(NULL == gMaster);
@@ -356,7 +357,7 @@ bool SkalThreadInit(const char* skaldUrl)
 
     gTerminating = false;
 
-    SkalPlfGetPThreadName(gProcessName, sizeof(gProcessName));
+    gProcessName = SkalPlfGetSystemThreadName();
 
     // Connect to skald
     if (NULL == skaldUrl) {
@@ -383,13 +384,12 @@ bool SkalThreadInit(const char* skaldUrl)
 
     gMutex = SkalPlfMutexCreate();
 
-    char name[SKAL_NAME_MAX];
-    snprintf(name, sizeof(name), "%s-queue", gProcessName);
-    gGlobalQueue = SkalQueueCreate(name, SKAL_THREADS_MAX);
+    char* name = SkalSPrintf("%s-queue", gProcessName);
+    gGlobalQueue = SkalQueueCreate(name, SKAL_DEFAULT_QUEUE_THRESHOLD);
+    free(name);
 
-    snprintf(name, sizeof(name), "%s-threads", gProcessName);
-    gThreads = CdsMapCreate(name,              // name
-                            SKAL_THREADS_MAX,  // capacity
+    gThreads = CdsMapCreate(NULL,              // name
+                            0,                 // capacity
                             SkalStringCompare, // compare
                             NULL,              // cookie
                             NULL,              // keyUnref
@@ -409,7 +409,7 @@ bool SkalThreadInit(const char* skaldUrl)
     gMasterRunningCondVar = SkalPlfCondVarCreate();
     gMaster = SkalMallocZ(sizeof(*gMaster));
     gMaster->cfg.name = SkalStrdup("skal-master");
-    gMaster->cfg.queueThreshold = SKAL_MSG_LIST_MAX;
+    gMaster->cfg.queueThreshold = SKAL_DEFAULT_QUEUE_THRESHOLD;
     gMaster->queue = SkalQueueCreate("skal-master-queue",
             gMaster->cfg.queueThreshold);
     SkalQueueSetPushHook(gMaster->queue, skalMasterPushHook, NULL);
@@ -463,6 +463,9 @@ void SkalThreadExit(void)
 
     SkalPlfCondVarDestroy(gMasterRunningCondVar);
     gMasterRunningCondVar = NULL;
+
+    free(gProcessName);
+    gProcessName = NULL;
 }
 
 
@@ -592,11 +595,11 @@ static SkalThread* skalDoCreateThread(const SkalThreadCfg* cfg)
     }
     if (thread->cfg.xoffTimeout_us <= 0) {
         thread->cfg.xoffTimeout_us = SKAL_DEFAULT_XOFF_TIMEOUT_us;
-    }
+   }
 
-    char name[SKAL_NAME_MAX];
-    snprintf(name, sizeof(name), "%s-queue", thread->cfg.name);
+    char* name = SkalSPrintf("%s-queue", thread->cfg.name);
     thread->queue = SkalQueueCreate(name, thread->cfg.queueThreshold);
+    free(name);
 
     // NB: Create the actual thread last, as it may access the structure
     thread->thread = SkalPlfThreadCreate(thread->cfg.name,
@@ -616,8 +619,20 @@ static void skalThreadUnref(SkalThread* thread)
 }
 
 
-static void skalMapUnrefFree(CdsMapItem* item)
+static void skalMapXoffUnref(CdsMapItem* mitem)
 {
+    skalXoffItem* item = (skalXoffItem*)mitem;
+    SKALASSERT(item != NULL);
+    free(item->peer);
+    free(item);
+}
+
+
+static void skalMapNtfXonUnref(CdsMapItem* mitem)
+{
+    skalNtfXonItem* item = (skalNtfXonItem*)mitem;
+    SKALASSERT(item != NULL);
+    free(item->peer);
     free(item);
 }
 
@@ -633,18 +648,18 @@ static void skalThreadRun(void* arg)
     priv->thread = thread;
 
     priv->xoff = CdsMapCreate(NULL,              // name
-                              SKAL_XOFF_MAX,     // capacity
+                              0,                 // capacity
                               SkalStringCompare, // compare
                               NULL,              // cookie
                               NULL,              // keyUnref
-                              skalMapUnrefFree); // itemUnref
+                              skalMapXoffUnref); // itemUnref
 
     priv->ntfXon = CdsMapCreate(NULL,              // name
-                                SKAL_XOFF_MAX,     // capacity
+                                0,                 // capacity
                                 SkalStringCompare, // compare
                                 NULL,              // cookie
                                 NULL,              // keyUnref
-                                skalMapUnrefFree); // itemUnref
+                                skalMapNtfXonUnref); // itemUnref
 
     SkalPlfThreadSetSpecific(priv);
 
@@ -719,7 +734,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
         CdsMapItem* item = CdsMapSearch(priv->xoff, (void*)sender);
         if (NULL == item) {
             skalXoffItem* xoffItem = SkalMallocZ(sizeof(*xoffItem));
-            strncpy(xoffItem->peer, sender, sizeof(xoffItem->peer) - 1);
+            xoffItem->peer = SkalStrdup(sender);
             bool inserted = CdsMapInsert(priv->xoff,
                     xoffItem->peer, &xoffItem->item);
             SKALASSERT(inserted);
@@ -748,7 +763,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
         CdsMapItem* item = CdsMapSearch(priv->ntfXon, (void*)sender);
         if (NULL == item) {
             skalNtfXonItem* ntfXonItem = SkalMallocZ(sizeof(*ntfXonItem));
-            strncpy(ntfXonItem->peer, sender, sizeof(ntfXonItem->peer) - 1);
+            ntfXonItem->peer = SkalStrdup(sender);
             bool inserted = CdsMapInsert(priv->ntfXon,
                     ntfXonItem->peer, &ntfXonItem->item);
             SKALASSERT(inserted);

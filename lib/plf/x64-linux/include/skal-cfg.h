@@ -41,18 +41,6 @@ extern "C" {
 #define SKAL_NAME_MAX 128
 
 
-/** Maximum number of threads per process */
-#define SKAL_THREADS_MAX 10000
-
-
-/** Maximum number of messages that can be queued in a message list */
-#define SKAL_MSG_LIST_MAX 1000
-
-
-/** Maximum number of xoff states that can be received by a single thread */
-#define SKAL_XOFF_MAX 1000
-
-
 /** Default TTL */
 #define SKAL_DEFAULT_TTL 4
 
@@ -61,7 +49,10 @@ extern "C" {
 #define SKAL_DEFAULT_XOFF_TIMEOUT_us 50000
 
 
-/** Default queue threshold */
+/** Default queue threshold
+ *
+ * This is also the value that is used by the skal-master threads.
+ */
 #define SKAL_DEFAULT_QUEUE_THRESHOLD 100
 
 

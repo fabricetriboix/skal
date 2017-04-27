@@ -319,35 +319,10 @@ bool SkalIsAsciiString(const char* str)
 }
 
 
-#if 0
-bool SkalIsUtf8String(const char* str, int maxlen)
-{
-    SKALASSERT(str != NULL);
-    SKALASSERT(maxlen > 0);
-
-    for (int i = 0; i < maxlen; i++) {
-        char c = str[i];
-        if ('\0' == c) {
-            return true; // Null char found => `str` is a valid UTF-8 string
-        }
-        if ((c < 0x20) || (0x7f == c)) {
-            // Control character found => `str` is not a valid UTF-8 string
-            return false;
-        }
-        // TODO: there is a lot more to check for a UTF-8 string...
-    }
-
-    // No null character found within `maxlen` bytes
-    //  => `str` is not a valid UTF-8 string
-    return false;
-}
-#endif
-
-
 int SkalStringCompare(void* leftKey, void* rightKey, void* cookie)
 {
     (void)cookie;
-    return strncmp((const char*)leftKey, (const char*)rightKey, SKAL_NAME_MAX);
+    return strcmp((const char*)leftKey, (const char*)rightKey);
 }
 
 

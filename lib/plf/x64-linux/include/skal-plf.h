@@ -266,15 +266,12 @@ void SkalPlfThreadJoin(SkalPlfThread* thread);
 const char* SkalPlfThreadGetName(void);
 
 
-/** Get the pthread name of the current thread
+/** Get the system thread name of the current thread
  *
- * Please note the pthread name is a GNU extension and is usually limited to 16
- * characters in size.
- *
- * @param name   [out] Where to write the pthread name; must not be NULL
- * @param size_B [in]  Size of the above buffer, in bytes; must be >0
+ * @return The system thread name; this function never returns NULL; please call
+ *         `free(3)` on it when finished.
  */
-void SkalPlfGetPThreadName(char* name, int size_B);
+char* SkalPlfGetSystemThreadName(void);
 
 
 /** Set the thread-specific value

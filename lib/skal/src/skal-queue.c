@@ -35,7 +35,6 @@ struct SkalQueue {
     SkalPlfMutex*   mutex;
     SkalPlfCondVar* condvar;
     int64_t         threshold;
-    int64_t         assertThreshold;
     CdsList*        internal;
     CdsList*        urgent;
     CdsList*        regular;
@@ -60,11 +59,6 @@ SkalQueue* SkalQueueCreate(const char* name, int64_t threshold)
     queue->mutex = SkalPlfMutexCreate();
     queue->condvar = SkalPlfCondVarCreate();
     queue->threshold = threshold;
-    if (threshold < 100) {
-        queue->assertThreshold = 1000;
-    } else {
-        queue->assertThreshold = threshold * 10;
-    }
     queue->internal=CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
     queue->urgent  =CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
     queue->regular =CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);

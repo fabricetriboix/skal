@@ -279,12 +279,17 @@ const char* SkalPlfThreadGetName(void)
 }
 
 
-void SkalPlfGetPThreadName(char* name, int size_B)
+char* SkalPlfGetSystemThreadName(void)
 {
-    SKALASSERT(name != NULL);
-    SKALASSERT(size_B > 0);
-    int ret = pthread_getname_np(pthread_self(), name, size_B);
+    char name[16];
+    int ret = pthread_getname_np(pthread_self(), name, sizeof(name));
     SKALASSERT(0 == ret);
+
+    char* s = malloc(16);
+    SKALASSERT(s != NULL);
+    memcpy(s, name, 16);
+    s[15] = '\0';
+    return s;
 }
 
 

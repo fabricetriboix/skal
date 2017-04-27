@@ -27,10 +27,9 @@ extern "C" {
  * @addtogroup skal
  * @{
  *
- * Please note all strings must be ASCII strings of at most `SKAL_NAME_MAX` in
- * size (including the terminating null character), unless otherwise noted.
+ * Please note all strings must be ASCII strings unless otherwise noted.
  * Additional constraints may be imposed, in which case they will be clearly
- * mentioned in comments. Please note strict checks are perfomed on all strings.
+ * mentioned in comments.
  */
 
 #include "skal-common.h"
