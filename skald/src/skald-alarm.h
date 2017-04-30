@@ -49,7 +49,7 @@ void SkaldAlarmExit(void);
 void SkaldAlarmProcess(SkalAlarm* alarm);
 
 
-/** Helper function to create a process a new alarm in one call
+/** Helper function to create and process a new alarm in one call
  *
  * This is equivalent to calling `SkalAlarmCreate()` followed by
  * `SkaldAlarmProcess()`.
