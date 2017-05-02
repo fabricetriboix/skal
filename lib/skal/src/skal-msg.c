@@ -171,14 +171,16 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field);
  * by the backslash character are reproduced verbatim (mainly useful to have
  * double-quote characters in the string).
  *
- * @param json [in]  JSON text to parse; must not be NULL
- * @param str  [out] The parsed string; must not be NULL; please call `free(3)`
- *                   on it when finished
+ * @param json      [in]  JSON text to parse; must not be NULL
+ * @param str       [out] The parsed string; must not be NULL; please call
+ *                        `free(3)` on it when finished
+ * @param onlyAscii [in]  Whether the parsed string must be ASCII
  *
  * @return Pointer to the character in `json` just after the parsed string, or
  *         NULL if invalid JSON (in such a case, `*str` will be set to NULL)
  */
-static const char* skalMsgParseJsonString(const char* json, char** str);
+static const char* skalMsgParseJsonString(const char* json,
+        char** str, bool onlyAscii);
 
 
 /** Convert a field property string to enum
@@ -857,7 +859,7 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
     // Parse JSON object properties one after the other
     while ((*json != '\0') && (*json != '}')) {
         char* str;
-        json = skalMsgParseJsonString(json, &str);
+        json = skalMsgParseJsonString(json, &str, true);
         if (NULL == json) {
             return false;
         }
@@ -926,13 +928,13 @@ static const char* skalMsgParseJsonProperty(const char* json,
         }
 
     } else if (strcmp(name, "name") == 0) {
-        json = skalMsgParseJsonString(json, &msg->name);
+        json = skalMsgParseJsonString(json, &msg->name, true);
 
     } else if (strcmp(name, "sender") == 0) {
-        json = skalMsgParseJsonString(json, &msg->sender);
+        json = skalMsgParseJsonString(json, &msg->sender, true);
 
     } else if (strcmp(name, "recipient") == 0) {
-        json = skalMsgParseJsonString(json, &msg->recipient);
+        json = skalMsgParseJsonString(json, &msg->recipient, true);
 
     } else if (strcmp(name, "ttl") == 0) {
         int tmp;
@@ -1059,7 +1061,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
     while ((*json != '\0') && (*json != '}')) {
         // Parse property name
         char* str;
-        json = skalMsgParseJsonString(json, &str);
+        json = skalMsgParseJsonString(json, &str, true);
         if (NULL == json) {
             return NULL;
         }
@@ -1082,11 +1084,11 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
         // Parse property value
         switch (property) {
         case SKAL_MSG_FIELD_PROPERTY_NAME :
-            json = skalMsgParseJsonString(json, &field->name);
+            json = skalMsgParseJsonString(json, &field->name, true);
             break;
 
         case SKAL_MSG_FIELD_PROPERTY_TYPE :
-            json = skalMsgParseJsonString(json, &str);
+            json = skalMsgParseJsonString(json, &str, true);
             if (json != NULL) {
                 if (strcmp(str, "int") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_INT;
@@ -1207,7 +1209,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
 
     case SKAL_MSG_FIELD_TYPE_STRING :
         {
-            const char* tmp = skalMsgParseJsonString(value, &field->s);
+            const char* tmp = skalMsgParseJsonString(value, &field->s, false);
             if (NULL == tmp) {
                 return NULL;
             }
@@ -1218,7 +1220,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
     case SKAL_MSG_FIELD_TYPE_MINIBLOB :
         {
             char* b64;
-            const char* tmp = skalMsgParseJsonString(value, &b64);
+            const char* tmp = skalMsgParseJsonString(value, &b64, true);
             if (NULL == tmp) {
                 free(b64);
                 return NULL;
@@ -1245,7 +1247,8 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
 }
 
 
-static const char* skalMsgParseJsonString(const char* json, char** str)
+static const char* skalMsgParseJsonString(const char* json,
+        char** str, bool onlyAscii)
 {
     SKALASSERT(str != NULL);
     *str = NULL;
@@ -1280,6 +1283,12 @@ static const char* skalMsgParseJsonString(const char* json, char** str)
     }
     SKALASSERT('"' == *json);
     json++;
+
+    if (onlyAscii && !SkalIsAsciiString(s)) {
+        SkalLog("SkalMsg: Invalid JSON: String must be ASCII");
+        free(s);
+        return NULL;
+    }
 
     *str = s;
     return json;
