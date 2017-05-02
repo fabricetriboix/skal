@@ -899,6 +899,17 @@ bool SkalMsgHasDoubleField(const SkalMsg* msg, const char* name);
 bool SkalMsgHasStringField(const SkalMsg* msg, const char* name);
 
 
+/** Check if a message has an ASCII string field with the given name
+ *
+ * Like `SkalMsgHasStringField()`, but also checks the string is an ASCII
+ * string.
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasAsciiStringField(const SkalMsg* msg, const char* name);
+
+
 /** Check if a message has a miniblob field with the given name
  *
  * @param msg  [in] Message to check; must not be NULL

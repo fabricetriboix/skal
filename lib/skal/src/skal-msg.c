@@ -474,6 +474,16 @@ bool SkalMsgHasStringField(const SkalMsg* msg, const char* name)
 }
 
 
+bool SkalMsgHasAsciiStringField(const SkalMsg* msg, const char* name)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(SkalIsAsciiString(name));
+    skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
+    return (field != NULL) && (SKAL_MSG_FIELD_TYPE_STRING == field->type)
+        && SkalIsAsciiString(field->s);
+}
+
+
 bool SkalMsgHasMiniblobField(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
