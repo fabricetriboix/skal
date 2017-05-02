@@ -93,6 +93,10 @@ extern "C" {
 #define SKAL_MSG_FLAG_URGENT 0x08
 
 
+/** Message flag: this message's recipient is a group */
+#define SKAL_MSG_FLAG_GROUP 0x10
+
+
 /** Prototype for a custom allocator
  *
  * Such a function will be called to allocate a custom memory area.
@@ -692,10 +696,23 @@ SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
  * @param name      [in] Message name; same as `SkalMsgCreateEx()`
  * @param recipient [in] Message recipient; same as `SkalMsgCreateEx()`
  *
- *
  * @return Created SKAL message; this function never returns NULL
  */
 SkalMsg* SkalMsgCreate(const char* name, const char* recipient);
+
+
+/** Create a simple message where the recipient is a group
+ *
+ * This is a simplified version of `SkalMsgCreateEx()`, which takes out
+ * often-unused arguments. The created message will have the
+ * `SKAL_MSG_FLAG_GROUP1 flag set and a TTL set to the default value.
+ *
+ * @param name      [in] Message name; same as `SkalMsgCreateEx()`
+ * @param recipient [in] Message recipient; same as `SkalMsgCreateEx()`
+ *
+ * @return Created SKAL message; this function never returns NULL
+ */
+SkalMsg* SkalMsgCreateG(const char* name, const char* recipient);
 
 
 /** Add a reference to a message

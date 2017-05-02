@@ -262,6 +262,12 @@ SkalMsg* SkalMsgCreate(const char* name, const char* recipient)
 }
 
 
+SkalMsg* SkalMsgCreateG(const char* name, const char* recipient)
+{
+    return SkalMsgCreateEx(name, recipient, SKAL_MSG_FLAG_GROUP, 0);
+}
+
+
 void SkalMsgSetSender(SkalMsg* msg, const char* sender)
 {
     SKALASSERT(msg != NULL);
