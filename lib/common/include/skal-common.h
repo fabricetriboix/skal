@@ -232,6 +232,33 @@ char* SkalStringBuilderFinish(SkalStringBuilder* sb);
 bool SkalIsAsciiString(const char* str);
 
 
+/** Safer replacement for `strcmp(3)`
+ *
+ * @param lhs [in] Left-hand side string to compare; must be NULL or a UTF-8
+ *                 string
+ * @param rhs [in] Right-hand side string to compare; must be NULL or a UTF-8
+ *                 string
+ *
+ * @return A strictly negative number if lhs < rhs, 0 if lhs == rhs, a strictly
+ *         positive number if lhs > rhs
+ */
+int SkalStrcmp(const char* lhs, const char* rhs);
+
+
+/** Safer replacement for `strncmp(3)`
+ *
+ * @param lhs [in] Left-hand side string to compare; must be NULL or a UTF-8
+ *                 string
+ * @param rhs [in] Right-hand side string to compare; must be NULL or a UTF-8
+ *                 string
+ * @param n   [in] Maximum number of bytes to compare
+ *
+ * @return A strictly negative number if lhs < rhs, 0 if lhs == rhs, a strictly
+ *         positive number if lhs > rhs
+ */
+int SkalStrncmp(const char* lhs, const char* rhs, size_t n);
+
+
 /** Standard string comparison function suitable for CdsMap
  *
  * @param leftkey  [in] LHS token; must not be NULL, must be a null-terminated

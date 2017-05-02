@@ -333,6 +333,36 @@ bool SkalIsAsciiString(const char* str)
 }
 
 
+int SkalStrcmp(const char* lhs, const char* rhs)
+{
+    if (NULL == lhs) {
+        if (NULL == rhs) {
+            return 0;
+        }
+        return -1;
+    }
+    if (NULL == rhs) {
+        return 1;
+    }
+    return strcmp(lhs, rhs);
+}
+
+
+int SkalStrncmp(const char* lhs, const char* rhs, size_t n)
+{
+    if (NULL == lhs) {
+        if (NULL == rhs) {
+            return 0;
+        }
+        return -1;
+    }
+    if (NULL == rhs) {
+        return 1;
+    }
+    return strncmp(lhs, rhs, n);
+}
+
+
 int SkalStringCompare(void* leftKey, void* rightKey, void* cookie)
 {
     (void)cookie;
