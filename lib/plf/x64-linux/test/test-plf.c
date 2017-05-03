@@ -159,3 +159,39 @@ RTT_GROUP_END(TestSkalPlf,
         skal_plf_should_free_up_resources,
         skal_plf_thread_specific_should_be_correct,
         skal_plf_should_generate_a_random_number)
+
+RTT_GROUP_START(TestSkalPlfRegex, 0x00010002u, NULL, NULL)
+
+static SkalPlfRegex* gRegex = NULL;
+
+RTT_TEST_START(skal_plf_should_create_regex)
+{
+    gRegex = SkalPlfRegexCreate(".*[a-z][a-z]*.*[A-Z][A-Z]*.*[0-9][0-9]*.*");
+    RTT_ASSERT(gRegex != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_plf_regex_should_match)
+{
+    RTT_EXPECT(SkalPlfRegexRun(gRegex, "++abc++ABC++123++"));
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_plf_regex_should_not_match)
+{
+    RTT_EXPECT(!SkalPlfRegexRun(gRegex, "++abc++;;;++123++"));
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_plf_should_destroy_regex)
+{
+    SkalPlfRegexDestroy(gRegex);
+    gRegex = NULL;
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestSkalPlfRegex,
+        skal_plf_should_create_regex,
+        skal_plf_regex_should_match,
+        skal_plf_regex_should_not_match,
+        skal_plf_should_destroy_regex)

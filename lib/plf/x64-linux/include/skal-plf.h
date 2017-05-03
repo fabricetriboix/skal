@@ -112,6 +112,10 @@ typedef struct SkalPlfThread SkalPlfThread;
 typedef void (*SkalPlfThreadFunction)(void* arg);
 
 
+/** Opaque type representing a regex */
+typedef struct SkalPlfRegex SkalPlfRegex;
+
+
 
 /*------------------------------+
  | Public function declarations |
@@ -326,6 +330,33 @@ void SkalPlfThreadMakeSkal_DEBUG(const char* name);
  * This is a debug function intended only for unit tests.
  */
 void SkalPlfThreadUnmakeSkal_DEBUG(void);
+
+
+/** Create a regex object to subsequent matching
+ *
+ * @param pattern [in] The pattern to match; must not be NULL
+ *
+ * @return The regex object, or NULL if `pattern` is not a valid regex; please
+ *         call `SkalPlfRegexDestroy()` on the regex object when you're finished
+ */
+SkalPlfRegex* SkalPlfRegexCreate(const char* pattern);
+
+
+/** Destroy a regex object
+ *
+ * @param regex [in] The regex object to destroy; may be NULL
+ */
+void SkalPlfRegexDestroy(SkalPlfRegex* regex);
+
+
+/** Match a string against a regex
+ *
+ * @param regex [in] The regex object to match against; must not be NULL
+ * @param str   [in] The string to match; must not be NULL
+ *
+ * @return Whether `str` matches `pattern`
+ */
+bool SkalPlfRegexRun(SkalPlfRegex* regex, const char* str);
 
 
 

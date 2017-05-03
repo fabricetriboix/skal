@@ -29,6 +29,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
+#include <regex.h>
 
 
 
@@ -58,6 +59,11 @@ struct SkalPlfThread {
     pthread_t             id;
     void*                 specific;
     bool                  debug;
+};
+
+
+struct SkalPlfRegex {
+    regex_t regex;
 };
 
 
@@ -365,6 +371,42 @@ void SkalPlfThreadUnmakeSkal_DEBUG(void)
 
     int ret = pthread_setspecific(gKey, NULL);
     SKALASSERT(0 == ret);
+}
+
+
+SkalPlfRegex* SkalPlfRegexCreate(const char* pattern)
+{
+    SKALASSERT(pattern != NULL);
+
+    SkalPlfRegex* regex = malloc(sizeof(*regex));
+    SKALASSERT(regex != NULL);
+    memset(regex, 0, sizeof(*regex));
+
+    int ret = regcomp(&regex->regex, pattern, 0);
+    if (ret != 0) {
+        free(regex);
+        regex = NULL;
+    }
+    return regex;
+}
+
+
+void SkalPlfRegexDestroy(SkalPlfRegex* regex)
+{
+    if (regex != NULL) {
+        regfree(&regex->regex);
+        free(regex);
+    }
+}
+
+
+bool SkalPlfRegexRun(SkalPlfRegex* regex, const char* str)
+{
+    SKALASSERT(regex != NULL);
+    SKALASSERT(str != NULL);
+
+    int ret = regexec(&regex->regex, str, 0, NULL, 0);
+    return (0 == ret);
 }
 
 
