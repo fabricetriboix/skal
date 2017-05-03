@@ -235,9 +235,9 @@ bool SkalIsAsciiString(const char* str);
 /** Safer replacement for `strcmp(3)`
  *
  * @param lhs [in] Left-hand side string to compare; must be NULL or a UTF-8
- *                 string
+ *                 string; may be NULL
  * @param rhs [in] Right-hand side string to compare; must be NULL or a UTF-8
- *                 string
+ *                 string; may be NULL
  *
  * @return A strictly negative number if lhs < rhs, 0 if lhs == rhs, a strictly
  *         positive number if lhs > rhs
@@ -248,15 +248,25 @@ int SkalStrcmp(const char* lhs, const char* rhs);
 /** Safer replacement for `strncmp(3)`
  *
  * @param lhs [in] Left-hand side string to compare; must be NULL or a UTF-8
- *                 string
+ *                 string; may be NULL
  * @param rhs [in] Right-hand side string to compare; must be NULL or a UTF-8
- *                 string
+ *                 string; may be NULL
  * @param n   [in] Maximum number of bytes to compare
  *
  * @return A strictly negative number if lhs < rhs, 0 if lhs == rhs, a strictly
  *         positive number if lhs > rhs
  */
 int SkalStrncmp(const char* lhs, const char* rhs, size_t n);
+
+
+/** Check if the given string starts with a certain string
+ *
+ * @param str     [in] String to check; may be NULL
+ * @param pattern [in] Pattern at the beginning; may be NULL
+ *
+ * @return `true` if `str` starts with `pattern`, `false` otherwise
+ */
+bool SkalStartsWith(const char* str, const char* s);
 
 
 /** Standard string comparison function suitable for CdsMap

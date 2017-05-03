@@ -363,6 +363,18 @@ int SkalStrncmp(const char* lhs, const char* rhs, size_t n)
 }
 
 
+bool SkalStartsWith(const char* str, const char* s)
+{
+    if (NULL == str) {
+        return NULL == s;
+    }
+    if (NULL == s) {
+        return true;
+    }
+    return strncmp(str, s, strlen(s));
+}
+
+
 int SkalStringCompare(void* leftKey, void* rightKey, void* cookie)
 {
     (void)cookie;
