@@ -526,6 +526,15 @@ int64_t SkalAlarmTimestamp_us(const SkalAlarm* alarm);
 const char* SkalAlarmComment(const SkalAlarm* alarm);
 
 
+/** Make a copy of an alarm
+ *
+ * @param alarm [in] Alarm to copy; must not be NULL
+ *
+ * @return A copy of `alarm`; this function never returns NULL
+ */
+SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm);
+
+
 /** Create a blob
  *
  * @param allocator [in] Allocator to use to create the blob. This may be NULL,
@@ -897,7 +906,7 @@ bool SkalMsgHasField(const SkalMsg* msg, const char* name);
  * @param msg  [in] Message to check; must not be NULL
  * @param name [in] Name of the field to check; must not be NULL
  */
-bool SkalMsgHasIntField(const SkalMsg* msg, const char* name);
+bool SkalMsgHasInt(const SkalMsg* msg, const char* name);
 
 
 /** Check if a message has a double field with the given name
@@ -905,7 +914,7 @@ bool SkalMsgHasIntField(const SkalMsg* msg, const char* name);
  * @param msg  [in] Message to check; must not be NULL
  * @param name [in] Name of the field to check; must not be NULL
  */
-bool SkalMsgHasDoubleField(const SkalMsg* msg, const char* name);
+bool SkalMsgHasDouble(const SkalMsg* msg, const char* name);
 
 
 /** Check if a message has a string field with the given name
@@ -913,7 +922,7 @@ bool SkalMsgHasDoubleField(const SkalMsg* msg, const char* name);
  * @param msg  [in] Message to check; must not be NULL
  * @param name [in] Name of the field to check; must not be NULL
  */
-bool SkalMsgHasStringField(const SkalMsg* msg, const char* name);
+bool SkalMsgHasString(const SkalMsg* msg, const char* name);
 
 
 /** Check if a message has an ASCII string field with the given name
@@ -924,7 +933,7 @@ bool SkalMsgHasStringField(const SkalMsg* msg, const char* name);
  * @param msg  [in] Message to check; must not be NULL
  * @param name [in] Name of the field to check; must not be NULL
  */
-bool SkalMsgHasAsciiStringField(const SkalMsg* msg, const char* name);
+bool SkalMsgHasAsciiString(const SkalMsg* msg, const char* name);
 
 
 /** Check if a message has a miniblob field with the given name
@@ -932,7 +941,7 @@ bool SkalMsgHasAsciiStringField(const SkalMsg* msg, const char* name);
  * @param msg  [in] Message to check; must not be NULL
  * @param name [in] Name of the field to check; must not be NULL
  */
-bool SkalMsgHasMiniblobField(const SkalMsg* msg, const char* name);
+bool SkalMsgHasMiniblob(const SkalMsg* msg, const char* name);
 
 
 /** Check if a message has a blob field with the given name
@@ -940,7 +949,7 @@ bool SkalMsgHasMiniblobField(const SkalMsg* msg, const char* name);
  * @param msg  [in] Message to check; must not be NULL
  * @param name [in] Name of the field to check; must not be NULL
  */
-bool SkalMsgHasBlobField(const SkalMsg* msg, const char* name);
+bool SkalMsgHasBlob(const SkalMsg* msg, const char* name);
 
 
 /** Get the value of an integer previously added to a message
@@ -1016,16 +1025,30 @@ SkalAlarm* SkalMsgDetachAlarm(SkalMsg* msg);
 
 /** Make a copy of a message
  *
- * @param msg       [in] Message to copy
- * @param refBlobs  [in] If set to `false`, the new message will not have any
- *                       blob. If set to `true`, the new message will reference
- *                       all the blobs attached to `msg`
- * @param recipient [in] Recipient for this new message; may be NULL to keep the
- *                       same recipient as `msg`
+ * Please note the copied message will have the same TTL value as `msg`; in
+ * other words, the TTL value of the copied message is not reset to the original
+ * TTL value.
+ *
+ * @param msg        [in] Message to copy; must not be NULL
+ * @param copyBlobs  [in] If set to `false`, the new message will not have any
+ *                        blob. If set to `true`, the new message will reference
+ *                        all the blobs attached to `msg`
+ * @param copyAlarms [in] Whether to also copy the alarms
+ * @param recipient  [in] Recipient for this new message; may be NULL to keep
+ *                        the same recipient as `msg`
  *
  * @return The copied message; this function never returns NULL
  */
-SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient);
+SkalMsg* SkalMsgCopyEx(const SkalMsg* msg,
+        bool copyBlobs, bool copyAlarms, const char* recipient);
+
+
+/** Make a simple copy of a message
+ *
+ * This function is like `SkalMsgCopyEx()` with both `copyBlobs` and
+ * `copyAlarms` set to `true`.
+ */
+SkalMsg* SkalMsgCopy(const SkalMsg* msg, const char* recipient);
 
 
 /** Send a message to its recipient

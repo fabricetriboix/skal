@@ -252,7 +252,8 @@ SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
     msg->ttl = ttl;
     msg->fields = CdsMapCreate(NULL, 0,
             SkalStringCompare, msg, NULL, skalFieldMapUnref);
-    msg->alarms = CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalAlarmUnref);
+    msg->alarms = CdsListCreate(NULL, 0,
+            (void(*)(CdsListItem*))SkalAlarmUnref);
 
     return msg;
 }
@@ -455,7 +456,7 @@ bool SkalMsgHasField(const SkalMsg* msg, const char* name)
 }
 
 
-bool SkalMsgHasIntField(const SkalMsg* msg, const char* name)
+bool SkalMsgHasInt(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name));
@@ -464,7 +465,7 @@ bool SkalMsgHasIntField(const SkalMsg* msg, const char* name)
 }
 
 
-bool SkalMsgHasDoubleField(const SkalMsg* msg, const char* name)
+bool SkalMsgHasDouble(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name));
@@ -473,7 +474,7 @@ bool SkalMsgHasDoubleField(const SkalMsg* msg, const char* name)
 }
 
 
-bool SkalMsgHasStringField(const SkalMsg* msg, const char* name)
+bool SkalMsgHasString(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name));
@@ -482,7 +483,7 @@ bool SkalMsgHasStringField(const SkalMsg* msg, const char* name)
 }
 
 
-bool SkalMsgHasAsciiStringField(const SkalMsg* msg, const char* name)
+bool SkalMsgHasAsciiString(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name));
@@ -492,7 +493,7 @@ bool SkalMsgHasAsciiStringField(const SkalMsg* msg, const char* name)
 }
 
 
-bool SkalMsgHasMiniblobField(const SkalMsg* msg, const char* name)
+bool SkalMsgHasMiniblob(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name));
@@ -501,7 +502,7 @@ bool SkalMsgHasMiniblobField(const SkalMsg* msg, const char* name)
 }
 
 
-bool SkalMsgHasBlobField(const SkalMsg* msg, const char* name)
+bool SkalMsgHasBlob(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name));
@@ -591,12 +592,83 @@ SkalAlarm* SkalMsgDetachAlarm(SkalMsg* msg)
 }
 
 
-// TODO: Implement SkalMsgCopy
-#if 0
-SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient)
+SkalMsg* SkalMsgCopyEx(const SkalMsg* msg,
+        bool copyBlobs, bool copyAlarms, const char* recipient)
 {
+    SKALASSERT(msg != NULL);
+
+    SkalMsg* copy = SkalMallocZ(sizeof(*copy));
+    copy->timestamp_us = msg->timestamp_us;
+    copy->ref = 1;
+    copy->version = SKAL_MSG_VERSION;
+    copy->flags = msg->flags;
+    copy->iflags = msg->iflags;
+    copy->ttl = msg->ttl;
+    copy->name = SkalStrdup(msg->name);
+    copy->sender = SkalStrdup(msg->sender);
+    if (recipient != NULL) {
+        copy->recipient = SkalStrdup(recipient);
+    }
+    copy->fields = CdsMapCreate(NULL, 0,
+            SkalStringCompare, NULL, NULL, skalFieldMapUnref);
+    copy->alarms = CdsListCreate(NULL, 0,
+            (void(*)(CdsListItem*))SkalAlarmUnref);
+
+    // Copy fields
+    CdsMapIteratorReset(msg->fields, true);
+    for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, NULL);
+            item != NULL;
+            item = CdsMapIteratorNext(msg->fields, NULL)) {
+        skalMsgField* field = (skalMsgField*)item;
+        SKALASSERT(field != NULL);
+        skalMsgField* copyField = skalMsgFieldAllocate(copy,
+                field->name, field->type);
+        switch (field->type) {
+        case SKAL_MSG_FIELD_TYPE_INT :
+            copyField->i = field->i;
+            break;
+        case SKAL_MSG_FIELD_TYPE_DOUBLE :
+            copyField->d = field->d;
+            break;
+        case SKAL_MSG_FIELD_TYPE_STRING :
+            copyField->s = SkalStrdup(field->s);
+            copyField->size_B = strlen(copyField->s) + 1;
+            break;
+        case SKAL_MSG_FIELD_TYPE_MINIBLOB :
+            copyField->size_B = field->size_B;
+            copyField->miniblob = SkalMalloc(field->size_B);
+            memcpy(copyField->miniblob, field->miniblob, field->size_B);
+            break;
+        case SKAL_MSG_FIELD_TYPE_BLOB :
+            if (copyBlobs) {
+                SkalBlobRef(field->blob);
+                copyField->blob = field->blob;
+            }
+            break;
+        default :
+            SKALPANIC_MSG("Unknown field type %d", (int)field->type);
+        }
+    } // for each field
+
+    // Copy alarms
+    if (copyAlarms) {
+        CDSLIST_FOREACH(msg->alarms, SkalAlarm, alarm) {
+            SkalAlarm* copyAlarm = SkalAlarmCopy(alarm);
+            bool inserted = CdsListPushBack(copy->alarms,
+                    (CdsListItem*)copyAlarm);
+            SKALASSERT(inserted);
+        }
+    }
+
+    gMsgRefCount_DEBUG++;
+    return copy;
 }
-#endif
+
+
+SkalMsg* SkalMsgCopy(const SkalMsg* msg, const char* recipient)
+{
+    return SkalMsgCopyEx(msg, true, true, recipient);
+}
 
 
 char* SkalMsgToJson(const SkalMsg* msg)

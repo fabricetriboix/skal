@@ -289,6 +289,22 @@ SkalAlarm* SkalAlarmCreateFromJson(const char** pJson)
 }
 
 
+SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm)
+{
+    SKALASSERT(alarm != NULL);
+    SkalAlarm* copy = SkalMallocZ(sizeof(*copy));
+    copy->ref = 1;
+    copy->name = SkalStrdup(alarm->name);
+    copy->severity = alarm->severity;
+    copy->origin = SkalStrdup(alarm->origin);
+    copy->isOn = alarm->isOn;
+    copy->autoOff = alarm->autoOff;
+    copy->timestamp_us = alarm->timestamp_us;
+    copy->comment = SkalStrdup(alarm->comment);
+    return copy;
+}
+
+
 
 /*----------------------------------+
  | Private function implementations |
