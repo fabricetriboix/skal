@@ -90,6 +90,56 @@ typedef struct {
 } skaldThread;
 
 
+/** Structure that holds information about a group subscriber
+ *
+ * Because we know there is only ever going to be only one reference to this
+ * structure, we don't keep track of the reference count.
+ */
+typedef struct {
+    CdsListItem item;
+
+    /** Name of the thread that subscribed to this group */
+    char* thread;
+
+    /** Pattern to filter on messages names
+     *
+     * If this starts with "regex:", the `regex` property below will not be NULL
+     * and should be used instead. If it does not start with "regex:", only
+     * messages whose names start with `pattern` are sent to `thread`.
+     */
+    char* pattern;
+
+    /** Regular expression to filter message names
+     *
+     * This can be NULL, in which case this filter is not applied.
+     */
+    SkalPlfRegex* regex;
+} skaldSubscriber;
+
+
+/** Structure that holds information about a group
+ *
+ * Because we know there is only ever going to be only one reference to this
+ * structure, we don't keep track of the reference count.
+ */
+typedef struct {
+    CdsMapItem item;
+
+    /** Group name */
+    char* name;
+
+    /** List of subscribers
+     *
+     * A subscriber is uniquely identified as a pair "thread name" + "pattern".
+     * This allows a thread to subscribe multiple times with different patterns,
+     * if it wishes so.
+     *
+     * This is a list of `skaldSubscriber`.
+     */
+    CdsList* subscribers;
+} skaldGroup;
+
+
 /** Structure that holds information related to a socket
  *
  * NB: We do not keep track of reference count, because such a structure is only
@@ -145,6 +195,14 @@ static const char* skaldDomain(const char* threadName);
 
 /** De-reference a name item */
 static void skaldNameMapItemUnref(CdsMapItem* mitem);
+
+
+/** De-reference a group */
+static void skaldGroupUnref(CdsMapItem* item);
+
+
+/** De-reference a subscriber */
+static void skaldSubscriberUnref(CdsListItem* item);
 
 
 /** Function to de-reference a skal-net socket context */
@@ -223,6 +281,55 @@ static void skaldProcessMsgFromProcess(int sockid,
         skaldSocketCtx* ctx, SkalMsg* msg);
 
 
+/** Get the structure of a given group, create it if necessary
+ *
+ * @param group [in] The group name; must not be NULL
+ *
+ * @return The group structure; this function never returns NULL
+ */
+static skaldGroup* skaldGetGroup(const char* group);
+
+
+/** Add a subscriber to the given group
+ *
+ * @param group   [in] Name of the group where to add the subscriber; must not
+ *                     be NULL
+ * @param thread  [in] Name of the thread that wants to subscribe; must be a
+ *                     valid thread name
+ * @param pattern [in] Pattern to match; may be NULL
+ *
+ * The `pattern` parameter may be one of the following:
+ *  - NULL or the empty string: `thread` will be forwarded all messages sent to
+ *    this group
+ *  - A string that starts with "regex:": `thread` will be forwarded all
+ *    messages whose name match the regular expression
+ *  - Otherwise, `thread` will be forwarded all messages whose name start with
+ *    the given string
+ */
+static void skaldGroupAddSubscriber(const char* group,
+        const char* thread, const char* pattern);
+
+
+/** Remove a subscriber from the given group
+ *
+ * @param group   [in] Name of the group from where to remove the subscriber;
+ *                     must not be NULL
+ * @param thread  [in] Name of the thread that wants to unsubscribe; must be a
+ *                     valid thread name
+ * @param pattern [in] Pattern to match; may be NULL
+ */
+static void skaldGroupRemoveSubscriber(const char* group,
+        const char* thread, const char* pattern);
+
+
+/** Send the given message to all subcribers of the given group
+ *
+ * @param group [in] Name of the group; must not be NULL
+ * @param msg   [in] Message to send; must not be NULL
+ */
+static void skaldGroupDispatch(const char* group, SkalMsg* msg);
+
+
 
 /*------------------+
  | Global variables |
@@ -258,6 +365,13 @@ static int gPipeClientSockid = -1;
 static CdsMap* gThreads = NULL;
 
 
+/** Information about groups
+ *
+ * Map is made of `skaldGroup`, and the key is the group name.
+ */
+static CdsMap* gGroups = NULL;
+
+
 /** Full name of this skald 'thread' */
 static char* gName = NULL;
 
@@ -275,6 +389,7 @@ void SkaldRun(const SkaldParams* params)
     SKALASSERT(-1 == gPipeClientSockid);
     SKALASSERT(NULL == gThreads);
     SKALASSERT(NULL == gName);
+    SKALASSERT(NULL == gGroups);
 
     SkaldAlarmInit();
 
@@ -292,6 +407,13 @@ void SkaldRun(const SkaldParams* params)
     gName = SkalSPrintf("skald@%s", SkalDomain());
 
     gNet = SkalNetCreate(skaldCtxUnref);
+
+    gGroups = CdsMapCreate("groups",          // name
+                           0,                 // capacity
+                           SkalStringCompare, // compare
+                           NULL,              // cookie
+                           NULL,              // keyUnref
+                           skaldGroupUnref);  // itemUnref
 
     gThreads = CdsMapCreate("threads",         // name
                             0,                 // capacity
@@ -342,6 +464,7 @@ void SkaldTerminate(void)
 
     SkalNetDestroy(gNet);
     CdsMapDestroy(gThreads);
+    CdsMapDestroy(gGroups);
 
     free(gName);
     gName = NULL;
@@ -421,7 +544,6 @@ static void skaldRunThread(void* arg)
                     // The string should be null-terminated, but it's safer to
                     // enforce null termination
                     json[event->in.size_B - 1] = '\0';
-                    fprintf(stderr, "XXX received >>>%s<<<\n", json);
                     SkalMsg* msg = SkalMsgCreateFromJson(json);
                     if (NULL == msg) {
                         SkaldAlarmNew("skal-protocol-invalid-json",
@@ -464,6 +586,28 @@ static void skaldNameMapItemUnref(CdsMapItem* mitem)
     skaldNameMapItem* item = (skaldNameMapItem*)mitem;
     free(item->name);
     free(item);
+}
+
+
+static void skaldGroupUnref(CdsMapItem* mitem)
+{
+    skaldGroup* group = (skaldGroup*)mitem;
+    SKALASSERT(group != NULL);
+    SKALASSERT(group->subscribers != NULL);
+    CdsListDestroy(group->subscribers);
+    free(group->name);
+    free(group);
+}
+
+
+static void skaldSubscriberUnref(CdsListItem* item)
+{
+    skaldSubscriber* subscriber = (skaldSubscriber*)item;
+    SKALASSERT(subscriber != NULL);
+    free(subscriber->thread);
+    free(subscriber->pattern);
+    SkalPlfRegexDestroy(subscriber->regex);
+    free(subscriber);
 }
 
 
@@ -536,6 +680,12 @@ static void skaldHandleMsgFromProcess(int sockid,
         return;
     }
 
+    if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_GROUP) {
+        skaldGroupDispatch(recipient, msg);
+        SkalMsgUnref(msg);
+        return;
+    }
+
     if (    (strcmp(recipient, gName) == 0)
          || (strncmp(msgName, "skal-init-", 10) == 0)) {
         // The recipient of this message is this skald.
@@ -545,7 +695,6 @@ static void skaldHandleMsgFromProcess(int sockid,
         // message is always for the skald which is local to the process, even
         // if the recipient domain is not set correctly (because the process
         // doesn't know yet what is its domain).
-        fprintf(stderr, "XXX %s: calling skaldProcessMsgFromProcess()\n", __func__);
         skaldProcessMsgFromProcess(sockid, ctx, msg);
         return;
     }
@@ -569,7 +718,6 @@ static void skaldHandleMsgFromProcess(int sockid,
         // message to the appropriate skald.
     }
 
-    fprintf(stderr, "XXX %s: calling skaldRouteMsg()\n", __func__);
     skaldRouteMsg(msg);
 }
 
@@ -586,7 +734,7 @@ static void skaldProcessMsgFromProcess(int sockid,
     const char* sender = SkalMsgSender(msg);
     if (strcmp(msgName, "skal-init-master-born") == 0) {
         // The `skal-master` thread of a process is uttering its first words!
-        if (!SkalMsgHasField(msg, "name")) {
+        if (!SkalMsgHasAsciiString(msg, "name")) {
             SkaldAlarmNew("skal-protocol-missing-field",
                     SKAL_ALARM_WARNING, true, false,
                     "Received a 'skal-init-master-born' message from '%s' without a 'name' field",
@@ -671,6 +819,44 @@ static void skaldProcessMsgFromProcess(int sockid,
         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
         skaldRouteMsg(resp);
 
+    } else if (strcmp(msgName, "skal-subscribe") == 0) {
+        // The sender wants to subscribe to a group
+        if (!SkalMsgHasAsciiString(msg, "group")) {
+            SkaldAlarmNew("skal-protocol-subscribe-without-group",
+                    SKAL_ALARM_WARNING, true, false,
+                    "Received a skal-subscribe message from '%s' without a 'group' field",
+                    sender);
+        } else {
+            const char* group = SkalMsgGetString(msg, "group");
+            const char* pattern = NULL;
+            if (SkalMsgHasAsciiString(msg, "pattern")) {
+                pattern = SkalMsgGetString(msg, "pattern");
+            }
+            if ((pattern != NULL) && ('\0' == pattern[0])) {
+                pattern = NULL;
+            }
+            skaldGroupAddSubscriber(group, sender, pattern);
+        }
+
+    } else if (strcmp(msgName, "skal-unsubscribe") == 0) {
+        // The sender wants to unsubscribe from a group
+        if (!SkalMsgHasAsciiString(msg, "group")) {
+            SkaldAlarmNew("skal-protocol-unsubscribe-without-group",
+                    SKAL_ALARM_WARNING, true, false,
+                    "Received a skal-unsubscribe message from '%s' without a 'group' field",
+                    sender);
+        } else {
+            const char* group = SkalMsgGetString(msg, "group");
+            const char* pattern = NULL;
+            if (SkalMsgHasAsciiString(msg, "pattern")) {
+                pattern = SkalMsgGetString(msg, "pattern");
+            }
+            if ((pattern != NULL) && ('\0' == pattern[0])) {
+                pattern = NULL;
+            }
+            skaldGroupRemoveSubscriber(group, sender, pattern);
+        }
+
     } else {
         SkaldAlarmNew("skal-protocol-unknown-message",
                 SKAL_ALARM_NOTICE, true, false,
@@ -712,9 +898,6 @@ static void skaldDropMsg(SkalMsg* msg, skaldDropReason reason)
     SkaldAlarmProcess(alarm);
 
     if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_NTF_DROP) {
-        char* XXX = SkalMsgToJson(msg);
-        fprintf(stderr, "XXX %s: drop msg & notify sender >>>%s<<<\n", __func__, XXX);
-        free(XXX);
         SkalMsg* resp = SkalMsgCreate("skal-error-drop", SkalMsgSender(msg));
         SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
         if (reasonStr != NULL) {
@@ -735,9 +918,6 @@ static void skaldRouteMsg(SkalMsg* msg)
 {
     const char* recipient = SkalMsgRecipient(msg);
     const char* domain = skaldDomain(recipient);
-    char* XXX = SkalMsgToJson(msg);
-    fprintf(stderr, "XXX %s: domain=%s >>>%s<<<\n", __func__, domain, XXX);
-    free(XXX);
 
     SkalMsgDecrementTtl(msg);
     if (SkalMsgTtl(msg) <= 0) {
@@ -753,7 +933,6 @@ static void skaldRouteMsg(SkalMsg* msg)
     } else if (strcmp(domain, SkalDomain()) == 0) {
         skaldThread* thread = (skaldThread*)CdsMapSearch(gThreads,
                 (void*)recipient);
-        fprintf(stderr, "XXX %s: searching for recipient thread '%s', found %p\n", __func__, recipient, thread);
         if (thread != NULL) {
             skaldMsgSendTo(msg, thread->sockid);
         } else if (strcmp(recipient, gName) == 0) {
@@ -762,7 +941,6 @@ static void skaldRouteMsg(SkalMsg* msg)
                     "Can't route message '%s': recipient '%s' is myself",
                     SkalMsgName(msg), recipient);
         } else {
-            fprintf(stderr, "XXX %s: calling skaldDropMsg()\n", __func__);
             skaldDropMsg(msg, SKALD_DROP_NO_RECIPIENT);
         }
 
@@ -771,7 +949,6 @@ static void skaldRouteMsg(SkalMsg* msg)
         //  => Look up foreign skald to send to
         // TODO
         char* json = SkalMsgToJson(msg);
-        fprintf(stderr, "XXX KAPUT MSG >>>%s<<<\n", json);
         free(json);
         SKALPANIC_MSG("Not yet implemented: message domain %s", domain);
     }
@@ -792,7 +969,6 @@ static void skaldMsgSendTo(SkalMsg* msg, int sockid)
     case SKALD_SOCKET_PROCESS :
         {
             char* json = SkalMsgToJson(msg);
-            fprintf(stderr, "XXX %s: >>>%s<<<\n", __func__, json);
             SkalNetSendResult result = SkalNetSend_BLOCKING(gNet, sockid,
                     json, strlen(json) + 1);
             free(json);
@@ -808,4 +984,95 @@ static void skaldMsgSendTo(SkalMsg* msg, int sockid)
         SKALPANIC_MSG("Can't send a msg over socket type %d", (int)ctx->type);
     }
     SkalMsgUnref(msg);
+}
+
+
+static skaldGroup* skaldGetGroup(const char* group)
+{
+    SKALASSERT(SkalIsAsciiString(group));
+    SKALASSERT(gGroups != NULL);
+    skaldGroup* g = (skaldGroup*)CdsMapSearch(gGroups, (void*)group);
+    if (NULL == g) {
+        g = SkalMallocZ(sizeof(*g));
+        g->name = SkalStrdup(group);
+        g->subscribers = CdsListCreate(NULL, 0, skaldSubscriberUnref);
+    }
+    return g;
+}
+
+
+static void skaldGroupAddSubscriber(const char* group,
+        const char* thread, const char* pattern)
+{
+    SKALASSERT(SkalIsAsciiString(group));
+    SKALASSERT(SkalIsAsciiString(thread));
+    skaldGroup* g = skaldGetGroup(group);
+
+    // First, ensure that this subscriber does not exist already
+    CDSLIST_FOREACH(g->subscribers, skaldSubscriber, subscriber) {
+        if (    (SkalStrcmp(subscriber->thread, thread) == 0)
+             && (SkalStrcmp(subscriber->pattern, pattern) == 0)) {
+            return; // Subscriber already exists, nothing to do
+        }
+    }
+
+    skaldSubscriber* subscriber = SkalMallocZ(sizeof(*subscriber));
+    subscriber->thread = SkalStrdup(thread);
+    subscriber->pattern = SkalStrdup(pattern);
+    if (SkalStartsWith(subscriber->pattern, "regex:")) {
+        subscriber->regex = SkalPlfRegexCreate(subscriber->pattern + 6);
+        if (NULL == subscriber->regex) {
+            SkalLog("SKALD: Received a skal-subscribe message from '%s' with an invalid regex '%s'; request ignored",
+                    thread, subscriber->pattern + 6);
+            skaldSubscriberUnref(&subscriber->item);
+            return;
+        }
+    }
+    bool inserted = CdsListPushBack(g->subscribers, &subscriber->item);
+    SKALASSERT(inserted);
+}
+
+
+void skaldGroupRemoveSubscriber(const char* group,
+        const char* thread, const char* pattern)
+{
+    SKALASSERT(SkalIsAsciiString(group));
+    SKALASSERT(SkalIsAsciiString(thread));
+    skaldGroup* g = skaldGetGroup(group);
+
+    CDSLIST_FOREACH(g->subscribers, skaldSubscriber, subscriber) {
+        if (    (SkalStrcmp(subscriber->thread, thread) == 0)
+             && (SkalStrcmp(subscriber->pattern, pattern) == 0)) {
+            CdsListRemove(&subscriber->item);
+            skaldSubscriberUnref(&subscriber->item);
+            break;
+        }
+    }
+}
+
+
+static void skaldGroupDispatch(const char* group, SkalMsg* msg)
+{
+    SKALASSERT(SkalIsAsciiString(group));
+    SKALASSERT(msg != NULL);
+
+    const char* msgName = SkalMsgName(msg);
+    skaldGroup* g = skaldGetGroup(group);
+    CDSLIST_FOREACH(g->subscribers, skaldSubscriber, subscriber) {
+        bool forward = true;
+        if (subscriber->regex != NULL) {
+            if (!SkalPlfRegexRun(subscriber->regex, msgName)) {
+                forward = false;
+            }
+        } else if (subscriber->pattern != NULL) {
+            if (!SkalStartsWith(msgName, subscriber->pattern)) {
+                forward = false;
+            }
+        }
+
+        if (forward) {
+            SkalMsg* copy = SkalMsgCopy(msg, subscriber->thread);
+            skaldRouteMsg(copy);
+        }
+    } // for each subscriber
 }
