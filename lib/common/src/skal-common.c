@@ -371,7 +371,7 @@ bool SkalStartsWith(const char* str, const char* s)
     if (NULL == s) {
         return true;
     }
-    return strncmp(str, s, strlen(s));
+    return (strncmp(str, s, strlen(s)) == 0);
 }
 
 
