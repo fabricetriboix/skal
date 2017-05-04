@@ -363,15 +363,15 @@ int SkalStrncmp(const char* lhs, const char* rhs, size_t n)
 }
 
 
-bool SkalStartsWith(const char* str, const char* s)
+bool SkalStartsWith(const char* str, const char* pattern)
 {
     if (NULL == str) {
-        return NULL == s;
+        return NULL == pattern;
     }
-    if (NULL == s) {
+    if (NULL == pattern) {
         return true;
     }
-    return (strncmp(str, s, strlen(s)) == 0);
+    return (strncmp(str, pattern, strlen(pattern)) == 0);
 }
 
 

@@ -266,7 +266,7 @@ int SkalStrncmp(const char* lhs, const char* rhs, size_t n);
  *
  * @return `true` if `str` starts with `pattern`, `false` otherwise
  */
-bool SkalStartsWith(const char* str, const char* s);
+bool SkalStartsWith(const char* str, const char* pattern);
 
 
 /** Standard string comparison function suitable for CdsMap
