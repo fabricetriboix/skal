@@ -322,14 +322,14 @@ static void skaldGroupRemoveSubscriber(const char* group,
         const char* thread, const char* pattern);
 
 
-/** Send the given message to all subcribers of the given group
+/** Send the given message to all subcribers of the given multicast group
  *
  * The ownership of `msg` stays with the caller.
  *
  * @param group [in] Name of the group; must not be NULL
  * @param msg   [in] Message to send; must not be NULL
  */
-static void skaldGroupDispatch(const char* group, const SkalMsg* msg);
+static void skaldMulticastDispatch(const char* group, const SkalMsg* msg);
 
 
 
@@ -682,8 +682,8 @@ static void skaldHandleMsgFromProcess(int sockid,
         return;
     }
 
-    if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_GROUP) {
-        skaldGroupDispatch(recipient, msg);
+    if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_MULTICAST) {
+        skaldMulticastDispatch(recipient, msg);
         SkalMsgUnref(msg);
         return;
     }
@@ -1053,7 +1053,7 @@ void skaldGroupRemoveSubscriber(const char* group,
 }
 
 
-static void skaldGroupDispatch(const char* group, const SkalMsg* msg)
+static void skaldMulticastDispatch(const char* group, const SkalMsg* msg)
 {
     SKALASSERT(SkalIsAsciiString(group));
     SKALASSERT(msg != NULL);

@@ -93,8 +93,8 @@ extern "C" {
 #define SKAL_MSG_FLAG_URGENT 0x08
 
 
-/** Message flag: this message's recipient is a group */
-#define SKAL_MSG_FLAG_GROUP 0x10
+/** Message flag: this is a multicast message */
+#define SKAL_MSG_FLAG_MULTICAST 0x10
 
 
 /** Prototype for a custom allocator
@@ -721,7 +721,7 @@ SkalMsg* SkalMsgCreate(const char* name, const char* recipient);
  *
  * @return Created SKAL message; this function never returns NULL
  */
-SkalMsg* SkalMsgCreateG(const char* name, const char* recipient);
+SkalMsg* SkalMsgCreateMulticast(const char* name, const char* recipient);
 
 
 /** Add a reference to a message
