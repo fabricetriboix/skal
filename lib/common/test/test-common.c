@@ -33,7 +33,7 @@ static RTBool testCommonGroupExit(void)
 }
 
 
-RTT_GROUP_START(TestSPrintf, 0x00020001u,
+RTT_GROUP_START(TestStrings, 0x00020001u,
         testCommonGroupEnter, testCommonGroupExit)
 
 static const char* gLongString =
@@ -54,24 +54,40 @@ static const char* gLongString =
 
 static SkalStringBuilder* gSB = NULL;
 
+static char* gString = NULL;
+
 
 RTT_TEST_START(skal_sprintf_should_format_a_string)
 {
     const char* world = "world";
     int x = 19;
-    char* s = SkalSPrintf("Hello %s! %d", world, x);
-    RTT_ASSERT(s != NULL);
-    RTT_ASSERT(strcmp(s, "Hello world! 19") == 0);
-    free(s);
+    gString = SkalSPrintf("Hello %s! %d", world, x);
+    RTT_ASSERT(gString != NULL);
+    RTT_EXPECT(strcmp(gString, "Hello world! 19") == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_startswith_should_succeed)
+{
+    RTT_EXPECT(SkalStartsWith(gString, "Hello"));
+    free(gString);
+    gString = NULL;
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_sprintf_should_format_a_long_string)
 {
-    char* s = SkalSPrintf("%s", gLongString);
-    RTT_ASSERT(s != NULL);
-    RTT_ASSERT(strcmp(s, gLongString) == 0);
-    free(s);
+    gString = SkalSPrintf("%s", gLongString);
+    RTT_ASSERT(gString != NULL);
+    RTT_ASSERT(strcmp(gString, gLongString) == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_startswith_should_fail)
+{
+    RTT_EXPECT(!SkalStartsWith(gString, "copyright"));
+    free(gString);
+    gString = NULL;
 }
 RTT_TEST_END
 
@@ -107,9 +123,11 @@ RTT_TEST_START(skal_sb_should_finish)
 }
 RTT_TEST_END
 
-RTT_GROUP_END(TestSPrintf,
+RTT_GROUP_END(TestStrings,
         skal_sprintf_should_format_a_string,
+        skal_startswith_should_succeed,
         skal_sprintf_should_format_a_long_string,
+        skal_startswith_should_fail,
         skal_sb_should_create_string_builder,
         skal_sb_should_append_stuff,
         skal_sb_should_trim,
