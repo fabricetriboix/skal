@@ -625,6 +625,7 @@ static SkalThread* skalDoCreateThread(const SkalThreadCfg* cfg)
 {
     SKALASSERT(cfg != NULL);
     SKALASSERT(cfg->name != NULL);
+    SKALASSERT(strchr(cfg->name, '@') == NULL);
     SKALASSERT(strlen(cfg->name) > 0);
     SKALASSERT(!SkalStartsWith(cfg->name, "skal-master"));
     SKALASSERT(cfg->processMsg != NULL);
@@ -986,7 +987,8 @@ static void skalMasterRouteMsg(SkalMsg* msg)
     if (NULL == thread) {
         // Recipient is not in this process. This would normally be caught by
         // the local skald, but let's handle it nevertheless.
-        if (SkalMsgFlags(msg) & SKAL_MSG_FLAG_NTF_DROP) {
+        if (     (SkalMsgFlags(msg) & SKAL_MSG_FLAG_NTF_DROP)
+             && !(SkalMsgFlags(msg) & SKAL_MSG_FLAG_MULTICAST)) {
             // The sender wants to be notified of dropped message
             SkalMsg* resp = SkalMsgCreate("skal-error-drop",
                     SkalMsgSender(msg));
