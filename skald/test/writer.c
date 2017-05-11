@@ -26,6 +26,7 @@
 
 static int64_t gCount = 0;
 static const char* gRecipient = NULL;
+static bool gIsMulticast = false;
 
 static enum {
     STARTING,
@@ -64,7 +65,11 @@ static bool processMsg(void* cookie, SkalMsg* msg)
     bool ok = true;
     int64_t* count = (int64_t*)cookie;
     if (strcmp(SkalMsgName(msg), "kick") == 0) {
-        SkalMsg* pkt = SkalMsgCreate("test-pkt", gRecipient);
+        uint8_t flags = 0;
+        if (gIsMulticast) {
+            flags = SKAL_MSG_FLAG_MULTICAST;
+        }
+        SkalMsg* pkt = SkalMsgCreateEx("test-pkt", gRecipient, flags, 0);
         SkalMsgAddInt(pkt, "number", *count);
         (*count)++;
         if (*count >= gCount) {
@@ -82,26 +87,64 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 }
 
 
+static const char* gOptString = "hc:u:m";
+
+static void usage(int ret)
+{
+    printf( "Usage: writer [OPTIONS] RECIPIENT\n"
+            "Send messages as fast as possible to RECIPIENT.\n"
+            "Options:\n"
+            "     RECIPIENT  To whom to send the messages\n"
+            "  -h            Print this usage information and exit\n"
+            "  -c COUNT      How many messages to send (default: 10)\n"
+            "  -u URL        URL to connect to skald\n"
+            "  -m            RECIPIENT is a multicast group instead of a thread\n");
+    exit(ret);
+}
+
+
 int main(int argc, char** argv)
 {
-    if (argc != 4) {
-        fprintf(stderr, "Usage: ./writer SKTPATH DST COUNT\n");
-        fprintf(stderr, "  SKTPATH   Path to skald UNIX socket\n");
-        fprintf(stderr, "  DST       Recipient thread\n");
-        fprintf(stderr, "  COUNT     How many messages to send\n");
+    long long count = 10;
+    char* url = NULL;
+    int opt = 0;
+    while (opt != -1) {
+        opt = getopt(argc, argv, gOptString);
+        switch (opt) {
+        case 'h' :
+            usage(0);
+            break;
+        case 'c' :
+            if (sscanf(optarg, "%lld", &count) != 1) {
+                fprintf(stderr, "Invalid COUNT: '%s'\n", optarg);
+                exit(2);
+            }
+            if (count <= 0) {
+                fprintf(stderr, "Invalid COUNT: %lld\n", count);
+                exit(2);
+            }
+            break;
+        case 'u' :
+            if (strstr(optarg, "://") == NULL) {
+                url = SkalSPrintf("unix://%s", optarg);
+            } else {
+                url = SkalStrdup(optarg);
+            }
+            break;
+        case 'm' :
+            gIsMulticast = true;
+            break;
+        default:
+            break;
+        }
+    }
+    if (argc - optind < 1) {
+        fprintf(stderr, "RECIPIENT is required\n");
+        fprintf(stderr, "Run `writer -h` for help\n");
         exit(2);
     }
-
-    long long tmp;
-    if (sscanf(argv[3], "%lld", &tmp) != 1) {
-        fprintf(stderr, "ERROR: Invalid COUNT: '%s'\n", argv[3]);
-        exit(2);
-    }
-    if (tmp <= 0) {
-        fprintf(stderr, "ERROR: Invalid COUNT: %lld\n", tmp);
-        exit(2);
-    }
-    gCount = tmp;
+    gRecipient = argv[optind];
+    gCount = count;
 
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -119,22 +162,20 @@ int main(int argc, char** argv)
         exit(1);
     }
 
-    gRecipient = argv[2];
-    char url[128];
-    snprintf(url, sizeof(url), "unix://%s", argv[1]);
     if (!SkalInit(url, NULL, 0)) {
-        fprintf(stderr, "Failed to initialise skald\n");
+        fprintf(stderr, "Failed to initialise skald (url=%s)\n", url);
         exit(1);
     }
+    free(url);
     gRunningState = RUNNING;
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.name = "writer";
     cfg.processMsg = processMsg;
-    int64_t* count = malloc(sizeof(count));
-    *count = 0;
-    cfg.cookie = count;
+    int64_t* counter = malloc(sizeof(*counter));
+    *counter = 0;
+    cfg.cookie = counter;
     SkalThreadCreate(&cfg);
 
     // Kickstart
@@ -144,7 +185,7 @@ int main(int argc, char** argv)
     SkalPause();
 
     // Cleanup
-    free(count);
+    free(counter);
     SkalExit();
     return 0;
 }

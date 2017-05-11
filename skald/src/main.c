@@ -64,12 +64,12 @@ static void usage(void)
             "  -u LOCALURL  Local URL to listen to\n"
             "  -f PIDFILE   Fork and write skald PID in PIDFILE\n"
           );
-    exit(0);
 }
 
 
-static void parseArgs(int argc, char** argv, SkaldParams* params)
+static bool parseArgs(int argc, char** argv, SkaldParams* params)
 {
+    bool ok = true;
     int opt = 0;
     while (opt != -1) {
         opt = getopt(argc, argv, "hd:u:f:");
@@ -78,6 +78,7 @@ static void parseArgs(int argc, char** argv, SkaldParams* params)
             break;
         case 'h' :
             usage();
+            ok = false;
             break;
         case 'd' :
             params->domain = optarg;
@@ -87,13 +88,15 @@ static void parseArgs(int argc, char** argv, SkaldParams* params)
             break;
         case 'f' :
             fprintf(stderr, "TODO: Fork not implemented yet\n");
-            exit(2);
+            ok = false;
             break;
         default :
             fprintf(stderr, "Unknown argument -%c\n", (char)opt);
-            exit(2);
+            ok = false;
+            break;
         }
     }
+    return ok;
 }
 
 
@@ -120,7 +123,11 @@ int main(int argc, char** argv)
 
     SkaldParams params;
     memset(&params, 0, sizeof(params));
-    parseArgs(argc, argv, &params);
+    if (!parseArgs(argc, argv, &params)) {
+        SkalMsgExit();
+        SkalPlfExit();
+        return 1;
+    }
 
     SkaldRun(&params);
 
