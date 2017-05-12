@@ -151,14 +151,15 @@ else
 	$$cmd
 endif
 
-test: skal_unit_tests writer reader
+test: skal_unit_tests writer reader skald
 	@set -eu; \
 	if ! which rttest2text.py > /dev/null 2>&1; then \
 		echo "ERROR: rttest2text.py not found in PATH"; \
 		exit 1; \
 	fi; \
 	./$< > skal.rtt; \
-	find $(TOPDIR) -name 'test-*.c' | xargs rttest2text.py skal.rtt
+	find $(TOPDIR) -name 'test-*.c' | xargs rttest2text.py skal.rtt; \
+	../../../integration-tests.py
 
 
 define INSTALL
