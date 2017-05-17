@@ -673,10 +673,14 @@ SkalMsg* SkalMsgCopy(const SkalMsg* msg, const char* recipient)
 
 char* SkalMsgToJson(const SkalMsg* msg)
 {
+    char timestamp[64];
+    SkalPlfTimestamp(SkalMsgTimestamp_us(msg), timestamp, sizeof(timestamp));
+
     SkalStringBuilder* sb = SkalStringBuilderCreate(SKAL_JSON_INITIAL_CAPACITY);
     SkalStringBuilderAppend(sb,
             "{\n"
             " \"version\": %d,\n"
+            " \"timestamp\": \"%s\"\n"
             " \"name\": \"%s\",\n"
             " \"sender\": \"%s\",\n"
             " \"recipient\": \"%s\",\n"
@@ -685,6 +689,7 @@ char* SkalMsgToJson(const SkalMsg* msg)
             " \"iflags\": %u,\n"
             " \"fields\": [\n",
             (int)SKAL_MSG_VERSION,
+            timestamp,
             SkalMsgName(msg),
             SkalMsgSender(msg),
             SkalMsgRecipient(msg),
@@ -958,6 +963,10 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
         SkalLog("SkalMsg: Invalid JSON: 'version' is required");
         return false;
     }
+    if (0 == msg->timestamp_us) {
+        SkalLog("SkalMsg: Invalid JSON: 'timestamp' is required");
+        return false;
+    }
     if ('\0' == msg->name[0]) {
         SkalLog("SkalMsg: Invalid JSON: 'name' is required");
         return false;
@@ -997,6 +1006,21 @@ static const char* skalMsgParseJsonProperty(const char* json,
         // Skip version number
         while ((*json != '\0') && isdigit(*json)) {
             json++;
+        }
+
+    } else if (strcmp(name, "timestamp") == 0) {
+        char* timestamp = NULL;
+        json = skalMsgParseJsonString(json, &timestamp, true);
+        if (json != NULL) {
+            int64_t us;
+            bool ok = SkalPlfParseTimestamp(timestamp, &us);
+            free(timestamp);
+            if (ok) {
+                msg->timestamp_us = us;
+            } else {
+                SkalLog("SkalMsg: Invalid JSON: Can't parse timestamp '%s'",
+                        timestamp);
+            }
         }
 
     } else if (strcmp(name, "name") == 0) {

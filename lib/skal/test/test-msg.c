@@ -168,9 +168,12 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
     RTT_ASSERT(json != NULL);
 
     // NB: Fields will be ordered by name
+    char timestamp[64];
+    SkalPlfTimestamp(SkalMsgTimestamp_us(gMsg), timestamp, sizeof(timestamp));
     char* expected = SkalSPrintf(
         "{\n"
         " \"version\": 1,\n"
+        " \"timestamp\": \"%s\"\n"
         " \"name\": \"TestName\",\n"
         " \"sender\": \"TestThread@mydomain\",\n"
         " \"recipient\": \"dummy-dst@mydomain\",\n"
@@ -220,6 +223,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         "  }\n"
         " ]\n"
         "}\n",
+        timestamp,
         (long long)SkalAlarmTimestamp_us(gAlarm1),
         (long long)SkalAlarmTimestamp_us(gAlarm2));
 
@@ -358,6 +362,7 @@ RTT_TEST_START(skal_msg_should_create_from_json)
         " \"reci\\pient\": \"you@wonderland\",\n"
         " \"ttl\": 27,\n"
         " \"flags\": 3,\n"
+        " \"timestamp\": \"2017-05-15T08:23:26.003456Z\",\n"
         " \"iflags\": 128,\n"
         " \"version\": 1,\n"
         " \"fields\": [\n"
@@ -404,6 +409,8 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 
     SkalMsg* msg = SkalMsgCreateFromJson(json);
     RTT_EXPECT(msg != NULL);
+
+    RTT_EXPECT(SkalMsgTimestamp_us(msg) == 1494836606003456);
 
     const char* s = SkalMsgName(msg);
     RTT_EXPECT(s != NULL);
@@ -497,6 +504,7 @@ RTT_TEST_START(skal_should_survive_invalid_json1)
         " \"flags\": 3,\n"
         " \"iflags\": 128,\n"
         " \"version\": 1,\n"
+        " \"timestamp\": \"2017-05-15T08:23:26.003456Z\",\n"
         " \"fields\": [\n"
         "  {\n"
         "   \"name\": \"Some\"Double\",\n"
