@@ -187,6 +187,97 @@ void SkalPlfTimestamp(int64_t us, char* ts, int size)
 }
 
 
+bool SkalPlfParseTimestamp(const char* ts, int64_t* us)
+{
+    SKALASSERT(ts != NULL);
+    SKALASSERT(us != NULL);
+
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+
+    if (sscanf(ts, "%d", &tm.tm_year) != 1) {
+        return false;
+    }
+    tm.tm_year -= 1900;
+    ts += 4;
+    if ('-' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_mon) != 1) {
+        return false;
+    }
+    if ((tm.tm_mon < 1) || (tm.tm_mon > 12)) {
+        return false;
+    }
+    tm.tm_mon--;
+    ts += 2;
+    if ('-' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_mday) != 1) {
+        return false;
+    }
+    ts += 2;
+    if ('T' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_hour) != 1) {
+        return false;
+    }
+    ts += 2;
+    if (':' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_min) != 1) {
+        return false;
+    }
+    ts += 2;
+    if (':' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_sec) != 1) {
+        return false;
+    }
+    ts += 2;
+    if ('.' != *ts) {
+        return false;
+    }
+    ts++;
+
+    // Skip zeros
+    int count = 0;
+    while ((*ts != '\0') && ('0' == *ts)) {
+        ts++;
+        count++;
+    }
+    if (count > 6) {
+        return false;
+    }
+    long long tmp;
+    if (sscanf(ts, "%lld", &tmp) != 1) {
+        return false;
+    }
+    ts += (6 - count);
+    if (*ts != 'Z') {
+        return false;
+    }
+
+    time_t t = timegm(&tm);
+    *us = (1000000LL * (int64_t)t) + tmp;
+    return true;
+}
+
+
 SkalPlfMutex* SkalPlfMutexCreate(void)
 {
     SkalPlfMutex* mutex = malloc(sizeof(*mutex));

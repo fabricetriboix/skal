@@ -205,6 +205,21 @@ int64_t SkalPlfNow_us();
 void SkalPlfTimestamp(int64_t us, char* ts, int size);
 
 
+/** Parse a timestamp in ISO-8601 format, UTC time zone
+ *
+ * The timestamp is a string that must look like this:
+ *
+ *    yyyy-mm-ddThh:mm:ss.uuuuuuZ
+ *
+ * @param ts [in]  Timestamp string to parse; must not be NULL
+ * @param us [out] Parsed time: number of micro-seconds since the Epoch; must
+ *                 not be NULL
+ *
+ * @return `true` if OK, `false` if invalid timestamp
+ */
+bool SkalPlfParseTimestamp(const char* ts, int64_t* us);
+
+
 /** Create a mutex
  *
  * @return A newly created mutex; this function never returns NULL
