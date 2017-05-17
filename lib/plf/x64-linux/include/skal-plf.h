@@ -156,7 +156,7 @@ static inline uint64_t SkalPlfRandomU64(void)
 }
 
 
-/** Get the current time in ns
+/** Get the current time in ns relative to an unspecified reference
  *
  * This is a time that increments linearly in reference to an external clock.
  * Thus it is not influenced by daylight savings time shifts, time zone changes,
@@ -167,11 +167,42 @@ static inline uint64_t SkalPlfRandomU64(void)
 int64_t SkalPlfNow_ns();
 
 
-/** Get the current time in us
+/** Get the current time in us relative to the Epoch
  *
- * Same as `SkalPlfNow_ns()`, except it returns the time in us.
+ * This is the number of micro-seconds between the Epoch and now.
+ *
+ * The Epoch is 1970-01-01 00:00:00 +0000 (UTC).
+ *
+ * @return The number of micro-seconds between the Epoch and now.
  */
 int64_t SkalPlfNow_us();
+
+
+/** Print a timestamp in ISO-8601 format, UTC time zone
+ *
+ * The timestamp will look like this:
+ *
+ *    yyyy-mm-ddThh:mm:ss.uuuuuuZ
+ *
+ * Where:
+ *  - yyyy is the year on 4 digits
+ *  - mm is the month of the year
+ *  - dd is the day of the month
+ *  - hh is the hour of the day (24 hour clock)
+ *  - mm is the minute in the hour
+ *  - ss is the second
+ *  - uuuuuu is the micro-second
+ *
+ * Please note that if the provided string is too short, the timestamp will be
+ * silently truncated. The output string is null-terminated in any case.
+ *
+ * @param us   [in]  Number of micro-seconds since the Epoch
+ * @param ts   [out] Where to write the timestamp; must not be NULL
+ * @param size [in]  Size of `ts`, in characters
+ *
+ * @return A string that is the timestamp
+ */
+void SkalPlfTimestamp(int64_t us, char* ts, int size);
 
 
 /** Create a mutex

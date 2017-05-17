@@ -148,6 +148,15 @@ RTT_TEST_START(skal_plf_should_generate_a_random_number)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_plf_should_generate_a_timestamp)
+{
+    int64_t us = 1494836606123456LL;
+    char buffer[64];
+    SkalPlfTimestamp(us, buffer, sizeof(buffer));
+    RTT_EXPECT(strcmp(buffer, "2017-05-15T08:23:26.123456Z") == 0);
+}
+RTT_TEST_END
+
 RTT_GROUP_END(TestSkalPlf,
         skal_plf_should_create_mutex,
         skal_plf_should_create_condvar,
@@ -158,7 +167,8 @@ RTT_GROUP_END(TestSkalPlf,
         skal_plf_thread_name_should_be_changed_after_signal,
         skal_plf_should_free_up_resources,
         skal_plf_thread_specific_should_be_correct,
-        skal_plf_should_generate_a_random_number)
+        skal_plf_should_generate_a_random_number,
+        skal_plf_should_generate_a_timestamp)
 
 RTT_GROUP_START(TestSkalPlfRegex, 0x00010002u, NULL, NULL)
 

@@ -149,7 +149,7 @@ void SkalPlfRandom(uint8_t* buffer, int size_B)
 int64_t SkalPlfNow_ns()
 {
     struct timespec ts;
-    int ret = clock_gettime(CLOCK_REALTIME, &ts);
+    int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
     SKALASSERT(ret == 0);
     return ((int64_t)ts.tv_sec * 1000000000LL) + (int64_t)ts.tv_nsec;
 }
@@ -160,7 +160,30 @@ int64_t SkalPlfNow_us()
     struct timespec ts;
     int ret = clock_gettime(CLOCK_REALTIME, &ts);
     SKALASSERT(ret == 0);
-    return ((int64_t)ts.tv_sec * 100000LL) + ((int64_t)ts.tv_nsec / 1000LL);
+    return ((int64_t)ts.tv_sec * 1000000LL) + ((int64_t)ts.tv_nsec / 1000LL);
+}
+
+
+void SkalPlfTimestamp(int64_t us, char* ts, int size)
+{
+    SKALASSERT(ts != NULL);
+    SKALASSERT(size > 0);
+
+    int64_t s = us / 1000000LL;
+    us -= s * 1000000LL;
+    if (us < 0) {
+        us += 1000000LL;
+        s -= 1LL;
+    }
+
+    time_t t = s;
+    struct tm tm;
+    struct tm* ret = gmtime_r(&t, &tm);
+    SKALASSERT(ret != NULL);
+
+    snprintf(ts, size, "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ",
+            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+            tm.tm_hour, tm.tm_min, tm.tm_sec, (int)us);
 }
 
 
