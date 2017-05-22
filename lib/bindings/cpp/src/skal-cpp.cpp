@@ -370,12 +370,12 @@ Msg::Msg(SkalMsg* msg) : mMsg(msg)
 {
 }
 
-void Send(std::unique_ptr<Msg> msg)
+void Send(Msg& msg)
 {
     // NB: `SkalMsgSend()` takes ownership of the message, so we need to
     // reference it first, so our `msg` object destructs properly.
-    SkalMsgRef(msg->mMsg);
-    SkalMsgSend(msg->mMsg);
+    SkalMsgRef(msg.mMsg);
+    SkalMsgSend(msg.mMsg);
 }
 
 

@@ -255,7 +255,7 @@ public :
     /** Copy-constructor TODO */
     Msg(const Msg& rhs) = delete;
 
-    /** Copy-assignment operator = TODO*/
+    /** Copy-assignment operator = TODO */
     Msg& operator=(const Msg& rhs) = delete;
 
     ~Msg();
@@ -356,12 +356,12 @@ private :
     SkalMsg* mMsg;
 
     friend bool skalCppProcessMsg(void*, SkalMsg*);
-    friend void Send(std::unique_ptr<Msg>);
+    friend void Send(Msg&);
 };
 
 
 /** Send a message to its recipient */
-void Send(std::unique_ptr<Msg> msg);
+void Send(Msg& msg);
 
 
 /** Create a thread
