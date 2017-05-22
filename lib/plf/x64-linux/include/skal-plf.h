@@ -402,7 +402,7 @@ void SkalPlfRegexDestroy(SkalPlfRegex* regex);
  *
  * @return Whether `str` matches `pattern`
  */
-bool SkalPlfRegexRun(SkalPlfRegex* regex, const char* str);
+bool SkalPlfRegexRun(const SkalPlfRegex* regex, const char* str);
 
 
 

@@ -514,7 +514,7 @@ void SkalPlfRegexDestroy(SkalPlfRegex* regex)
 }
 
 
-bool SkalPlfRegexRun(SkalPlfRegex* regex, const char* str)
+bool SkalPlfRegexRun(const SkalPlfRegex* regex, const char* str)
 {
     SKALASSERT(regex != NULL);
     SKALASSERT(str != NULL);
