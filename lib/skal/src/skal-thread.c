@@ -770,6 +770,8 @@ static void skalThreadRun(void* arg)
     SkalMsgSetIFlags(msg, SKAL_MSG_IFLAG_INTERNAL);
     SkalQueuePush(gMaster->queue, msg);
 
+    CdsMapDestroy(priv->xoff);
+    CdsMapDestroy(priv->ntfXon);
     free(priv);
 }
 
@@ -836,8 +838,7 @@ static void skalThreadSendXon(skalThreadPrivate* priv)
     SKALASSERT(priv != NULL);
     SKALASSERT(priv->thread != NULL);
 
-    CdsMapIteratorReset(priv->ntfXon, true);
-    for (CdsMapItem* item = CdsMapIteratorNext(priv->ntfXon, NULL);
+    for (CdsMapItem* item = CdsMapIteratorStart(priv->ntfXon, true, NULL);
             item != NULL;
             item = CdsMapIteratorNext(priv->ntfXon, NULL)) {
         skalNtfXonItem* ntfXonItem = (skalNtfXonItem*)item;
@@ -855,8 +856,7 @@ static void skalThreadRetryNtfXon(skalThreadPrivate* priv, int64_t now_us)
     SKALASSERT(priv != NULL);
     SKALASSERT(priv->xoff != NULL);
 
-    CdsMapIteratorReset(priv->xoff, true);
-    for (CdsMapItem* item = CdsMapIteratorNext(priv->xoff, NULL);
+    for (CdsMapItem* item = CdsMapIteratorStart(priv->xoff, true, NULL);
             item != NULL;
             item = CdsMapIteratorNext(priv->xoff, NULL)) {
         skalXoffItem* xoffItem = (skalXoffItem*)item;
@@ -1018,8 +1018,7 @@ static bool skalMasterProcessMsg(SkalMsg* msg)
         if (CdsMapIsEmpty(gThreads)) {
             ok = false;
         } else {
-            CdsMapIteratorReset(gThreads, true);
-            for (   CdsMapItem* item = CdsMapIteratorNext(gThreads, NULL);
+            for (   CdsMapItem* item = CdsMapIteratorStart(gThreads, true,NULL);
                     item != NULL;
                     item = CdsMapIteratorNext(gThreads, NULL) ) {
                 SkalThread* thread = (SkalThread*)item;

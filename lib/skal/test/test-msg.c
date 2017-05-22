@@ -363,7 +363,7 @@ RTT_TEST_START(skal_msg_should_create_from_json)
         " \"ttl\": 27,\n"
         " \"flags\": 3,\n"
         " \"timestamp\": \"2017-05-15T08:23:26.003456Z\",\n"
-        " \"iflags\": 128,\n"
+        " \"iflags\": 1,\n"
         " \"version\": 1,\n"
         " \"fields\": [\n"
         "  {\n"

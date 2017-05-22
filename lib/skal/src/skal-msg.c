@@ -615,8 +615,7 @@ SkalMsg* SkalMsgCopyEx(const SkalMsg* msg,
             (void(*)(CdsListItem*))SkalAlarmUnref);
 
     // Copy fields
-    CdsMapIteratorReset(msg->fields, true);
-    for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, NULL);
+    for (   CdsMapItem* item = CdsMapIteratorStart(msg->fields, true, NULL);
             item != NULL;
             item = CdsMapIteratorNext(msg->fields, NULL)) {
         skalMsgField* field = (skalMsgField*)item;
@@ -697,9 +696,8 @@ char* SkalMsgToJson(const SkalMsg* msg)
             (unsigned int)SkalMsgFlags(msg),
             (unsigned int)SkalMsgIFlags(msg));
 
-    CdsMapIteratorReset(msg->fields, true);
     void* key;
-    for (   CdsMapItem* item = CdsMapIteratorNext(msg->fields, &key);
+    for (   CdsMapItem* item = CdsMapIteratorStart(msg->fields, true, &key);
             item != NULL;
             item = CdsMapIteratorNext(msg->fields, &key) ) {
         skalFieldToJson(sb, (const char*)key, (skalMsgField*)item);
