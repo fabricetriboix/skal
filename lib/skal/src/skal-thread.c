@@ -583,7 +583,11 @@ static void skalSendMsgToThread(SkalMsg* msg, SkalThread* thread)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(thread != NULL);
-    SKALASSERT(strcmp(SkalMsgRecipient(msg), thread->cfg.name) == 0);
+    if (SkalStartsWith(thread->cfg.name, "skal-master")) {
+        SKALASSERT(SkalStartsWith(SkalMsgRecipient(msg), "skal-master"));
+    } else {
+        SKALASSERT(SkalStrcmp(SkalMsgRecipient(msg), thread->cfg.name) == 0);
+    }
 
     SkalQueuePush(thread->queue, msg);
 
