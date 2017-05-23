@@ -58,7 +58,7 @@ endif
 
 # Standard targets
 
-all: $(OUTPUT_LIBS) skald skal-post skal_unit_tests writer reader doc
+all: $(OUTPUT_LIBS) skald skal-trace skal-post skal_unit_tests writer reader doc
 
 doc: doc/html/index.html
 
@@ -71,7 +71,7 @@ cmd="$(CCACHE) $(CC) $(CFLAGS) $(INCS) -o $(1) -c $(2)"; \
 if [ $(D) == 1 ]; then \
 	echo "$$cmd"; \
 else \
-	echo "CC    $(1)"; \
+	echo "CC      $(1)"; \
 fi; \
 $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
@@ -82,7 +82,7 @@ cmd="$(CCACHE) $(CXX) $(CXXFLAGS) $(INCS) -o $(1) -c $(2)"; \
 if [ $(D) == 1 ]; then \
 	echo "$$cmd"; \
 else \
-	echo "CXX   $(1)"; \
+	echo "CXX     $(1)"; \
 fi; \
 $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
@@ -93,7 +93,7 @@ cmd="$(AR) crs $(1) $(2)"; \
 if [ $(D) == 1 ]; then \
 	echo "$$cmd"; \
 else \
-	echo "AR    $(1)"; \
+	echo "AR      $(1)"; \
 fi; \
 $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
@@ -104,7 +104,18 @@ cmd="$(CC) -L. $(LINKFLAGS) -o $(1) $(2) $(3)"; \
 if [ $(D) == 1 ]; then \
 	echo "$$cmd"; \
 else \
-	echo "LINK  $(1)"; \
+	echo "LINK    $(1)"; \
+fi; \
+$$cmd || (echo "Command line was: $$cmd"; exit 1)
+endef
+
+define RUN_LINK_CPP
+set -eu; \
+cmd="$(CXX) -L. $(LINKFLAGS) $(CXXLIB) -o $(1) $(2) $(3)"; \
+if [ $(D) == 1 ]; then \
+	echo "$$cmd"; \
+else \
+	echo "LINK++  $(1)"; \
 fi; \
 $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
@@ -121,6 +132,9 @@ skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(LIBSKAL)
 
 skal-post: skal-post.o $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
+
+skal-trace: skal-trace.o $(LIBSKAL) $(LIBSKALCPP)
+	@$(call RUN_LINK_CPP,$@,$(filter %.o,$^),$(LIBSKALCPP) $(LINKLIBS))
 
 writer: writer.o $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
@@ -219,7 +233,7 @@ OBJS = $(LIBSKAL_OBJS) $(SKALD_OBJS) $(RTTEST_MAIN_OBJ) $(SKAL_TEST_OBJS)
 	if [ $(D) == 1 ]; then \
 		echo "$$cmd"; \
 	else \
-		echo "DEP   $@"; \
+		echo "DEP     $@"; \
 	fi; \
 	$$cmd
 
@@ -229,6 +243,6 @@ OBJS = $(LIBSKAL_OBJS) $(SKALD_OBJS) $(RTTEST_MAIN_OBJ) $(SKAL_TEST_OBJS)
 	if [ $(D) == 1 ]; then \
 		echo "$$cmd"; \
 	else \
-		echo "DEPXX $@"; \
+		echo "DEP++   $@"; \
 	fi; \
 	$$cmd
