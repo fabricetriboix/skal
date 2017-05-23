@@ -328,6 +328,14 @@ static bool skaldSendOnSocket(int sockid, const char* json);
 static void skaldMsgSendTo(SkalMsg* msg, int sockid);
 
 
+/** Handle the disconnection of a process
+ *
+ * @param ctx [in,out] Context of process that disconnected; must not be NULL;
+ *                     must be of type SKALD_SOCKET_PROCESS
+ */
+static void skaldHandleProcessDisconnect(skaldSocketCtx* ctx);
+
+
 /** Handle a message received from someone who just connected
  *
  * @param ctx    [in] Socket context; must not be NULL; must be of type
@@ -766,9 +774,7 @@ static void skaldRunThread(void* arg)
             case SKAL_NET_EV_DISCONN :
                 // This process is disconnecting from us
                 // TODO: Notify other domain skald
-                skaldGroupUnsubscribeProcess(ctx);
-                // Ensure we don't talk to the dead while destroying the context
-                CdsMapClear(ctx->threadNames);
+                skaldHandleProcessDisconnect(ctx);
                 SkalNetSocketDestroy(gNet, event->sockid);
                 break;
             case SKAL_NET_EV_IN :
@@ -883,6 +889,27 @@ static void skaldThreadUnref(CdsMapItem* mitem)
     SKALASSERT(thread != NULL);
     free(thread->threadName);
     free(thread);
+}
+
+
+static void skaldHandleProcessDisconnect(skaldSocketCtx* ctx)
+{
+    SKALASSERT(ctx != NULL);
+    SKALASSERT(SKALD_SOCKET_PROCESS == ctx->type);
+    SKALASSERT(ctx->threadNames != NULL);
+
+    // Unsubscribe from all groups
+    skaldGroupUnsubscribeProcess(ctx);
+
+    // Remove process' threads from global thread map
+    for ( CdsMapItem* item = CdsMapIteratorStart(ctx->threadNames, true, NULL);
+            item != NULL;
+            item = CdsMapIteratorNext(ctx->threadNames, NULL)) {
+        skaldNameMapItem* nameItem = (skaldNameMapItem*)item;
+        CdsMapRemove(gThreads, nameItem->name);
+    }
+
+    CdsMapClear(ctx->threadNames);
 }
 
 
@@ -1475,7 +1502,7 @@ static void skaldGroupUnsubscribeProcess(skaldSocketCtx* ctx)
                 if (SkalStrcmp(subscriber->threadName, threadName) == 0) {
                     // TODO: Inform domain skalds
                     CdsListRemove((CdsListItem*)subscriber);
-                    skaldThreadSubscriberUnref(&subscriber->item);
+                    skaldThreadSubscriberUnref((CdsListItem*)subscriber);
                     if (skaldDeleteGroupIfEmpty(group)) {
                         break;
                     }
