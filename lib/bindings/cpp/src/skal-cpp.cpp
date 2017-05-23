@@ -396,6 +396,7 @@ public :
 bool skalCppProcessMsg(void* cookie, SkalMsg* skalmsg)
 {
     Thread* t = (Thread*)cookie;
+    SkalMsgRef(skalmsg); // Add a ref for the `Msg msg` below
     Msg msg(skalmsg);
     bool ok = t->mProcessMsg(msg);
     if (!ok) {
