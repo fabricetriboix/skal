@@ -122,6 +122,7 @@ void SkaldAlarmNew(const char* name, SkalAlarmSeverityE severity,
     SkalAlarm* alarm = NULL;
     if (comment != NULL) {
         alarm = SkalAlarmCreate(name, severity, isOn, autoOff, "%s", comment);
+        free(comment);
     } else {
         alarm = SkalAlarmCreate(name, severity, isOn, autoOff, NULL);
     }
