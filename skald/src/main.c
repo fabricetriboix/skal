@@ -57,11 +57,11 @@ static void handleSignal(int signum)
 
 static void usage(void)
 {
-    printf( "%s",
-            "skald [-h] [-d DOMAIN] [-u LOCALURL]\n"
+    printf( "Usage: skald [OPTIONS]\n"
+            "Options:\n"
             "  -h           Print this message and exit\n"
             "  -d DOMAIN    Set the skald domain\n"
-            "  -u LOCALURL  Local URL to listen to\n"
+            "  -l LOCALURL  Local URL to listen to\n"
             "  -f PIDFILE   Fork and write skald PID in PIDFILE\n"
           );
 }
@@ -72,7 +72,7 @@ static bool parseArgs(int argc, char** argv, SkaldParams* params)
     bool ok = true;
     int opt = 0;
     while (opt != -1) {
-        opt = getopt(argc, argv, "hd:u:f:");
+        opt = getopt(argc, argv, "hd:l:f:");
         switch (opt) {
         case -1 :
             break;
@@ -83,7 +83,7 @@ static bool parseArgs(int argc, char** argv, SkaldParams* params)
         case 'd' :
             params->domain = optarg;
             break;
-        case 'u' :
+        case 'l' :
             params->localUrl = optarg;
             break;
         case 'f' :

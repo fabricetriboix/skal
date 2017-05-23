@@ -100,7 +100,7 @@ static void usage(int ret)
             "Receive messages, simulating some processing for each message.\n"
             "Options:\n"
             "  -h           Print this usage information and exit\n"
-            "  -u URL       URL to connect to skald\n"
+            "  -l URL       URL to connect to skald\n"
             "  -m GROUP     Receive messages from this multicast GROUP\n"
             "  -p DELAY_us  Pause for DELAY_us after each message; default=%d; can be 0\n",
             gDelay_us);
@@ -119,7 +119,7 @@ int main(int argc, char** argv)
         case 'h':
             usage(0);
             break;
-        case 'u' :
+        case 'l' :
             if (strstr(optarg, "://") == NULL) {
                 url = SkalSPrintf("unix://%s", optarg);
             } else {

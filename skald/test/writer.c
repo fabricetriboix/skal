@@ -87,7 +87,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 }
 
 
-static const char* gOptString = "hc:u:m";
+static const char* gOptString = "hc:l:m";
 
 static void usage(int ret)
 {
@@ -97,7 +97,7 @@ static void usage(int ret)
             "     RECIPIENT  To whom to send the messages\n"
             "  -h            Print this usage information and exit\n"
             "  -c COUNT      How many messages to send (default: 10)\n"
-            "  -u URL        URL to connect to skald\n"
+            "  -l URL        URL to connect to skald\n"
             "  -m            RECIPIENT is a multicast group instead of a thread\n");
     exit(ret);
 }
@@ -124,7 +124,7 @@ int main(int argc, char** argv)
                 exit(2);
             }
             break;
-        case 'u' :
+        case 'l' :
             if (strstr(optarg, "://") == NULL) {
                 url = SkalSPrintf("unix://%s", optarg);
             } else {
