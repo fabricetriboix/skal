@@ -162,7 +162,7 @@ char* _SkalStrdup(const char* s, const char* file, int line)
     if (NULL == s) {
         return NULL;
     }
-#ifndef SKAL_WITH_FLLOC
+#ifdef SKAL_WITH_FLLOC
     char* ptr = FllocStrdup(s, file, line);
 #else
     (void)file;
@@ -174,7 +174,7 @@ char* _SkalStrdup(const char* s, const char* file, int line)
 }
 
 
-char* SkalSPrintf(const char* format, ...)
+char* _SkalSPrintf(const char* file, int line, const char* format, ...)
 {
     SKALASSERT(format != NULL);
 
@@ -187,7 +187,14 @@ char* SkalSPrintf(const char* format, ...)
     va_copy(ap2, ap);
 
     int capacity = SKAL_INITIAL_STRING_CAPACITY;
-    char* str = SkalMalloc(capacity);
+#ifdef SKAL_WITH_FLLOC
+    char* str = FllocMalloc(capacity, file, line);
+#else
+    (void)file;
+    (void)line;
+    char* str = malloc(capacity);
+#endif
+    SKALASSERT(str != NULL);
     int n = vsnprintf(str, capacity, format, ap);
     if (n >= capacity) {
         capacity = n + 1;
@@ -202,7 +209,7 @@ char* SkalSPrintf(const char* format, ...)
 }
 
 
-char* SkalVSPrintf(const char* format, va_list ap)
+char* _SkalVSPrintf(const char* file, int line, const char* format, va_list ap)
 {
     SKALASSERT(format != NULL);
 
@@ -215,7 +222,14 @@ char* SkalVSPrintf(const char* format, va_list ap)
     va_copy(ap2, ap1);
 
     int capacity = SKAL_INITIAL_STRING_CAPACITY;
-    char* str = SkalMalloc(capacity);
+#ifdef SKAL_WITH_FLLOC
+    char* str = FllocMalloc(capacity, file, line);
+#else
+    (void)file;
+    (void)line;
+    char* str = malloc(capacity);
+#endif
+    SKALASSERT(str != NULL);
     int n = vsnprintf(str, capacity, format, ap1);
     if (n >= capacity) {
         capacity = n + 1;
@@ -300,16 +314,11 @@ char* SkalStringBuilderFinish(SkalStringBuilder* sb)
 }
 
 
-bool SkalIsAsciiString(const char* str, int maxlen)
+bool SkalIsAsciiString(const char* str)
 {
     SKALASSERT(str != NULL);
-    SKALASSERT(maxlen > 0);
-
-    for (int i = 0; i < maxlen; i++) {
-        char c = str[i];
-        if ('\0' == c) {
-            return true; // Null char found => `str` is a valid ASCII string
-        }
+    while (*str != '\0') {
+        char c = *str;
         if ((c < 0x20) || (0x7f == c)) {
             // Control character found => `str` is not a valid ASCII string
             return false;
@@ -318,41 +327,58 @@ bool SkalIsAsciiString(const char* str, int maxlen)
             // Extended ASCII char found => `str` is not a valid ASCII string
             return false;
         }
+        str++;
     }
-
-    // No null character found within `maxlen` bytes
-    //  => `str` is not a valid ASCII string
-    return false;
+    return true;
 }
 
 
-bool SkalIsUtf8String(const char* str, int maxlen)
+int SkalStrcmp(const char* lhs, const char* rhs)
 {
-    SKALASSERT(str != NULL);
-    SKALASSERT(maxlen > 0);
-
-    for (int i = 0; i < maxlen; i++) {
-        char c = str[i];
-        if ('\0' == c) {
-            return true; // Null char found => `str` is a valid UTF-8 string
+    if (NULL == lhs) {
+        if (NULL == rhs) {
+            return 0;
         }
-        if ((c < 0x20) || (0x7f == c)) {
-            // Control character found => `str` is not a valid UTF-8 string
-            return false;
-        }
-        // TODO: there is a lot more to check for a UTF-8 string...
+        return -1;
     }
+    if (NULL == rhs) {
+        return 1;
+    }
+    return strcmp(lhs, rhs);
+}
 
-    // No null character found within `maxlen` bytes
-    //  => `str` is not a valid UTF-8 string
-    return false;
+
+int SkalStrncmp(const char* lhs, const char* rhs, size_t n)
+{
+    if (NULL == lhs) {
+        if (NULL == rhs) {
+            return 0;
+        }
+        return -1;
+    }
+    if (NULL == rhs) {
+        return 1;
+    }
+    return strncmp(lhs, rhs, n);
+}
+
+
+bool SkalStartsWith(const char* str, const char* pattern)
+{
+    if (NULL == str) {
+        return NULL == pattern;
+    }
+    if (NULL == pattern) {
+        return true;
+    }
+    return (strncmp(str, pattern, strlen(pattern)) == 0);
 }
 
 
 int SkalStringCompare(void* leftKey, void* rightKey, void* cookie)
 {
     (void)cookie;
-    return strncmp((const char*)leftKey, (const char*)rightKey, SKAL_NAME_MAX);
+    return strcmp((const char*)leftKey, (const char*)rightKey);
 }
 
 

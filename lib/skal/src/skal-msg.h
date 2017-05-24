@@ -18,7 +18,7 @@
 #define SKAL_MSG_h_
 
 #ifdef __cplusplus
-extern "C"
+extern "C" {
 #endif
 
 
@@ -36,13 +36,21 @@ extern "C"
 
 
 /** Message flag: super-urgent message; reserved for SKAL internal use */
-#define SKAL_MSG_IFLAG_INTERNAL 0x80
+#define SKAL_MSG_IFLAG_INTERNAL 0x01
 
 
 
 /*------------------------------+
  | Public function declarations |
  +------------------------------*/
+
+
+/** Initialise the skal-msg module */
+void SkalMsgInit(void);
+
+
+/** De-initialise the skal-msg module */
+void SkalMsgExit(void);
 
 
 /** Set the message sender

@@ -34,12 +34,12 @@ typedef struct {
 
 
 struct SkalBlob {
-    char    allocator[SKAL_NAME_MAX];
-    int     ref;
-    char    id[SKAL_NAME_MAX];
-    char    name[SKAL_NAME_MAX];
-    int64_t size_B;
-    void*   obj;
+    SkalAllocator* allocator;
+    int            ref;
+    char*          id;
+    char*          name;
+    int64_t        size_B;
+    void*          obj;
 };
 
 
@@ -139,7 +139,7 @@ void SkalBlobInit(const SkalAllocator* allocators, int size)
     }
 
     SKALASSERT(gAllocatorMap == NULL);
-    gAllocatorMap = CdsMapCreate("SkalAllocators", SKAL_ALLOCATORS_MAX,
+    gAllocatorMap = CdsMapCreate("SkalAllocators", 0,
             SkalStringCompare, NULL, NULL, skalAllocatorMapUnref);
 
     SkalAllocator mallocAllocator = {
@@ -180,31 +180,28 @@ void SkalBlobExit(void)
 SkalBlob* SkalBlobCreate(const char* allocator, const char* id,
         const char* name, int64_t size_B)
 {
-    if (name != NULL) {
-        SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
-    }
-    if ((allocator == NULL) || (strlen(allocator) == 0)) {
+    if ((NULL == allocator) || (strlen(allocator) == 0)) {
         allocator = "malloc";
     }
-    SKALASSERT(SkalIsUtf8String(allocator, SKAL_NAME_MAX));
     SKALASSERT(gAllocatorMap != NULL);
 
     SkalBlob* blob = NULL;
-    skalAllocatorItem* item = (skalAllocatorItem*)CdsMapSearch(gAllocatorMap,
-            (void*)allocator);
-    if (item != NULL) {
-        SKALASSERT(item->allocator.allocate != NULL);
-        void* obj = item->allocator.allocate(item->allocator.cookie,
-                id, size_B);
+    skalAllocatorItem* allocatorItem = (skalAllocatorItem*)CdsMapSearch(
+            gAllocatorMap, (void*)allocator);
+    if (allocatorItem != NULL) {
+        SKALASSERT(allocatorItem->allocator.allocate != NULL);
+        void* obj = allocatorItem->allocator.allocate(
+                allocatorItem->allocator.cookie, id, size_B);
         if (obj != NULL) {
             blob = SkalMallocZ(sizeof(*blob));
-            strncpy(blob->allocator, allocator, sizeof(blob->allocator) - 1);
+            // NB: The map of allocators stay static after initialisation
+            blob->allocator = &allocatorItem->allocator;
             blob->ref = 1;
             if (id != NULL) {
-                strncpy(blob->id, id, sizeof(blob->id) - 1);
+                blob->id = SkalStrdup(id);
             }
             if (name != NULL) {
-                strncpy(blob->name, name, sizeof(blob->name) - 1);
+                blob->name = SkalStrdup(name);
             }
             blob->size_B = size_B;
             blob->obj = obj;
@@ -226,11 +223,10 @@ void SkalBlobUnref(SkalBlob* blob)
     SKALASSERT(blob != NULL);
     blob->ref--;
     if (blob->ref <= 0) {
-        skalAllocatorItem* item = (skalAllocatorItem*)CdsMapSearch(
-                gAllocatorMap, blob->allocator);
-        SKALASSERT(item != NULL);
-        SKALASSERT(item->allocator.deallocate != NULL);
-        item->allocator.deallocate(item->allocator.cookie, blob->obj);
+        SKALASSERT(blob->allocator->deallocate != NULL);
+        blob->allocator->deallocate(blob->allocator->cookie, blob->obj);
+        free(blob->id);
+        free(blob->name);
         free(blob);
     }
 }
@@ -239,22 +235,16 @@ void SkalBlobUnref(SkalBlob* blob)
 void* SkalBlobMap(SkalBlob* blob)
 {
     SKALASSERT(blob != NULL);
-    skalAllocatorItem* item = (skalAllocatorItem*)CdsMapSearch(gAllocatorMap,
-            blob->allocator);
-    SKALASSERT(item != NULL);
-    SKALASSERT(item->allocator.map != NULL);
-    return item->allocator.map(item->allocator.cookie, blob->obj);
+    SKALASSERT(blob->allocator->map != NULL);
+    return blob->allocator->map(blob->allocator->cookie, blob->obj);
 }
 
 
 void SkalBlobUnmap(SkalBlob* blob)
 {
     SKALASSERT(blob != NULL);
-    skalAllocatorItem* item = (skalAllocatorItem*)CdsMapSearch(gAllocatorMap,
-            blob->allocator);
-    SKALASSERT(item != NULL);
-    SKALASSERT(item->allocator.unmap != NULL);
-    return item->allocator.unmap(item->allocator.cookie, blob->obj);
+    SKALASSERT(blob->allocator->unmap != NULL);
+    return blob->allocator->unmap(blob->allocator->cookie, blob->obj);
 }
 
 
@@ -290,6 +280,7 @@ static void skalAllocatorMapUnref(CdsMapItem* litem)
     skalAllocatorItem* item = (skalAllocatorItem*)litem;
     item->ref--;
     if (item->ref <= 0) {
+        free(item->allocator.name);
         free(item);
     }
 }
@@ -299,7 +290,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 {
     SKALASSERT(gAllocatorMap != NULL);
     SKALASSERT(allocator != NULL);
-    SKALASSERT(SkalIsAsciiString(allocator->name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(allocator->name));
     SKALASSERT(allocator->allocate != NULL);
     SKALASSERT(allocator->deallocate != NULL);
     SKALASSERT(allocator->map != NULL);
@@ -307,17 +298,19 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 
     skalAllocatorItem* item = SkalMallocZ(sizeof(*item));
     item->ref = 1;
-    memcpy(&(item->allocator), allocator, sizeof(*allocator));
+    item->allocator = *allocator;
+    // NB: Do not use the caller's storage space as its lifetime is unknown
+    item->allocator.name = SkalStrdup(allocator->name);
 
     // NB: If 2 allocators with the same names are inserted, the last one will
     // "overwrite" the previous one. This is intended.
-    SKALASSERT(CdsMapInsert(gAllocatorMap,
-                (void*)(item->allocator.name), &item->item));
+    SKALASSERT(CdsMapInsert(gAllocatorMap, item->allocator.name, &item->item));
 }
 
 
 static void* skalMallocAllocate(void* cookie, const char* id, int64_t size_B)
 {
+    SKALASSERT(size_B > 0);
     return SkalMalloc(size_B);
 }
 

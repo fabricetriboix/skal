@@ -52,11 +52,11 @@ public :
 
     /** Constructor
      *
-     * @param name  [in] Allocator name; must not be NULL; must be unique within
-     *                   the allocator's scope
+     * @param name  [in] Allocator name; must be unique within the allocator's
+     *                   scope
      * @param scope [in] Allocator scope
      */
-    Allocator(const char* name, Scope scope);
+    Allocator(const std::string& name, Scope scope);
 
     virtual ~Allocator();
 
@@ -66,7 +66,7 @@ private :
      * @param id     [in] Optional identifier (eg: buffer slot on a video card)
      * @param size_B [in] Optional minimum size to allocate, in bytes
      */
-    virtual void* allocate(const char* id, int64_t size_B) = 0;
+    virtual void* allocate(const std::string& id, int64_t size_B) = 0;
 
     /** Deallocate a block of memory
      *
@@ -112,40 +112,39 @@ public :
 
     /** Constructor
      *
-     * @param name     [in] Alarm name; must not be NULL; names starting with
-     *                      "skal-" are reserved
+     * @param name     [in] Alarm name; names starting with "skal-" are reserved
      * @param severity [in] Alarm severity
      * @param isOn     [in] Turn the alarm on or off
      * @param autoOff  [in] This alarm will be cleared without human interaction
-     * @param comment  [in] Free-form comment; may be NULL
+     * @param comment  [in] Free-form comment
      */
-    Alarm(const char* name, SeverityE severity, bool isOn, bool autoOff,
-            const char* comment);
+    Alarm(const std::string& name, SeverityE severity, bool isOn, bool autoOff,
+            const std::string& comment);
 
-    Alarm(const char* name, SeverityE severity, bool isOn, bool autoOff) :
-        Alarm(name, severity, isOn, autoOff, NULL)
+    Alarm(const std::string& name, SeverityE severity, bool isOn, bool autoOff)
+        : Alarm(name, severity, isOn, autoOff, "")
     {
     }
 
-    Alarm(const char* name, SeverityE severity) :
-        Alarm(name, severity, true, false, NULL)
+    Alarm(const std::string& name, SeverityE severity) :
+        Alarm(name, severity, true, false, "")
     {
     }
 
     ~Alarm();
 
-    const char* Name() const;
+    std::string Name() const;
     SeverityE Severity() const;
     bool IsOn() const;
     bool AutoOff() const;
-    const char* Comment() const;
+    std::string Comment() const;
 
     /** Get the name of the thread that raised this alarm.
      *
-     * This will return NULL if the alarm has been created from a non-skal
-     * thread.
+     * This will return an empty string if the alarm has been created from a
+     * non-skal thread.
      */
-    const char* Origin() const;
+    std::string Origin() const;
 
     /** Get the moment in time when this alarm object has been created */
     int64_t Timestamp_us() const;
@@ -169,8 +168,8 @@ class Blob final {
 public :
     ~Blob();
 
-    const char* Id() const;
-    const char* Name() const;
+    std::string Id() const;
+    std::string Name() const;
     int64_t Size_B() const;
 
     /** This class is used to map the blob into the caller's address space
@@ -200,25 +199,26 @@ private :
 
     SkalBlob* mBlob;
 
-    friend std::shared_ptr<Blob> CreateBlob(const char* allocator,
-            const char* id, const char* name, int64_t size_B);
+    friend std::shared_ptr<Blob> CreateBlob(const std::string& allocator,
+            const std::string& id, const std::string& name, int64_t size_B);
 
     friend class Msg;
 };
 
 /** Allocate a new blob
  *
- * @param allocator [in] Name of the allocator to use; may be NULL, in which
- *                       case the "malloc" allocator is used
- * @param id        [in] Identifier for the allocator; may or may not be
- *                       NULL depending on the chosen allocator
+ * @param allocator [in] Name of the allocator to use; may be the empty string,
+ *                       in which case the "malloc" allocator is used
+ * @param id        [in] Identifier for the allocator; may or may not be an
+ *                       empty string depending on the chosen allocator
+ * @param name      [in] A name for this blob; may be an empty string
  * @param size_B    [in] Minimum number of bytes to allocate; may or may not
  *                       be <=0 depending on the chosen allocator
  *
- * @return A pointer to the blob, or NULL in case of error
+ * @return A pointer to the blob, or `nullptr` in case of error
  */
-std::shared_ptr<Blob> CreateBlob(const char* allocator,
-        const char* id, const char* name, int64_t size_B);
+std::shared_ptr<Blob> CreateBlob(const std::string& allocator,
+        const std::string& id, const std::string& name, int64_t size_B);
 
 
 /** Message flag: it's OK to receive this message out of order */
@@ -238,17 +238,16 @@ class Msg final {
 public :
     /** Constructor
      *
-     * @param name      [in] Message name; must not be NULL; names starting
-     *                       with "skal-" are reserved
-     * @param recipient [in] To whom this message should be delivered? must not
-     *                       be NULL
+     * @param name      [in] Message name; names starting with "skal-" are
+     *                       reserved for the SKAL framework
+     * @param recipient [in] To whom this message should be delivered?
      * @param flags     [in] Flags for this message
      * @param ttl       [in] TTL for this message; <=0 for default
      */
-    Msg(const char* name, const char* recipient,
+    Msg(const std::string& name, const std::string& recipient,
             uint8_t flags, int8_t ttl);
 
-    Msg(const char* name, const char* recipient) :
+    Msg(const std::string& name, const std::string& recipient) :
         Msg(name, recipient, 0, 0)
     {
     }
@@ -256,7 +255,7 @@ public :
     /** Copy-constructor TODO */
     Msg(const Msg& rhs) = delete;
 
-    /** Copy-assignment operator = TODO*/
+    /** Copy-assignment operator = TODO */
     Msg& operator=(const Msg& rhs) = delete;
 
     ~Msg();
@@ -265,13 +264,13 @@ public :
     void DecrementTtl();
 
     /** Add an extra integer to the message */
-    void AddField(const char* name, int64_t i);
+    void AddField(const std::string& name, int64_t i);
 
     /** Add an extra floating-point number to the message */
-    void AddField(const char* name, double d);
+    void AddField(const std::string& name, double d);
 
     /** Add an extra string to the message */
-    void AddField(const char* name, const char* str);
+    void AddField(const std::string& name, const std::string& str);
 
     /** Add an extra binary field to the message
      *
@@ -279,49 +278,49 @@ public :
      * large amounts of data, a blob will be more efficient because a miniblob
      * is copied every time the message hops somewhere.
      */
-    void AddField(const char* name, const uint8_t* miniblob, int size_B);
+    void AddField(const std::string& name, const uint8_t* miniblob, int size_B);
 
     /** Attach a blob to the message
      *
-     * @param name [in] Name for this field; must not be NULL; this is unrelated
-     *                  to the blob's name
-     * @param blob [in] Blob to attach; must not be NULL
+     * @param name [in] Name for this field; please note this is unrelated to
+     *                  the blob's name
+     * @param blob [in] Blob to attach; must not be `nullptr`
      */
-    void AttachBlob(const char* name, std::shared_ptr<Blob> blob);
+    void AttachBlob(const std::string& name, std::shared_ptr<Blob> blob);
 
     /** Check if the message has a field with the given name */
-    bool HasField(const char* name);
+    bool HasField(const std::string& name);
 
     /** Get the value of an integer field
      *
      * This method asserts if a field with that `name` does not exist or is not
      * an integer.
      */
-    int64_t GetIntField(const char* name) const;
+    int64_t GetIntField(const std::string& name) const;
 
     /** Get the value of a double field
      *
      * This method asserts if a field with that `name` does not exist or is not
      * a double.
      */
-    double GetDoubleField(const char* name) const;
+    double GetDoubleField(const std::string& name) const;
 
     /** Get the value of a string field
      *
      * This method asserts if a field with that `name` does not exist or is not
      * a string.
      */
-    const char* GetStringField(const char* name) const;
+    std::string GetStringField(const std::string& name) const;
 
     /** Get the value of a miniblob field
      *
      * This method asserts if a field with that `name` does not exist or is not
      * a miniblob. The returned pointer points to a read-only area!
      */
-    const uint8_t* GetMiniblobField(const char* name, int& size_B) const;
+    const uint8_t* GetMiniblobField(const std::string& name, int& size_B) const;
 
     /** Get access to a blob attached to this message */
-    std::shared_ptr<Blob> GetBlob(const char* name) const;
+    std::shared_ptr<Blob> GetBlob(const std::string& name) const;
 
     /** Attach an alarm to the message
      *
@@ -333,18 +332,18 @@ public :
      *
      * You can call this method repeatidly to detach alarms one by one.
      *
-     * @return A shared pointer to the alarm, or NULL if no more alarms
+     * @return A shared pointer to the alarm, or `nullptr` if no more alarms
      */
     std::shared_ptr<Alarm> DetachAlarm() const;
 
     /** Get this message's name */
-    const char* Name() const;
+    std::string Name() const;
 
     /** Get the name of the thread that sent this message */
-    const char* Sender() const;
+    std::string Sender() const;
 
     /** Get the recipient of this message */
-    const char* Recipient() const;
+    std::string Recipient() const;
 
     /** Get the message flags */
     uint8_t Flags() const;
@@ -357,12 +356,12 @@ private :
     SkalMsg* mMsg;
 
     friend bool skalCppProcessMsg(void*, SkalMsg*);
-    friend void Send(std::unique_ptr<Msg>);
+    friend void Send(Msg&);
 };
 
 
 /** Send a message to its recipient */
-void Send(std::unique_ptr<Msg> msg);
+void Send(Msg& msg);
 
 
 /** Create a thread
@@ -376,10 +375,11 @@ void Send(std::unique_ptr<Msg> msg);
  * The other parameters are quite obscure and it would be unusual to set them to
  * anything but their default values of 0.
  */
-void CreateThread(const char* name, std::function<bool(Msg&)> processMsg,
+void CreateThread(const std::string& name, std::function<bool(Msg&)> processMsg,
         int64_t queueThreshold, int32_t stackSize_B, int64_t xoffTimeout_us);
 
-void CreateThread(const char* name, std::function<bool(Msg&)> processMsg);
+void CreateThread(const std::string& name,
+        std::function<bool(Msg&)> processMsg);
 
 
 /** Initialise SKAL for this process
@@ -388,7 +388,7 @@ void CreateThread(const char* name, std::function<bool(Msg&)> processMsg);
  * of the various classes in this module.
  *
  * @param skaldUrl   [in] URL to connect to the local skald; this can and should
- *                        be NULL
+ *                        be `nullptr`
  * @param allocators [in] Custom allocators if needed
  */
 bool Init(const char* skaldUrl,
@@ -410,9 +410,9 @@ void Exit();
 
 /** Get the domain this process runs on
  *
- * @return The SKAL domain; this function never returns NULL
+ * @return The SKAL domain
  */
-const char* Domain();
+std::string Domain();
 
 
 /** Pause the calling thread until all SKAL threads have finished

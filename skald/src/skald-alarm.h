@@ -14,15 +14,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SKAL_BLOB_h_
-#define SKAL_BLOB_h_
+#ifndef SKALD_ALARM_h_
+#define SKALD_ALARM_h_
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
 #endif
 
-
-#include "skal.h"
+#include "skal-alarm.h"
 
 
 
@@ -31,24 +30,40 @@ extern "C" {
  +------------------------------*/
 
 
-/** Initialise SKAL allocators for this process
+/** Initialise the skald-alarm module */
+void SkaldAlarmInit(void);
+
+
+/** De-initialise the skald-alarm module */
+void SkaldAlarmExit(void);
+
+
+/** Process a new alarm
  *
- * The "malloc" and "shm" allocator will be automatically created.
+ * The alarm is raised if the `alarm` is on, or lowered if it is off.
  *
- * @param allocators [in] Array of custom blob allocators; may be NULL if you
- *                        don't have any custom allocators
- * @param size       [in] Size of the above array
+ * The ownership of `alarm` is transferred to this function
+ *
+ * @param alarm [in] Alarm to process; must not be NULL
  */
-void SkalBlobInit(const SkalAllocator* allocators, int size);
+void SkaldAlarmProcess(SkalAlarm* alarm);
 
 
-/* Deregister all allocators for this process */
-void SkalBlobExit(void);
+/** Helper function to create and process a new alarm in one call
+ *
+ * This is equivalent to calling `SkalAlarmCreate()` followed by
+ * `SkaldAlarmProcess()`.
+ */
+void SkaldAlarmNew(const char* name, SkalAlarmSeverityE severity,
+        bool isOn, bool autoOff, const char* format, ...)
+    __attribute__(( format(printf, 5, 6) ));
 
 
+
+/* @} */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* SKAL_BLOB_h_ */
+#endif /* SKALD_ALARM_h_ */

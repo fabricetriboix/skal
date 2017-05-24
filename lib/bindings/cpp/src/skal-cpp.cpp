@@ -39,37 +39,39 @@ namespace skal {
 void* skalCppAllocatorAllocate(void* cookie, const char* id, int64_t size_B)
 {
     Allocator* allocator = (Allocator*)cookie;
-    SKALASSERT(allocator != NULL);
-    return allocator->allocate(id, size_B);
+    SKALASSERT(allocator != nullptr);
+    std::string tmp;
+    if (id != nullptr) {
+        tmp = id;
+    }
+    return allocator->allocate(tmp, size_B);
 }
 
 void skalCppAllocatorDeallocate(void* cookie, void* obj)
 {
     Allocator* allocator = (Allocator*)cookie;
-    SKALASSERT(allocator != NULL);
+    SKALASSERT(allocator != nullptr);
     allocator->deallocate(obj);
 }
 
 void* skalCppAllocatorMap(void* cookie, void* obj)
 {
     Allocator* allocator = (Allocator*)cookie;
-    SKALASSERT(allocator != NULL);
+    SKALASSERT(allocator != nullptr);
     return allocator->map(obj);
 }
 
 void skalCppAllocatorUnmap(void* cookie, void* obj)
 {
     Allocator* allocator = (Allocator*)cookie;
-    SKALASSERT(allocator != NULL);
+    SKALASSERT(allocator != nullptr);
     allocator->unmap(obj);
 }
 
 
-Allocator::Allocator(const char* name, Scope scope)
+Allocator::Allocator(const std::string& name, Scope scope)
 {
-    SKALASSERT(SkalIsAsciiString(name, sizeof(mAllocator.name)));
-    int n = snprintf(mAllocator.name, sizeof(mAllocator.name), "%s", name);
-    SKALASSERT(n < (int)sizeof(mAllocator.name));
+    mAllocator.name = SkalStrdup(name.c_str());
 
     switch (scope) {
     case Allocator::Scope::THREAD :
@@ -97,6 +99,7 @@ Allocator::Allocator(const char* name, Scope scope)
 
 Allocator::~Allocator()
 {
+    ::free(mAllocator.name);
 }
 
 
@@ -104,16 +107,16 @@ Allocator::~Allocator()
  | Alarms |
  +--------*/
 
-Alarm::Alarm(const char* name, SeverityE severity, bool isOn, bool autoOff,
-        const char* comment)
-    : mAlarm(NULL)
+Alarm::Alarm(const std::string& name, SeverityE severity,
+        bool isOn, bool autoOff, const std::string& comment)
+    : mAlarm(nullptr)
 {
-    if (NULL == comment) {
-        mAlarm = SkalAlarmCreate(name, (SkalAlarmSeverityE)severity,
-                isOn, autoOff, NULL);
+    if (comment.size() == 0) {
+        mAlarm = SkalAlarmCreate(name.c_str(), (SkalAlarmSeverityE)severity,
+                isOn, autoOff, nullptr);
     } else {
-        mAlarm = SkalAlarmCreate(name, (SkalAlarmSeverityE)severity,
-                isOn, autoOff, "%s", comment);
+        mAlarm = SkalAlarmCreate(name.c_str(), (SkalAlarmSeverityE)severity,
+                isOn, autoOff, "%s", comment.c_str());
     }
 }
 
@@ -123,12 +126,12 @@ Alarm::Alarm(SkalAlarm* alarm) : mAlarm(alarm)
 
 Alarm::~Alarm()
 {
-    if (mAlarm != NULL) {
+    if (mAlarm != nullptr) {
         SkalAlarmUnref(mAlarm);
     }
 }
 
-const char* Alarm::Name() const
+std::string Alarm::Name() const
 {
     return SkalAlarmName(mAlarm);
 }
@@ -148,14 +151,22 @@ bool Alarm::AutoOff() const
     return SkalAlarmAutoOff(mAlarm);
 }
 
-const char* Alarm::Comment() const
+std::string Alarm::Comment() const
 {
-    return SkalAlarmComment(mAlarm);
+    const char* comment = SkalAlarmComment(mAlarm);
+    if (nullptr == comment) {
+        comment = "";
+    }
+    return comment;
 }
 
-const char* Alarm::Origin() const
+std::string Alarm::Origin() const
 {
-    return SkalAlarmOrigin(mAlarm);
+    const char* origin = SkalAlarmOrigin(mAlarm);
+    if (nullptr == origin) {
+        origin = "";
+    }
+    return origin;
 }
 
 int64_t Alarm::Timestamp_us() const
@@ -177,14 +188,22 @@ Blob::~Blob()
     SkalBlobUnref(mBlob);
 }
 
-const char* Blob::Id() const
+std::string Blob::Id() const
 {
-    return SkalBlobId(mBlob);
+    const char* id = SkalBlobId(mBlob);
+    if (nullptr == id) {
+        id = "";
+    }
+    return id;
 }
 
-const char* Blob::Name() const
+std::string Blob::Name() const
 {
-    return SkalBlobName(mBlob);
+    const char* name = SkalBlobName(mBlob);
+    if (nullptr == name) {
+        name = "";
+    }
+    return name;
 }
 
 int64_t Blob::Size_B() const
@@ -195,14 +214,14 @@ int64_t Blob::Size_B() const
 Blob::ScopedMap::ScopedMap(Blob& blob)
     : mBlob(&blob), mPtr(SkalBlobMap(blob.mBlob))
 {
-    if (NULL == mPtr) {
+    if (nullptr == mPtr) {
         throw std::runtime_error("Failed to map blob");
     }
 }
 
 Blob::ScopedMap::~ScopedMap()
 {
-    if (mPtr != NULL) {
+    if (mPtr != nullptr) {
         SkalBlobUnmap(mBlob->mBlob);
     }
 }
@@ -212,12 +231,24 @@ void* Blob::ScopedMap::Get() const
     return mPtr;
 }
 
-std::shared_ptr<Blob> CreateBlob(const char* allocator,
-        const char* id, const char* name, int64_t size_B)
+std::shared_ptr<Blob> CreateBlob(const std::string& allocator,
+        const std::string& id, const std::string& name, int64_t size_B)
 {
-    SkalBlob* blob = SkalBlobCreate(allocator, id, name, size_B);
-    if (NULL == blob) {
-        return NULL;
+    const char* tmpAllocator = nullptr;
+    if (allocator.size() > 0) {
+        tmpAllocator = allocator.c_str();
+    }
+    const char* tmpId = nullptr;
+    if (id.size() > 0) {
+        tmpId = id.c_str();
+    }
+    const char* tmpName = nullptr;
+    if (name.size() > 0) {
+        tmpName = name.c_str();
+    }
+    SkalBlob* blob = SkalBlobCreate(tmpAllocator, tmpId, tmpName, size_B);
+    if (nullptr == blob) {
+        return nullptr;
     }
     return std::shared_ptr<Blob>(new Blob(blob));
 }
@@ -227,9 +258,10 @@ std::shared_ptr<Blob> CreateBlob(const char* allocator,
  | Messages |
  +----------*/
 
-Msg::Msg(const char* name, const char* recipient, uint8_t flags, int8_t ttl)
+Msg::Msg(const std::string& name, const std::string& recipient,
+        uint8_t flags, int8_t ttl)
 {
-    mMsg = SkalMsgCreateEx(name, recipient, flags, ttl);
+    mMsg = SkalMsgCreateEx(name.c_str(), recipient.c_str(), flags, ttl);
 }
 
 Msg::~Msg()
@@ -242,59 +274,59 @@ void Msg::DecrementTtl()
     SkalMsgDecrementTtl(mMsg);
 }
 
-void Msg::AddField(const char* name, int64_t i)
+void Msg::AddField(const std::string& name, int64_t i)
 {
-    SkalMsgAddInt(mMsg, name, i);
+    SkalMsgAddInt(mMsg, name.c_str(), i);
 }
 
-void Msg::AddField(const char* name, double d)
+void Msg::AddField(const std::string& name, double d)
 {
-    SkalMsgAddDouble(mMsg, name, d);
+    SkalMsgAddDouble(mMsg, name.c_str(), d);
 }
 
-void Msg::AddField(const char* name, const char* str)
+void Msg::AddField(const std::string& name, const std::string& str)
 {
-    SkalMsgAddString(mMsg, name, str);
+    SkalMsgAddString(mMsg, name.c_str(), str.c_str());
 }
 
-void Msg::AddField(const char* name, const uint8_t* miniblob, int size_B)
+void Msg::AddField(const std::string& name, const uint8_t* miniblob, int size_B)
 {
-    SkalMsgAddMiniblob(mMsg, name, miniblob, size_B);
+    SkalMsgAddMiniblob(mMsg, name.c_str(), miniblob, size_B);
 }
 
-void Msg::AttachBlob(const char* name, std::shared_ptr<Blob> blob)
+void Msg::AttachBlob(const std::string& name, std::shared_ptr<Blob> blob)
 {
-    SkalMsgAttachBlob(mMsg, name, blob->mBlob);
+    SkalMsgAttachBlob(mMsg, name.c_str(), blob->mBlob);
 }
 
-bool Msg::HasField(const char* name)
+bool Msg::HasField(const std::string& name)
 {
-    return SkalMsgHasField(mMsg, name);
+    return SkalMsgHasField(mMsg, name.c_str());
 }
 
-int64_t Msg::GetIntField(const char* name) const
+int64_t Msg::GetIntField(const std::string& name) const
 {
-    return SkalMsgGetInt(mMsg, name);
+    return SkalMsgGetInt(mMsg, name.c_str());
 }
 
-double Msg::GetDoubleField(const char* name) const
+double Msg::GetDoubleField(const std::string& name) const
 {
-    return SkalMsgGetDouble(mMsg, name);
+    return SkalMsgGetDouble(mMsg, name.c_str());
 }
 
-const char* Msg::GetStringField(const char* name) const
+std::string Msg::GetStringField(const std::string& name) const
 {
-    return SkalMsgGetString(mMsg, name);
+    return SkalMsgGetString(mMsg, name.c_str());
 }
 
-const uint8_t* Msg::GetMiniblobField(const char* name, int& size_B) const
+const uint8_t* Msg::GetMiniblobField(const std::string& name, int& size_B) const
 {
-    return SkalMsgGetMiniblob(mMsg, name, &size_B);
+    return SkalMsgGetMiniblob(mMsg, name.c_str(), &size_B);
 }
 
-std::shared_ptr<Blob> Msg::GetBlob(const char* name) const
+std::shared_ptr<Blob> Msg::GetBlob(const std::string& name) const
 {
-    SkalBlob* blob = SkalMsgGetBlob(mMsg, name);
+    SkalBlob* blob = SkalMsgGetBlob(mMsg, name.c_str());
     return std::shared_ptr<Blob>(new Blob(blob));
 }
 
@@ -309,17 +341,17 @@ std::shared_ptr<Alarm> Msg::DetachAlarm() const
     return std::shared_ptr<Alarm>(new Alarm(alarm));
 }
 
-const char* Msg::Name() const
+std::string Msg::Name() const
 {
     return SkalMsgName(mMsg);
 }
 
-const char* Msg::Sender() const
+std::string Msg::Sender() const
 {
     return SkalMsgSender(mMsg);
 }
 
-const char* Msg::Recipient() const
+std::string Msg::Recipient() const
 {
     return SkalMsgRecipient(mMsg);
 }
@@ -338,12 +370,12 @@ Msg::Msg(SkalMsg* msg) : mMsg(msg)
 {
 }
 
-void Send(std::unique_ptr<Msg> msg)
+void Send(Msg& msg)
 {
     // NB: `SkalMsgSend()` takes ownership of the message, so we need to
     // reference it first, so our `msg` object destructs properly.
-    SkalMsgRef(msg->mMsg);
-    SkalMsgSend(msg->mMsg);
+    SkalMsgRef(msg.mMsg);
+    SkalMsgSend(msg.mMsg);
 }
 
 
@@ -364,6 +396,7 @@ public :
 bool skalCppProcessMsg(void* cookie, SkalMsg* skalmsg)
 {
     Thread* t = (Thread*)cookie;
+    SkalMsgRef(skalmsg); // Add a ref for the `Msg msg` below
     Msg msg(skalmsg);
     bool ok = t->mProcessMsg(msg);
     if (!ok) {
@@ -372,14 +405,13 @@ bool skalCppProcessMsg(void* cookie, SkalMsg* skalmsg)
     return ok;
 }
 
-void CreateThread(const char* name, std::function<bool(Msg&)> processMsg,
+void CreateThread(const std::string& name, std::function<bool(Msg&)> processMsg,
             int64_t queueThreshold, int32_t stackSize_B, int64_t xoffTimeout_us)
 {
     Thread* t = new Thread(processMsg);
 
     SkalThreadCfg cfg;
-    int n = snprintf(cfg.name, sizeof(cfg.name), "%s", name);
-    SKALASSERT(n < (int)sizeof(cfg.name));
+    cfg.name = (char*)name.c_str();
     cfg.processMsg = skalCppProcessMsg;
     cfg.cookie = t;
     cfg.queueThreshold = queueThreshold;
@@ -389,7 +421,7 @@ void CreateThread(const char* name, std::function<bool(Msg&)> processMsg,
     SkalThreadCreate(&cfg);
 }
 
-void CreateThread(const char* name, std::function<bool(Msg&)> processMsg)
+void CreateThread(const std::string& name, std::function<bool(Msg&)> processMsg)
 {
     CreateThread(name, processMsg, 0, 0, 0);
 }
@@ -404,7 +436,7 @@ bool Init(const char* skaldUrl,
 {
     size_t n = allocators.size();
     SkalAllocator* a = (SkalAllocator*)alloca(sizeof(*a) * n);
-    SKALASSERT(a != NULL);
+    SKALASSERT(a != nullptr);
     for (size_t i = 0; i < n; ++i) {
         a[i] = allocators[i]->mAllocator;
     }
@@ -419,7 +451,7 @@ bool Init(const char* skaldUrl)
 
 bool Init()
 {
-    return Init(NULL);
+    return Init(nullptr);
 }
 
 void Exit()
@@ -427,7 +459,7 @@ void Exit()
     SkalExit();
 }
 
-const char* Domain()
+std::string Domain()
 {
     return SkalDomain();
 }

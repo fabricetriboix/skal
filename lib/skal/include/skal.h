@@ -27,10 +27,9 @@ extern "C" {
  * @addtogroup skal
  * @{
  *
- * Please note all strings must be ASCII strings of at most `SKAL_NAME_MAX` in
- * size (including the terminating null character), unless otherwise noted.
+ * Please note all strings must be ASCII strings unless otherwise noted.
  * Additional constraints may be imposed, in which case they will be clearly
- * mentioned in comments. Please note strict checks are perfomed on all strings.
+ * mentioned in comments.
  */
 
 #include "skal-common.h"
@@ -92,6 +91,10 @@ extern "C" {
  * regular data (especially high throughput data).
  */
 #define SKAL_MSG_FLAG_URGENT 0x08
+
+
+/** Message flag: this is a multicast message */
+#define SKAL_MSG_FLAG_MULTICAST 0x10
 
 
 /** Prototype for a custom allocator
@@ -203,7 +206,7 @@ typedef struct {
      *
      * This must be unique within the allocator's scope.
      */
-    char name[SKAL_NAME_MAX];
+    char* name;
 
     /** Allocator scope
      *
@@ -290,7 +293,7 @@ typedef struct {
      * This must be unique within this process. This must not be an empty
      * string. It must not contain the character '@'.
      */
-    char name[SKAL_THREAD_NAME_MAX];
+    char* name;
 
     /** Message processing function; must not be NULL */
     SkalProcessMsgF processMsg;
@@ -523,6 +526,15 @@ int64_t SkalAlarmTimestamp_us(const SkalAlarm* alarm);
 const char* SkalAlarmComment(const SkalAlarm* alarm);
 
 
+/** Make a copy of an alarm
+ *
+ * @param alarm [in] Alarm to copy; must not be NULL
+ *
+ * @return A copy of `alarm`; this function never returns NULL
+ */
+SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm);
+
+
 /** Create a blob
  *
  * @param allocator [in] Allocator to use to create the blob. This may be NULL,
@@ -693,10 +705,23 @@ SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
  * @param name      [in] Message name; same as `SkalMsgCreateEx()`
  * @param recipient [in] Message recipient; same as `SkalMsgCreateEx()`
  *
- *
  * @return Created SKAL message; this function never returns NULL
  */
 SkalMsg* SkalMsgCreate(const char* name, const char* recipient);
+
+
+/** Create a simple message where the recipient is a group
+ *
+ * This is a simplified version of `SkalMsgCreateEx()`, which takes out
+ * often-unused arguments. The created message will have the
+ * `SKAL_MSG_FLAG_GROUP1 flag set and a TTL set to the default value.
+ *
+ * @param name      [in] Message name; same as `SkalMsgCreateEx()`
+ * @param recipient [in] Message recipient; same as `SkalMsgCreateEx()`
+ *
+ * @return Created SKAL message; this function never returns NULL
+ */
+SkalMsg* SkalMsgCreateMulticast(const char* name, const char* recipient);
 
 
 /** Add a reference to a message
@@ -723,6 +748,15 @@ void SkalMsgRef(SkalMsg* msg);
  *                     freed by this call
  */
 void SkalMsgUnref(SkalMsg* msg);
+
+
+/** Get the time of the message's birth
+ *
+ * The returned timestamp is the number of micro-seconds since the Epoch.
+ *
+ * @return Timestamp of when the message has been created
+ */
+int64_t SkalMsgTimestamp_us(const SkalMsg* msg);
 
 
 /** Get the message name
@@ -867,6 +901,57 @@ void SkalMsgAttachAlarm(SkalMsg* msg, SkalAlarm* alarm);
 bool SkalMsgHasField(const SkalMsg* msg, const char* name);
 
 
+/** Check if a message has an integer field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasInt(const SkalMsg* msg, const char* name);
+
+
+/** Check if a message has a double field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasDouble(const SkalMsg* msg, const char* name);
+
+
+/** Check if a message has a string field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasString(const SkalMsg* msg, const char* name);
+
+
+/** Check if a message has an ASCII string field with the given name
+ *
+ * Like `SkalMsgHasStringField()`, but also checks the string is an ASCII
+ * string.
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasAsciiString(const SkalMsg* msg, const char* name);
+
+
+/** Check if a message has a miniblob field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasMiniblob(const SkalMsg* msg, const char* name);
+
+
+/** Check if a message has a blob field with the given name
+ *
+ * @param msg  [in] Message to check; must not be NULL
+ * @param name [in] Name of the field to check; must not be NULL
+ */
+bool SkalMsgHasBlob(const SkalMsg* msg, const char* name);
+
+
 /** Get the value of an integer previously added to a message
  *
  * @param msg  [in] Message to query; must not be NULL
@@ -940,16 +1025,30 @@ SkalAlarm* SkalMsgDetachAlarm(SkalMsg* msg);
 
 /** Make a copy of a message
  *
- * @param msg       [in] Message to copy
- * @param refBlobs  [in] If set to `false`, the new message will not have any
- *                       blob. If set to `true`, the new message will reference
- *                       all the blobs attached to `msg`
- * @param recipient [in] Recipient for this new message; may be NULL to keep the
- *                       same recipient as `msg`
+ * Please note the copied message will have the same TTL value as `msg`; in
+ * other words, the TTL value of the copied message is not reset to the original
+ * TTL value.
+ *
+ * @param msg        [in] Message to copy; must not be NULL
+ * @param copyBlobs  [in] If set to `false`, the new message will not have any
+ *                        blob. If set to `true`, the new message will reference
+ *                        all the blobs attached to `msg`
+ * @param copyAlarms [in] Whether to also copy the alarms
+ * @param recipient  [in] Recipient for this new message; may be NULL to keep
+ *                        the same recipient as `msg`
  *
  * @return The copied message; this function never returns NULL
  */
-SkalMsg* SkalMsgCopy(const SkalMsg* msg, bool refBlobs, const char* recipient);
+SkalMsg* SkalMsgCopyEx(const SkalMsg* msg,
+        bool copyBlobs, bool copyAlarms, const char* recipient);
+
+
+/** Make a simple copy of a message
+ *
+ * This function is like `SkalMsgCopyEx()` with both `copyBlobs` and
+ * `copyAlarms` set to `true`.
+ */
+SkalMsg* SkalMsgCopy(const SkalMsg* msg, const char* recipient);
 
 
 /** Send a message to its recipient

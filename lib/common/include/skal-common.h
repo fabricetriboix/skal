@@ -150,25 +150,35 @@ char* _SkalStrdup(const char* s, const char* file, int line);
 
 /** Helper function to sprintf a string
  *
- * @param format [in] A printf-like format string
- * @param ...    [in] Printf-like arguments
+ * @param _format [in] A printf-like format string
+ * @param ...     [in] Printf-like arguments
  *
  * @return The formatted string, never NULL; please release with `free()` when
  *         you no longer need it
  */
-char* SkalSPrintf(const char* format, ...)
-    __attribute__(( format(printf, 1, 2) ));
+#define SkalSPrintf(_format, ...) \
+        _SkalSPrintf(__FILE__, __LINE__, (_format), ## __VA_ARGS__)
+
+/** @cond hidden */
+char* _SkalSPrintf(const char* file, int line, const char* format, ...)
+    __attribute__(( format(printf, 3, 4) ));
+/** @endcond */
 
 
 /** Helper function to vsprintf a string
  *
- * @param format [in]     A printf-like format string
- * @param ap     [in,out] stdarg arguments
+ * @param _format [in]     A printf-like format string
+ * @param _ap     [in,out] stdarg arguments
  *
  * @return The formatted string, never NULL; please release with `free()` when
  *         you no longer need it
  */
-char* SkalVSPrintf(const char* format, va_list ap);
+#define SkalVSPrintf(_format, _ap) \
+        _SkalVSPrintf(__FILE__, __LINE__, (_format), (_ap))
+
+/** @cond hidden */
+char* _SkalVSPrintf(const char* file, int line, const char* format, va_list ap);
+/** @endcond */
 
 
 /** Create a string builder
@@ -211,26 +221,52 @@ void SkalStringBuilderTrim(SkalStringBuilder* sb, int n);
 char* SkalStringBuilderFinish(SkalStringBuilder* sb);
 
 
-/** Check the given string is pure ASCII with a terminating null char
+/** Check the given string is pure ASCII
  *
- * @param str    [in] String to check; must not be NULL
- * @param maxlen [in] Maximum string length, in bytes; must be > 0
+ * @param str [in] String to check; must not be NULL; must be null-terminated
  *
- * @return `true` if the string contains only printable ASCII characters and has
- *         a terminating null character within the first `maxlen` bytes
+ * @return `true` if the string contains only printable ASCII characters;
+ *         `false` if is contains one or more non-ASCII characters or
+ *         non-printable characters.
  */
-bool SkalIsAsciiString(const char* str, int maxlen);
+bool SkalIsAsciiString(const char* str);
 
 
-/** Check the given string is UTF-8 with a terminating null char
+/** Safer replacement for `strcmp(3)`
  *
- * @param str    [in] String to check; must not be NULL
- * @param maxlen [in] Maximum string length, in bytes; must be > 0
+ * @param lhs [in] Left-hand side string to compare; must be NULL or a UTF-8
+ *                 string; may be NULL
+ * @param rhs [in] Right-hand side string to compare; must be NULL or a UTF-8
+ *                 string; may be NULL
  *
- * @return `true` if the string contains valid UTF-8 characters and has a
- *         terminating null character within the first `maxlen` bytes
+ * @return A strictly negative number if lhs < rhs, 0 if lhs == rhs, a strictly
+ *         positive number if lhs > rhs
  */
-bool SkalIsUtf8String(const char* str, int maxlen);
+int SkalStrcmp(const char* lhs, const char* rhs);
+
+
+/** Safer replacement for `strncmp(3)`
+ *
+ * @param lhs [in] Left-hand side string to compare; must be NULL or a UTF-8
+ *                 string; may be NULL
+ * @param rhs [in] Right-hand side string to compare; must be NULL or a UTF-8
+ *                 string; may be NULL
+ * @param n   [in] Maximum number of bytes to compare
+ *
+ * @return A strictly negative number if lhs < rhs, 0 if lhs == rhs, a strictly
+ *         positive number if lhs > rhs
+ */
+int SkalStrncmp(const char* lhs, const char* rhs, size_t n);
+
+
+/** Check if the given string starts with a certain string
+ *
+ * @param str     [in] String to check; may be NULL
+ * @param pattern [in] Pattern at the beginning; may be NULL
+ *
+ * @return `true` if `str` starts with `pattern`, `false` otherwise
+ */
+bool SkalStartsWith(const char* str, const char* pattern);
 
 
 /** Standard string comparison function suitable for CdsMap
