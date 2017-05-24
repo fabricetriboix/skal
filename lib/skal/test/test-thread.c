@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,7 +36,6 @@ static int gSockidPipeClient = -1;
 static void pseudoSkald(void* arg)
 {
     (void)arg;
-    SkalPlfThreadSetName("skald");
     SkalPlfThreadSetSpecific((void*)0xcafedeca); // to fool skal-msg
     bool stop = false;
     while (!stop) {
@@ -99,6 +98,7 @@ static RTBool testThreadEnterGroup(void)
 {
     gHasConnected = false;
     SkalPlfInit();
+    SkalMsgInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread");
     gNet = SkalNetCreate(NULL);
 
@@ -115,7 +115,7 @@ static RTBool testThreadEnterGroup(void)
     unlink(SOCKPATH);
     gServerSockid = SkalNetServerCreate(gNet, "unix://" SOCKPATH, 0, NULL, 0);
     SKALASSERT(gServerSockid >= 0);
-    gPseudoSkaldThread = SkalPlfThreadCreate("pseudo-skald", pseudoSkald, NULL);
+    gPseudoSkaldThread = SkalPlfThreadCreate("skald", pseudoSkald, NULL);
     bool connected = SkalThreadInit("unix://" SOCKPATH);
     SKALASSERT(connected);
     return RTTrue;
@@ -134,6 +134,7 @@ static RTBool testThreadExitGroup(void)
     gClientSockid = -1;
     unlink(SOCKPATH);
     SkalPlfThreadUnmakeSkal_DEBUG();
+    SkalMsgExit();
     SkalPlfExit();
     SKALASSERT(gHasConnected);
     return RTTrue;
@@ -176,7 +177,7 @@ RTT_TEST_START(skal_simple_should_create_thread)
     gResult = -1;
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "simple");
+    cfg.name = "simple";
     cfg.processMsg = testSimpleProcessMsg;
     cfg.cookie = (void*)0xdeadbabe;
     SkalThreadCreate(&cfg);
@@ -251,13 +252,13 @@ RTT_TEST_START(skal_stress_should_create_threads)
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "receiver");
+    cfg.name = "receiver";
     cfg.processMsg = testReceiverProcessMsg;
     cfg.queueThreshold = 5;
     SkalThreadCreate(&cfg);
 
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "stuffer");
+    cfg.name = "stuffer";
     cfg.processMsg = testStufferProcessMsg;
     SkalThreadCreate(&cfg);
 }

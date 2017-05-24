@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,11 @@
 
 #ifndef SKAL_PLF_h_
 #define SKAL_PLF_h_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /** Platform-dependent stuff for SKAL
  *
@@ -107,6 +112,10 @@ typedef struct SkalPlfThread SkalPlfThread;
 typedef void (*SkalPlfThreadFunction)(void* arg);
 
 
+/** Opaque type representing a regex */
+typedef struct SkalPlfRegex SkalPlfRegex;
+
+
 
 /*------------------------------+
  | Public function declarations |
@@ -147,7 +156,7 @@ static inline uint64_t SkalPlfRandomU64(void)
 }
 
 
-/** Get the current time in ns
+/** Get the current time in ns relative to an unspecified reference
  *
  * This is a time that increments linearly in reference to an external clock.
  * Thus it is not influenced by daylight savings time shifts, time zone changes,
@@ -158,11 +167,57 @@ static inline uint64_t SkalPlfRandomU64(void)
 int64_t SkalPlfNow_ns();
 
 
-/** Get the current time in us
+/** Get the current time in us relative to the Epoch
  *
- * Same as `SkalPlfNow_ns()`, except it returns the time in us.
+ * This is the number of micro-seconds between the Epoch and now.
+ *
+ * The Epoch is 1970-01-01 00:00:00 +0000 (UTC).
+ *
+ * @return The number of micro-seconds between the Epoch and now.
  */
 int64_t SkalPlfNow_us();
+
+
+/** Print a timestamp in ISO-8601 format, UTC time zone
+ *
+ * The timestamp will look like this:
+ *
+ *    yyyy-mm-ddThh:mm:ss.uuuuuuZ
+ *
+ * Where:
+ *  - yyyy is the year on 4 digits
+ *  - mm is the month of the year
+ *  - dd is the day of the month
+ *  - hh is the hour of the day (24 hour clock)
+ *  - mm is the minute in the hour
+ *  - ss is the second
+ *  - uuuuuu is the micro-second
+ *
+ * Please note that if the provided string is too short, the timestamp will be
+ * silently truncated. The output string is null-terminated in any case.
+ *
+ * @param us   [in]  Number of micro-seconds since the Epoch
+ * @param ts   [out] Where to write the timestamp; must not be NULL
+ * @param size [in]  Size of `ts`, in characters
+ *
+ * @return A string that is the timestamp
+ */
+void SkalPlfTimestamp(int64_t us, char* ts, int size);
+
+
+/** Parse a timestamp in ISO-8601 format, UTC time zone
+ *
+ * The timestamp is a string that must look like this:
+ *
+ *    yyyy-mm-ddThh:mm:ss.uuuuuuZ
+ *
+ * @param ts [in]  Timestamp string to parse; must not be NULL
+ * @param us [out] Parsed time: number of micro-seconds since the Epoch; must
+ *                 not be NULL
+ *
+ * @return `true` if OK, `false` if invalid timestamp
+ */
+bool SkalPlfParseTimestamp(const char* ts, int64_t* us);
 
 
 /** Create a mutex
@@ -254,13 +309,6 @@ SkalPlfThread* SkalPlfThreadCreate(const char* name,
 void SkalPlfThreadJoin(SkalPlfThread* thread);
 
 
-/** Set the current thread name
- *
- * @param name [in] New name for current thread
- */
-void SkalPlfThreadSetName(const char* name);
-
-
 /** Get the name of the current thread
  *
  * @return The thread name, or NULL if no name has been set
@@ -268,15 +316,12 @@ void SkalPlfThreadSetName(const char* name);
 const char* SkalPlfThreadGetName(void);
 
 
-/** Get the pthread name of the current thread
+/** Get the system thread name of the current thread
  *
- * Please note the pthread name is a GNU extension and is usually limited to 16
- * characters in size.
- *
- * @param name   [out] Where to write the pthread name; must not be NULL
- * @param size_B [in]  Size of the above buffer, in bytes; must be >0
+ * @return The system thread name; this function never returns NULL; please call
+ *         `free(3)` on it when finished.
  */
-void SkalPlfGetPThreadName(char* name, int size_B);
+char* SkalPlfGetSystemThreadName(void);
 
 
 /** Set the thread-specific value
@@ -333,6 +378,38 @@ void SkalPlfThreadMakeSkal_DEBUG(const char* name);
 void SkalPlfThreadUnmakeSkal_DEBUG(void);
 
 
+/** Create a regex object to subsequent matching
+ *
+ * @param pattern [in] The pattern to match; must not be NULL
+ *
+ * @return The regex object, or NULL if `pattern` is not a valid regex; please
+ *         call `SkalPlfRegexDestroy()` on the regex object when you're finished
+ */
+SkalPlfRegex* SkalPlfRegexCreate(const char* pattern);
+
+
+/** Destroy a regex object
+ *
+ * @param regex [in] The regex object to destroy; may be NULL
+ */
+void SkalPlfRegexDestroy(SkalPlfRegex* regex);
+
+
+/** Match a string against a regex
+ *
+ * @param regex [in] The regex object to match against; must not be NULL
+ * @param str   [in] The string to match; must not be NULL
+ *
+ * @return Whether `str` matches `pattern`
+ */
+bool SkalPlfRegexRun(const SkalPlfRegex* regex, const char* str);
+
+
 
 /* @} */
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* SKAL_PLF_h_ */

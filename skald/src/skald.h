@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,11 @@
 
 #ifndef SKALD_h_
 #define SKALD_h_
+
+#ifdef __cplusplus
+extern "C"
+#endif
+
 
 /** SKALD
  *
@@ -35,7 +40,8 @@
  *
  * A group is akin to IP multicast. A group is a list of destination threads;
  * sending a message to a group will duplicate the message to all members of the
- * group.
+ * group. In addition, it is possible to add a filter on the message names, so
+ * that you receive messages only if their names match a pattern of your choice.
  *
  * Threads are classified in the following categories:
  *  - Managed threads: A managed thread is part of a process that is directly
@@ -75,7 +81,6 @@
  */
 
 #include "skal-common.h"
-#include "skal-net.h"
 
 
 
@@ -124,4 +129,9 @@ void SkaldTerminate(void);
 
 
 /* @} */
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* SKALD_h_ */

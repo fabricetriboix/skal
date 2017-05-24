@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,15 +56,23 @@ static void handleSignal(int signum)
 }
 
 
+static int gDelay_us = 2000;
+
 static bool processMsg(void* cookie, SkalMsg* msg)
 {
     bool ok = true;
-    int64_t* count = (int64_t*)cookie;
-    if (strcmp(SkalMsgName(msg), "test-pkt") == 0) {
+    int64_t* counter = (int64_t*)cookie;
+    if (strcmp(SkalMsgName(msg), "subscribe") == 0) {
+        const char* group = SkalMsgGetString(msg, "group");
+        SkalMsg* subscribeMsg = SkalMsgCreate("skal-subscribe", "skald");
+        SkalMsgAddString(subscribeMsg, "group", group);
+        SkalMsgSend(subscribeMsg);
+
+    } else if (strcmp(SkalMsgName(msg), "test-pkt") == 0) {
         int64_t n = SkalMsgGetInt(msg, "number");
-        if (n != *count) {
+        if (n != *counter) {
             fprintf(stderr, "Received packet %lld, expected %lld\n",
-                    (long long)n, (long long)(*count));
+                    (long long)n, (long long)(*counter));
             ok = false;
         } else {
             if (SkalMsgHasField(msg, "easter-egg")) {
@@ -72,9 +80,11 @@ static bool processMsg(void* cookie, SkalMsg* msg)
                 fprintf(stderr, "XXX received last packet\n");
                 ok = false;
             } else {
-                fprintf(stderr, "XXX received packet %d\n", (int)(*count));
-                usleep(2000); // Simulate some kind of processing
-                (*count)++;
+                fprintf(stderr, "XXX received packet %d\n", (int)(*counter));
+                if (gDelay_us > 0) {
+                    usleep(gDelay_us); // Simulate some kind of processing
+                }
+                (*counter)++;
             }
         }
     }
@@ -82,11 +92,52 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 }
 
 
+static const char* gOptString = "hu:m:p:";
+
+static void usage(int ret)
+{
+    printf( "Usage: reader [OPTIONS]\n"
+            "Receive messages, simulating some processing for each message.\n"
+            "Options:\n"
+            "  -h           Print this usage information and exit\n"
+            "  -l URL       URL to connect to skald\n"
+            "  -m GROUP     Receive messages from this multicast GROUP\n"
+            "  -p DELAY_us  Pause for DELAY_us after each message; default=%d; can be 0\n",
+            gDelay_us);
+    exit(ret);
+}
+
+
 int main(int argc, char** argv)
 {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: ./reader SKTPATH\n");
-        exit(2);
+    char* url = NULL;
+    char* group = NULL;
+    int opt = 0;
+    while (opt != -1) {
+        opt = getopt(argc, argv, gOptString);
+        switch (opt) {
+        case 'h':
+            usage(0);
+            break;
+        case 'l' :
+            if (strstr(optarg, "://") == NULL) {
+                url = SkalSPrintf("unix://%s", optarg);
+            } else {
+                url = SkalStrdup(optarg);
+            }
+            break;
+        case 'm' :
+            group = SkalStrdup(optarg);
+            break;
+        case 'p' :
+            if (sscanf(optarg, "%d", &gDelay_us) != 1) {
+                fprintf(stderr, "Invalid DELAY_us: '%s'\n", optarg);
+                exit(2);
+            }
+            break;
+        default:
+            break;
+        }
     }
 
     struct sigaction sa;
@@ -105,28 +156,34 @@ int main(int argc, char** argv)
         exit(1);
     }
 
-    char url[128];
-    snprintf(url, sizeof(url), "unix://%s", argv[1]);
     if (!SkalInit(url, NULL, 0)) {
         fprintf(stderr, "Failed to initialise skald (url=%s)\n", url);
         exit(1);
     }
+    free(url);
     gRunningState = RUNNING;
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "reader");
+    cfg.name = "reader";
     cfg.processMsg = processMsg;
-    int64_t* count = malloc(sizeof(count));
-    *count = 0;
-    cfg.cookie = count;
+    int64_t* counter = malloc(sizeof(counter));
+    *counter = 0;
+    cfg.cookie = counter;
     cfg.queueThreshold = 10;
     SkalThreadCreate(&cfg);
+
+    if (group != NULL) {
+        SkalMsg* msg = SkalMsgCreate("subscribe", "reader");
+        SkalMsgAddString(msg, "group", group);
+        free(group);
+        SkalMsgSend(msg);
+    }
 
     SkalPause();
 
     // Cleanup
-    free(count);
+    free(counter);
     SkalExit();
     return 0;
 }

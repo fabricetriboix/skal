@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
  */
 
 #include "skald.h"
+#include "skal-msg.h"
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
@@ -56,46 +57,53 @@ static void handleSignal(int signum)
 
 static void usage(void)
 {
-    printf( "%s",
-            "skald [-h] [-d DOMAIN] [-b LOCALURL]\n"
-            "  -h            Print this message and exit\n"
-            "  -d DOMAIN     Set the skald domain\n"
-            "  -b LOCALURL   Local URL to listen to\n"
-            "  -f PIDFILE    Fork and write skald PID in PIDFILE\n"
+    printf( "Usage: skald [OPTIONS]\n"
+            "Options:\n"
+            "  -h           Print this message and exit\n"
+            "  -d DOMAIN    Set the skald domain\n"
+            "  -l LOCALURL  Local URL to listen to\n"
+            "  -f PIDFILE   Fork and write skald PID in PIDFILE\n"
           );
-    exit(0);
 }
 
 
-static void parseArgs(int argc, char** argv, SkaldParams* params)
+static bool parseArgs(int argc, char** argv, SkaldParams* params)
 {
-    int opt;
-    while ((opt = getopt(argc, argv, "hd:b:f:")) != -1) {
+    bool ok = true;
+    int opt = 0;
+    while (opt != -1) {
+        opt = getopt(argc, argv, "hd:l:f:");
         switch (opt) {
+        case -1 :
+            break;
         case 'h' :
             usage();
+            ok = false;
             break;
         case 'd' :
             params->domain = optarg;
             break;
-        case 'b' :
+        case 'l' :
             params->localUrl = optarg;
             break;
         case 'f' :
             fprintf(stderr, "TODO: Fork not implemented yet\n");
-            exit(2);
+            ok = false;
             break;
         default :
             fprintf(stderr, "Unknown argument -%c\n", (char)opt);
-            exit(2);
+            ok = false;
+            break;
         }
     }
+    return ok;
 }
 
 
 int main(int argc, char** argv)
 {
     SkalPlfInit();
+    SkalMsgInit();
 
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -115,7 +123,11 @@ int main(int argc, char** argv)
 
     SkaldParams params;
     memset(&params, 0, sizeof(params));
-    parseArgs(argc, argv, &params);
+    if (!parseArgs(argc, argv, &params)) {
+        SkalMsgExit();
+        SkalPlfExit();
+        return 1;
+    }
 
     SkaldRun(&params);
 
@@ -125,6 +137,7 @@ int main(int argc, char** argv)
     }
 
     SkaldTerminate();
+    SkalMsgExit();
     SkalPlfExit();
     return 0;
 }

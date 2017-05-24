@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,6 +17,11 @@
 #ifndef SKAL_CFG_h_
 #define SKAL_CFG_h_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /** SKAL compile-time configuration
  *
  * @defgroup skalcfg SKAL Configuration
@@ -28,48 +33,6 @@
 
 
 
-/** Maximum length of names or other strings, in chars
- *
- * That includes the terminating null character. This setting essentially
- * applies to all strings unless otherwise specified.
- */
-#define SKAL_NAME_MAX 128
-
-
-/** Maximum length of a thread name, in chars
- *
- * That includes the terminated null character. Do not modify.
- */
-#define SKAL_THREAD_NAME_MAX (SKAL_NAME_MAX / 2)
-
-
-/** Maximum length of a domain name, in chars
- *
- * That includes the terminated null character. Do not modify.
- */
-#define SKAL_DOMAIN_NAME_MAX (SKAL_NAME_MAX / 2)
-
-
-/** Maximum number of custom allocators */
-#define SKAL_ALLOCATORS_MAX 500
-
-
-/** Maximum number of threads per process */
-#define SKAL_THREADS_MAX 10000
-
-
-/** Maximum number of fields per message */
-#define SKAL_FIELDS_MAX 1000
-
-
-/** Maximum number of messages that can be queued in a message list */
-#define SKAL_MSG_LIST_MAX 1000
-
-
-/** Maximum number of xoff states that can be received by a single thread */
-#define SKAL_XOFF_MAX 1000
-
-
 /** Default TTL */
 #define SKAL_DEFAULT_TTL 4
 
@@ -78,7 +41,10 @@
 #define SKAL_DEFAULT_XOFF_TIMEOUT_us 50000
 
 
-/** Default queue threshold */
+/** Default queue threshold
+ *
+ * This is also the value that is used by the skal-master threads.
+ */
 #define SKAL_DEFAULT_QUEUE_THRESHOLD 100
 
 
@@ -116,4 +82,9 @@
 
 
 /* @} */
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* SKAL_CFG_h_ */

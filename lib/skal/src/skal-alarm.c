@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,14 +30,26 @@
 struct SkalAlarm {
     CdsListItem        item;
     int                ref;
-    char               name[SKAL_NAME_MAX];
+    char*              name;
     SkalAlarmSeverityE severity;
-    char               origin[SKAL_NAME_MAX];
+    char*              origin;
     bool               isOn;
     bool               autoOff;
     int64_t            timestamp_us;
     char*              comment;
 };
+
+
+typedef enum {
+    SKAL_ALARM_PROPERTY_INVALID,
+    SKAL_ALARM_PROPERTY_NAME,
+    SKAL_ALARM_PROPERTY_SEVERITY,
+    SKAL_ALARM_PROPERTY_ORIGIN,
+    SKAL_ALARM_PROPERTY_ISON,
+    SKAL_ALARM_PROPERTY_AUTOOFF,
+    SKAL_ALARM_PROPERTY_TIMESTAMP,
+    SKAL_ALARM_PROPERTY_COMMENT
+} skalAlarmProperty;
 
 
 
@@ -55,24 +67,16 @@ struct SkalAlarm {
 static const char* skalAlarmSkipSpaces(const char* str);
 
 
-/** Parse a JSON string
+/** Parse a JSON string, taking care of escaped characters
  *
- * @param json   [in]  JSON text to parse; must not be NULL
- * @param buffer [out] Where to write the parsed string; must not be NULL
- * @param size_B [in]  Size of the above buffer, in bytes; must be >0
+ * @param json [in]  JSON text to parse; must not be NULL
+ * @param str  [out] The parsed string; must not be NULL; please call `free(3)`
+ *                   on it when finished
  *
- * @return The character in `json` just after the parsed string, or NULL if
- *         invalid JSON
+ * @return Pointer to the character in `json` just after the parsed string, or
+ *         NULL if invalid JSON (in such a case, `*str` will be set to NULL)
  */
-static const char* skalAlarmParseJsonString(const char* json,
-        char* buffer, int size_B);
-
-
-/** Compute the number of bytes in a JSON string
- *
- * @return The number of bytes, or -1 if invalid JSON
- */
-static int skalAlarmGetJsonStringLength(const char* json);
+static const char* skalAlarmParseJsonString(const char* json, char** str);
 
 
 /** Parse a JSON boolean value
@@ -97,6 +101,16 @@ static const char* skalAlarmParseJsonBool(const char* json, bool* b);
 static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm);
 
 
+/** Parse the given string as a JSON alarm property
+ *
+ * @param str [in] String to parse; must not be NULL
+ *
+ * @return The parsed alarm property; SKAL_ALARM_PROPERTY_INVALID if `str` is
+ *         invalid
+ */
+static skalAlarmProperty skalAlarmStrToProp(const char* str);
+
+
 
 /*---------------------------------+
  | Public function implementations |
@@ -106,16 +120,15 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm);
 SkalAlarm* SkalAlarmCreate(const char* name, SkalAlarmSeverityE severity,
         bool isOn, bool autoOff, const char* format, ...)
 {
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(name != NULL);
 
     SkalAlarm* alarm = SkalMallocZ(sizeof(*alarm));
     alarm->ref = 1;
-    strncpy(alarm->name, name, sizeof(alarm->name) - 1);
+    alarm->name = SkalStrdup(name);
     alarm->severity = severity;
     if (SkalPlfThreadGetSpecific() != NULL) {
         // The current thread is managed by SKAL
-        snprintf(alarm->origin, sizeof(alarm->origin),
-                "%s", SkalPlfThreadGetName());
+        alarm->origin = SkalStrdup(SkalPlfThreadGetName());
     }
     alarm->isOn = isOn;
     alarm->autoOff = autoOff;
@@ -142,6 +155,8 @@ void SkalAlarmUnref(SkalAlarm* alarm)
     SKALASSERT(alarm != NULL);
     alarm->ref--;
     if (alarm->ref <= 0) {
+        free(alarm->name);
+        free(alarm->origin);
         free(alarm->comment);
         free(alarm);
     }
@@ -165,11 +180,7 @@ SkalAlarmSeverityE SkalAlarmSeverity(const SkalAlarm* alarm)
 const char* SkalAlarmOrigin(const SkalAlarm* alarm)
 {
     SKALASSERT(alarm != NULL);
-    const char* origin = NULL;
-    if (alarm->origin[0] != '\0') {
-        origin = alarm->origin;
-    }
-    return origin;
+    return alarm->origin;
 }
 
 
@@ -278,6 +289,22 @@ SkalAlarm* SkalAlarmCreateFromJson(const char** pJson)
 }
 
 
+SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm)
+{
+    SKALASSERT(alarm != NULL);
+    SkalAlarm* copy = SkalMallocZ(sizeof(*copy));
+    copy->ref = 1;
+    copy->name = SkalStrdup(alarm->name);
+    copy->severity = alarm->severity;
+    copy->origin = SkalStrdup(alarm->origin);
+    copy->isOn = alarm->isOn;
+    copy->autoOff = alarm->autoOff;
+    copy->timestamp_us = alarm->timestamp_us;
+    copy->comment = SkalStrdup(alarm->comment);
+    return copy;
+}
+
+
 
 /*----------------------------------+
  | Private function implementations |
@@ -293,9 +320,11 @@ static const char* skalAlarmSkipSpaces(const char* str)
 }
 
 
-static const char* skalAlarmParseJsonString(const char* json,
-        char* buffer, int size_B)
+static const char* skalAlarmParseJsonString(const char* json, char** str)
 {
+    SKALASSERT(str != NULL);
+    *str = NULL;
+
     json = skalAlarmSkipSpaces(json);
     if (*json != '"') {
         SkalLog("SkalAlarm: Invalid JSON alarm object: expected '\"' character");
@@ -303,65 +332,32 @@ static const char* skalAlarmParseJsonString(const char* json,
     }
     json++;
 
-    int count = 0;
+    SkalStringBuilder* sb = SkalStringBuilderCreate(1024);
     while ((*json != '\0') && (*json != '"')) {
         if ('\\' == *json) {
             json++;
             if ('\0' == *json) {
                 SkalLog("SkalAlarm: Invalid JSON alarm object: null character after \\");
+                char* tmp = SkalStringBuilderFinish(sb);
+                free(tmp);
                 return NULL;
             }
         }
-        buffer[count] = *json;
-        count++;
+        SkalStringBuilderAppend(sb, "%c", *json);
         json++;
-        if ((count >= size_B) && (*json != '"')) {
-            SkalLog("SkalAlarm: Invalid JSON alarm object: string too long (expected max %d chars)",
-                    size_B);
-            return NULL;
-        }
     }
 
+    char* s = SkalStringBuilderFinish(sb);
     if ('\0' == *json) {
         SkalLog("SkalAlarm: Invalid JSON alarm object: unterminated string");
+        free(s);
         return NULL;
     }
     SKALASSERT('"' == *json);
     json++;
 
-    buffer[count] = '\0';
+    *str = s;
     return json;
-}
-
-
-static int skalAlarmGetJsonStringLength(const char* json)
-{
-    json = skalAlarmSkipSpaces(json);
-    if (*json != '"') {
-        SkalLog("SkalAlarm: Invalid JSON alarm object: expected '\"' character");
-        return -1;
-    }
-    json++;
-
-    int count = 0;
-    while ((*json != '\0') && (*json != '"')) {
-        if ('\\' == *json) {
-            json++;
-            if ('\0' == *json) {
-                SkalLog("SkalAlarm: Invalid JSON alarm object: null character after \\");
-                return -1;
-            }
-        }
-        count++;
-        json++;
-    }
-
-    if ('\0' == *json) {
-        SkalLog("SkalAlarm: Invalid JSON alarm object: no '\"' character terminating a string");
-        return -1;
-    }
-    SKALASSERT('"' == *json);
-    return count;
 }
 
 
@@ -396,13 +392,21 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
     bool autoOffParsed = false;
     bool timestampParsed = false;
 
-    char buffer[SKAL_NAME_MAX];
     while ((*json != '\0') && (*json != '}')) {
         // Parse property name
-        json = skalAlarmParseJsonString(json, buffer, sizeof(buffer));
+        char* str;
+        json = skalAlarmParseJsonString(json, &str);
         if (NULL == json) {
             return NULL;
         }
+        skalAlarmProperty property = skalAlarmStrToProp(str);
+        if (SKAL_ALARM_PROPERTY_INVALID == property) {
+            SkalLog("SkalAlarm: Invalid JSON: Unknown property '%s'", str);
+            free(str);
+            return NULL;
+        }
+        free(str);
+
         json = skalAlarmSkipSpaces(json);
         if (*json != ':') {
             SkalLog("SkalAlarm: Invalid JSON: expected ':' character");
@@ -412,72 +416,71 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
         json = skalAlarmSkipSpaces(json);
 
         // Parse property value
-        if (strcmp(buffer, "name") == 0) {
-            json = skalAlarmParseJsonString(json,
-                    alarm->name, sizeof(alarm->name));
+        switch (property) {
+        case SKAL_ALARM_PROPERTY_NAME :
+            json = skalAlarmParseJsonString(json, &alarm->name);
+            break;
 
-        } else if (strcmp(buffer, "severity") == 0) {
-            json = skalAlarmParseJsonString(json, buffer, sizeof(buffer));
+        case SKAL_ALARM_PROPERTY_SEVERITY :
+            json = skalAlarmParseJsonString(json, &str);
             if (NULL == json) {
                 return NULL;
             }
-            if (strcmp(buffer, "notice") == 0) {
+            SKALASSERT(str != NULL);
+            if (strcmp(str, "notice") == 0) {
                 alarm->severity = SKAL_ALARM_NOTICE;
-            } else if (strcmp(buffer, "warning") == 0) {
+            } else if (strcmp(str, "warning") == 0) {
                 alarm->severity = SKAL_ALARM_WARNING;
-            } else if (strcmp(buffer, "error") == 0) {
+            } else if (strcmp(str, "error") == 0) {
                 alarm->severity = SKAL_ALARM_ERROR;
             } else {
-                SkalLog("SkalAlarm: Invalid JSON alarm object: unknown alarm severity: \"%s\"", buffer);
+                SkalLog("SkalAlarm: Invalid JSON alarm object: unknown alarm severity: \"%s\"", str);
+                free(str);
                 return NULL;
             }
+            free(str);
             severityParsed = true;
+            break;
 
-        } else if (strcmp(buffer, "origin") == 0) {
-            json = skalAlarmParseJsonString(json,
-                    alarm->origin, sizeof(alarm->origin));
+        case SKAL_ALARM_PROPERTY_ORIGIN :
+            json = skalAlarmParseJsonString(json, &alarm->origin);
+            break;
 
-        } else if (strcmp(buffer, "isOn") == 0) {
+        case SKAL_ALARM_PROPERTY_ISON :
             json = skalAlarmParseJsonBool(json, &alarm->isOn);
             isOnParsed = true;
+            break;
 
-        } else if (strcmp(buffer, "autoOff") == 0) {
+        case SKAL_ALARM_PROPERTY_AUTOOFF :
             json = skalAlarmParseJsonBool(json, &alarm->autoOff);
             autoOffParsed = true;
+            break;
 
-        } else if (strcmp(buffer, "timestamp_us") == 0) {
-            long long tmp;
-            if (sscanf(json, "%lld", &tmp) != 1) {
-                SkalLog("SkalAlarm: Invalid JSON alarm object: can't parse timestamp");
-                return NULL;
+        case SKAL_ALARM_PROPERTY_TIMESTAMP :
+            {
+                long long tmp;
+                if (sscanf(json, "%lld", &tmp) != 1) {
+                    SkalLog("SkalAlarm: Invalid JSON alarm object: can't parse timestamp");
+                    return NULL;
+                }
+                alarm->timestamp_us = tmp;
+                while ((*json != '\0') && (*json != ',') && (*json != '}')) {
+                    json++;
+                }
+                if ('\0' == *json) {
+                    SkalLog("SkalAlarm: Invalid JSON alarm object: expected ',' or '}' after number");
+                    return NULL;
+                }
+                timestampParsed = true;
             }
-            alarm->timestamp_us = tmp;
-            while ((*json != '\0') && (*json != ',') && (*json != '}')) {
-                json++;
-            }
-            if ('\0' == *json) {
-                SkalLog("SkalAlarm: Invalid JSON alarm object: expected ',' or '}' after number");
-                return NULL;
-            }
-            timestampParsed = true;
+            break;
 
-        } else if (strcmp(buffer, "comment") == 0) {
-            int length = skalAlarmGetJsonStringLength(json);
-            if (length < 0) {
-                return NULL;
-            }
-            free(alarm->comment);
-            alarm->comment = SkalMalloc(length + 1);
-            json = skalAlarmParseJsonString(json, alarm->comment, length + 1);
-            if (NULL == json) {
-                return NULL;
-            }
-            alarm->comment[length] = '\0';
+        case SKAL_ALARM_PROPERTY_COMMENT :
+            json = skalAlarmParseJsonString(json, &alarm->comment);
+            break;
 
-        } else {
-            SkalLog("SkalAlarm: Invalid JSON alarm object: Unknown alarm object property: \"%s\"",
-                    buffer);
-            return NULL;
+        default :
+            SKALPANIC_MSG("Internal bug! Fix me!");
         }
 
         if (NULL == json) {
@@ -499,7 +502,7 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
     json++;
 
     // Check that we have all properties required to define an alarm
-    if ('\0' == alarm->name[0]) {
+    if (NULL == alarm->name) {
         SkalLog("SkalAlarm: Invalid JSON alarm object: \"name\" required");
         return NULL;
     }
@@ -521,4 +524,27 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
     }
 
     return json;
+}
+
+
+static skalAlarmProperty skalAlarmStrToProp(const char* str)
+{
+    SKALASSERT(str != NULL);
+    skalAlarmProperty property = SKAL_ALARM_PROPERTY_INVALID;
+    if (strcmp(str, "name") == 0) {
+        property = SKAL_ALARM_PROPERTY_NAME;
+    } else if (strcmp(str, "severity") == 0) {
+        property = SKAL_ALARM_PROPERTY_SEVERITY;
+    } else if (strcmp(str, "origin") == 0) {
+        property = SKAL_ALARM_PROPERTY_ORIGIN;
+    } else if (strcmp(str, "isOn") == 0) {
+        property = SKAL_ALARM_PROPERTY_ISON;
+    } else if (strcmp(str, "autoOff") == 0) {
+        property = SKAL_ALARM_PROPERTY_AUTOOFF;
+    } else if (strcmp(str, "timestamp_us") == 0) {
+        property = SKAL_ALARM_PROPERTY_TIMESTAMP;
+    } else if (strcmp(str, "comment") == 0) {
+        property = SKAL_ALARM_PROPERTY_COMMENT;
+    }
+    return property;
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 static RTBool testMsgGroupEnter(void)
 {
     SkalPlfInit();
+    SkalMsgInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread@mydomain");
     SkalSetDomain("mydomain");
     return RTTrue;
@@ -32,6 +33,7 @@ static RTBool testMsgGroupEnter(void)
 static RTBool testMsgGroupExit(void)
 {
     SkalPlfThreadUnmakeSkal_DEBUG();
+    SkalMsgExit();
     SkalPlfExit();
     return RTTrue;
 }
@@ -166,9 +168,12 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
     RTT_ASSERT(json != NULL);
 
     // NB: Fields will be ordered by name
+    char timestamp[64];
+    SkalPlfTimestamp(SkalMsgTimestamp_us(gMsg), timestamp, sizeof(timestamp));
     char* expected = SkalSPrintf(
         "{\n"
         " \"version\": 1,\n"
+        " \"timestamp\": \"%s\"\n"
         " \"name\": \"TestName\",\n"
         " \"sender\": \"TestThread@mydomain\",\n"
         " \"recipient\": \"dummy-dst@mydomain\",\n"
@@ -218,6 +223,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         "  }\n"
         " ]\n"
         "}\n",
+        timestamp,
         (long long)SkalAlarmTimestamp_us(gAlarm1),
         (long long)SkalAlarmTimestamp_us(gAlarm2));
 
@@ -245,6 +251,65 @@ RTT_TEST_START(skal_msg_should_detach_alarm1)
     RTT_EXPECT(SkalAlarmAutoOff(alarm));
     RTT_EXPECT(SkalAlarmComment(alarm) == NULL);
     SkalAlarmUnref(alarm);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_msg_should_copy_msg)
+{
+    SkalMsg* msg = SkalMsgCopy(gMsg, "blackhole");
+    RTT_EXPECT(SkalMsgTimestamp_us(msg) == SkalMsgTimestamp_us(gMsg));
+    const char* s = SkalMsgName(msg);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, SkalMsgName(gMsg)) == 0);
+    s = SkalMsgSender(msg);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, SkalMsgSender(gMsg)) == 0);
+    s = SkalMsgRecipient(msg);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(SkalStartsWith(s, "blackhole"));
+    RTT_EXPECT(SkalMsgFlags(msg) == SkalMsgFlags(gMsg));
+    RTT_EXPECT(SkalMsgIFlags(msg) == SkalMsgIFlags(gMsg));
+    RTT_EXPECT(SkalMsgTtl(msg) == SkalMsgTtl(gMsg));
+
+    // Test fields
+    RTT_EXPECT(SkalMsgHasInt(msg, "TestInt"));
+    RTT_EXPECT(SkalMsgGetInt(msg, "TestInt") == -789);
+    RTT_EXPECT(SkalMsgHasDouble(msg, "TestDouble"));
+    double delta = SkalMsgGetDouble(msg, "TestDouble") - 3.456779999999999972715e+02;
+    RTT_EXPECT(delta < (SkalMsgGetDouble(msg, "TestDouble") * 0.0000001));
+    RTT_EXPECT(SkalMsgHasString(msg, "TestString"));
+    RTT_EXPECT(SkalMsgHasAsciiString(msg, "TestString"));
+    s = SkalMsgGetString(msg, "TestString");
+    RTT_EXPECT(strcmp(s, "This is a test string") == 0);
+    RTT_EXPECT(SkalMsgHasMiniblob(msg, "TestMiniblob"));
+    int size_B;
+    const uint8_t* miniblob = SkalMsgGetMiniblob(msg, "TestMiniblob", &size_B);
+    RTT_EXPECT(miniblob != NULL);
+    RTT_EXPECT(4 == size_B);
+    uint8_t expected[4] = { 0x11, 0x22, 0x33, 0x44 };
+    RTT_EXPECT(memcmp(miniblob, expected, sizeof(expected)) == 0);
+
+    // Test alarms
+    SkalAlarm* alarm = SkalMsgDetachAlarm(msg);
+    RTT_EXPECT(alarm != NULL);
+    s = SkalAlarmName(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "alarm2") == 0);
+    RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_ERROR);
+    s = SkalAlarmOrigin(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "TestThread@mydomain") == 0);
+    RTT_EXPECT(!SkalAlarmIsOn(alarm));
+    RTT_EXPECT(!SkalAlarmAutoOff(alarm));
+    RTT_EXPECT(SkalAlarmTimestamp_us(alarm) == SkalAlarmTimestamp_us(gAlarm2));
+    s = SkalAlarmComment(alarm);
+    RTT_EXPECT(s != NULL);
+    RTT_EXPECT(strcmp(s, "This is a test") == 0);
+    SkalAlarmUnref(alarm);
+    alarm = SkalMsgDetachAlarm(msg);
+    RTT_EXPECT(NULL == alarm);
+
+    SkalMsgUnref(msg);
 }
 RTT_TEST_END
 
@@ -297,7 +362,8 @@ RTT_TEST_START(skal_msg_should_create_from_json)
         " \"reci\\pient\": \"you@wonderland\",\n"
         " \"ttl\": 27,\n"
         " \"flags\": 3,\n"
-        " \"iflags\": 128,\n"
+        " \"timestamp\": \"2017-05-15T08:23:26.003456Z\",\n"
+        " \"iflags\": 1,\n"
         " \"version\": 1,\n"
         " \"fields\": [\n"
         "  {\n"
@@ -343,6 +409,8 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 
     SkalMsg* msg = SkalMsgCreateFromJson(json);
     RTT_EXPECT(msg != NULL);
+
+    RTT_EXPECT(SkalMsgTimestamp_us(msg) == 1494836606003456);
 
     const char* s = SkalMsgName(msg);
     RTT_EXPECT(s != NULL);
@@ -436,6 +504,7 @@ RTT_TEST_START(skal_should_survive_invalid_json1)
         " \"flags\": 3,\n"
         " \"iflags\": 128,\n"
         " \"version\": 1,\n"
+        " \"timestamp\": \"2017-05-15T08:23:26.003456Z\",\n"
         " \"fields\": [\n"
         "  {\n"
         "   \"name\": \"Some\"Double\",\n"
@@ -502,6 +571,7 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_should_attach_alarms,
         skal_msg_should_produce_correct_json,
         skal_msg_should_detach_alarm1,
+        skal_msg_should_copy_msg,
         skal_msg_should_detach_alarm2,
         skal_msg_should_have_no_more_alarms,
         skal_msg_should_free,

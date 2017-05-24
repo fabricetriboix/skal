@@ -17,6 +17,11 @@
 #ifndef SKAL_NET_h_
 #define SKAL_NET_h_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /** Platform-dependent network encapsulation for SKAL
  *
  * @defgroup skalnet Platform-dependent network encapsulation for SKAL
@@ -437,4 +442,9 @@ void SkalNetSocketDestroy(SkalNet* net, int sockid);
 
 
 /* @} */
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* SKAL_NET_h_ */

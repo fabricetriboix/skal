@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
+#include <regex.h>
 
 
 
@@ -52,12 +53,17 @@ struct SkalPlfCondVar {
 
 
 struct SkalPlfThread {
-    char                  name[SKAL_NAME_MAX];
+    char*                 name;
     SkalPlfThreadFunction func;
     void*                 arg;
     pthread_t             id;
     void*                 specific;
     bool                  debug;
+};
+
+
+struct SkalPlfRegex {
+    regex_t regex;
 };
 
 
@@ -152,9 +158,123 @@ int64_t SkalPlfNow_ns()
 int64_t SkalPlfNow_us()
 {
     struct timespec ts;
-    int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    int ret = clock_gettime(CLOCK_REALTIME, &ts);
     SKALASSERT(ret == 0);
-    return ((int64_t)ts.tv_sec * 100000LL) + ((int64_t)ts.tv_nsec / 1000LL);
+    return ((int64_t)ts.tv_sec * 1000000LL) + ((int64_t)ts.tv_nsec / 1000LL);
+}
+
+
+void SkalPlfTimestamp(int64_t us, char* ts, int size)
+{
+    SKALASSERT(ts != NULL);
+    SKALASSERT(size > 0);
+
+    int64_t s = us / 1000000LL;
+    us -= s * 1000000LL;
+    if (us < 0) {
+        us += 1000000LL;
+        s -= 1LL;
+    }
+
+    time_t t = s;
+    struct tm tm;
+    struct tm* ret = gmtime_r(&t, &tm);
+    SKALASSERT(ret != NULL);
+
+    snprintf(ts, size, "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ",
+            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+            tm.tm_hour, tm.tm_min, tm.tm_sec, (int)us);
+}
+
+
+bool SkalPlfParseTimestamp(const char* ts, int64_t* us)
+{
+    SKALASSERT(ts != NULL);
+    SKALASSERT(us != NULL);
+
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+
+    if (sscanf(ts, "%d", &tm.tm_year) != 1) {
+        return false;
+    }
+    tm.tm_year -= 1900;
+    ts += 4;
+    if ('-' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_mon) != 1) {
+        return false;
+    }
+    if ((tm.tm_mon < 1) || (tm.tm_mon > 12)) {
+        return false;
+    }
+    tm.tm_mon--;
+    ts += 2;
+    if ('-' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_mday) != 1) {
+        return false;
+    }
+    ts += 2;
+    if ('T' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_hour) != 1) {
+        return false;
+    }
+    ts += 2;
+    if (':' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_min) != 1) {
+        return false;
+    }
+    ts += 2;
+    if (':' != *ts) {
+        return false;
+    }
+    ts++;
+
+    if (sscanf(ts, "%d", &tm.tm_sec) != 1) {
+        return false;
+    }
+    ts += 2;
+    if ('.' != *ts) {
+        return false;
+    }
+    ts++;
+
+    // Skip zeros
+    int count = 0;
+    while ((*ts != '\0') && ('0' == *ts)) {
+        ts++;
+        count++;
+    }
+    if (count > 6) {
+        return false;
+    }
+    long long tmp;
+    if (sscanf(ts, "%lld", &tmp) != 1) {
+        return false;
+    }
+    ts += (6 - count);
+    if (*ts != 'Z') {
+        return false;
+    }
+
+    time_t t = timegm(&tm);
+    *us = (1000000LL * (int64_t)t) + tmp;
+    return true;
 }
 
 
@@ -239,8 +359,8 @@ SkalPlfThread* SkalPlfThreadCreate(const char* name,
     SKALASSERT(thread != NULL);
     memset(thread, 0, sizeof(*thread));
 
-    int n = snprintf(thread->name, sizeof(thread->name), "%s", name);
-    SKALASSERT(n < (int)sizeof(thread->name));
+    thread->name = strdup(name);
+    SKALASSERT(thread->name != NULL);
     thread->func = threadfn;
     thread->arg  = arg;
 
@@ -265,23 +385,8 @@ void SkalPlfThreadJoin(SkalPlfThread* thread)
     SKALASSERT(thread != NULL);
     int ret = pthread_join(thread->id, NULL);
     SKALASSERT(ret == 0);
+    free(thread->name);
     free(thread);
-}
-
-
-void SkalPlfThreadSetName(const char* name)
-{
-    SKALASSERT(name != NULL);
-
-    SkalPlfThread* thread = pthread_getspecific(gKey);
-    SKALASSERT(thread != NULL);
-    int n = snprintf(thread->name, sizeof(thread->name), "%s", name);
-    SKALASSERT(n < (int)sizeof(thread->name));
-
-    char tmp[16];
-    snprintf(tmp, sizeof(tmp), "%s", name);
-    int ret = pthread_setname_np(pthread_self(), tmp);
-    SKALASSERT(0 == ret);
 }
 
 
@@ -289,16 +394,22 @@ const char* SkalPlfThreadGetName(void)
 {
     SkalPlfThread* thread = pthread_getspecific(gKey);
     SKALASSERT(thread != NULL);
+    SKALASSERT(thread->name != NULL);
     return thread->name;
 }
 
 
-void SkalPlfGetPThreadName(char* name, int size_B)
+char* SkalPlfGetSystemThreadName(void)
 {
-    SKALASSERT(name != NULL);
-    SKALASSERT(size_B > 0);
-    int ret = pthread_getname_np(pthread_self(), name, size_B);
+    char name[16];
+    int ret = pthread_getname_np(pthread_self(), name, sizeof(name));
     SKALASSERT(0 == ret);
+
+    char* s = malloc(16);
+    SKALASSERT(s != NULL);
+    memcpy(s, name, 16);
+    s[15] = '\0';
+    return s;
 }
 
 
@@ -355,8 +466,8 @@ void SkalPlfThreadMakeSkal_DEBUG(const char* name)
     thread = malloc(sizeof(*thread));
     SKALASSERT(thread != NULL);
     memset(thread, 0, sizeof(*thread));
-    int n = snprintf(thread->name, sizeof(thread->name), "%s", name);
-    SKALASSERT(n < (int)sizeof(thread->name));
+    thread->name = strdup(name);
+    SKALASSERT(thread->name != NULL);
     thread->id = pthread_self();
     thread->debug = true;
 
@@ -369,10 +480,47 @@ void SkalPlfThreadUnmakeSkal_DEBUG(void)
 {
     SkalPlfThread* thread = pthread_getspecific(gKey);
     SKALASSERT(thread != NULL);
+    free(thread->name);
     free(thread);
 
     int ret = pthread_setspecific(gKey, NULL);
     SKALASSERT(0 == ret);
+}
+
+
+SkalPlfRegex* SkalPlfRegexCreate(const char* pattern)
+{
+    SKALASSERT(pattern != NULL);
+
+    SkalPlfRegex* regex = malloc(sizeof(*regex));
+    SKALASSERT(regex != NULL);
+    memset(regex, 0, sizeof(*regex));
+
+    int ret = regcomp(&regex->regex, pattern, 0);
+    if (ret != 0) {
+        free(regex);
+        regex = NULL;
+    }
+    return regex;
+}
+
+
+void SkalPlfRegexDestroy(SkalPlfRegex* regex)
+{
+    if (regex != NULL) {
+        regfree(&regex->regex);
+        free(regex);
+    }
+}
+
+
+bool SkalPlfRegexRun(const SkalPlfRegex* regex, const char* str)
+{
+    SKALASSERT(regex != NULL);
+    SKALASSERT(str != NULL);
+
+    int ret = regexec(&regex->regex, str, 0, NULL, 0);
+    return (0 == ret);
 }
 
 
@@ -386,6 +534,7 @@ static void skalPlfThreadSpecificFree(void* arg)
 {
     SkalPlfThread* thread = arg;
     if ((thread != NULL) && thread->debug) {
+        free(thread->name);
         free(thread);
     }
 }
@@ -400,11 +549,10 @@ static void* skalPlfThreadRun(void* arg)
     int ret = pthread_setspecific(gKey, thread);
     SKALASSERT(0 == ret);
 
-    // NB: Avoid both writing and reading `thread->name` at the same time
-    char* tmp = strdup(thread->name);
-    SKALASSERT(tmp != NULL);
-    SkalPlfThreadSetName(tmp);
-    free(tmp);
+    char tmp[16];
+    snprintf(tmp, sizeof(tmp), "%s", thread->name);
+    ret = pthread_setname_np(pthread_self(), tmp);
+    SKALASSERT(0 == ret);
 
     thread->func(thread->arg);
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 
 #include "skal.h"
 #include "skal-thread.h"
+#include "skal-msg.h"
 #include "skal-blob.h"
 #include <string.h>
 
@@ -31,6 +32,7 @@ bool SkalInit(const char* skaldUrl,
 {
     SkalPlfInit();
     SkalBlobInit(allocators, nallocators);
+    SkalMsgInit();
 
     if (NULL == skaldUrl) {
         skaldUrl = SKAL_DEFAULT_SKALD_URL;
@@ -48,6 +50,7 @@ bool SkalInit(const char* skaldUrl,
 void SkalExit(void)
 {
     SkalThreadExit();
+    SkalMsgExit();
     SkalBlobExit();
     SkalPlfExit();
 }

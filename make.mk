@@ -1,4 +1,4 @@
-# Copyright (c) 2016  Fabrice Triboix
+# Copyright (c) 2016,2017  Fabrice Triboix
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,14 +21,17 @@ DOXYGEN := $(shell which doxygen 2> /dev/null)
 DOT := $(shell which dot 2> /dev/null)
 
 MODULES = $(TOPDIR)/lib/plf/$(PLF) $(TOPDIR)/lib/common \
-			$(TOPDIR)/lib/net $(TOPDIR)/lib/skal
+			$(TOPDIR)/lib/net $(TOPDIR)/lib/skal \
+			$(TOPDIR)/lib/bindings/cpp
 
 # Path for make to search for source files
 VPATH = $(foreach i,$(MODULES),$(i)/src) $(foreach i,$(MODULES),$(i)/test) \
 		$(TOPDIR)/skald/src $(TOPDIR)/skald/test $(TOPDIR)/utils
 
 # Output libraries
-OUTPUT_LIBS = libskal.a
+LIBSKAL = libskal.a
+LIBSKALCPP = libskalcpp.a
+OUTPUT_LIBS = $(LIBSKAL) $(LIBSKALCPP)
 
 # Include paths for compilation
 INCS = $(foreach i,$(MODULES),-I$(i)/include) \
@@ -40,7 +43,8 @@ HDRS = $(foreach i,$(MODULES),$(wildcard $(i)/include/*.h))
 # List of object files for various targets
 LIBSKAL_OBJS = skal-plf.o skal-common.o skal-net.o skal-blob.o skal-alarm.o \
 		skal-msg.o skal-queue.o skal-thread.o skal.o
-SKALD_OBJS = skald.o main.o
+LIBSKALCPP_OBJS = skal-cpp.o
+SKALD_OBJS = skald.o main.o skald-alarm.o
 RTTEST_MAIN_OBJ = rttestmain.o
 SKAL_TEST_OBJS = test-plf.o test-common.o test-net.o test-blob.o test-alarm.o \
 		test-msg.o test-queue.o test-thread.o
@@ -54,7 +58,7 @@ endif
 
 # Standard targets
 
-all: $(OUTPUT_LIBS) skald skal-post skal_unit_tests writer reader doc
+all: $(OUTPUT_LIBS) skald skal-trace skal-post skal_unit_tests writer reader doc
 
 doc: doc/html/index.html
 
@@ -67,7 +71,7 @@ cmd="$(CCACHE) $(CC) $(CFLAGS) $(INCS) -o $(1) -c $(2)"; \
 if [ $(D) == 1 ]; then \
 	echo "$$cmd"; \
 else \
-	echo "CC    $(1)"; \
+	echo "CC      $(1)"; \
 fi; \
 $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
@@ -78,7 +82,7 @@ cmd="$(CCACHE) $(CXX) $(CXXFLAGS) $(INCS) -o $(1) -c $(2)"; \
 if [ $(D) == 1 ]; then \
 	echo "$$cmd"; \
 else \
-	echo "CXX   $(1)"; \
+	echo "CXX     $(1)"; \
 fi; \
 $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
@@ -89,7 +93,7 @@ cmd="$(AR) crs $(1) $(2)"; \
 if [ $(D) == 1 ]; then \
 	echo "$$cmd"; \
 else \
-	echo "AR    $(1)"; \
+	echo "AR      $(1)"; \
 fi; \
 $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
@@ -100,26 +104,42 @@ cmd="$(CC) -L. $(LINKFLAGS) -o $(1) $(2) $(3)"; \
 if [ $(D) == 1 ]; then \
 	echo "$$cmd"; \
 else \
-	echo "LINK  $(1)"; \
+	echo "LINK    $(1)"; \
 fi; \
 $$cmd || (echo "Command line was: $$cmd"; exit 1)
 endef
 
-libskal.a: $(LIBSKAL_OBJS)
+define RUN_LINK_CPP
+set -eu; \
+cmd="$(CXX) -L. $(LINKFLAGS) $(CXXLIB) -o $(1) $(2) $(3)"; \
+if [ $(D) == 1 ]; then \
+	echo "$$cmd"; \
+else \
+	echo "LINK++  $(1)"; \
+fi; \
+$$cmd || (echo "Command line was: $$cmd"; exit 1)
+endef
 
-skald: $(SKALD_OBJS) $(OUTPUT_LIBS)
+$(LIBSKAL): $(LIBSKAL_OBJS)
+
+$(LIBSKALCPP): $(LIBSKALCPP_OBJS)
+
+skald: $(SKALD_OBJS) $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(OUTPUT_LIBS) skald.o
+skal_unit_tests: $(SKAL_TEST_OBJS) $(RTTEST_MAIN_OBJ) $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-skal-post: skal-post.o $(OUTPUT_LIBS)
+skal-post: skal-post.o $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-writer: writer.o $(OUTPUT_LIBS)
+skal-trace: skal-trace.o $(LIBSKAL) $(LIBSKALCPP)
+	@$(call RUN_LINK_CPP,$@,$(filter %.o,$^),$(LIBSKALCPP) $(LINKLIBS))
+
+writer: writer.o $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
-reader: reader.o $(OUTPUT_LIBS)
+reader: reader.o $(LIBSKAL)
 	@$(call RUN_LINK,$@,$(filter %.o,$^),$(LINKLIBS))
 
 
@@ -145,14 +165,15 @@ else
 	$$cmd
 endif
 
-test: skal_unit_tests writer reader
+test: skal_unit_tests writer reader skald
 	@set -eu; \
 	if ! which rttest2text.py > /dev/null 2>&1; then \
 		echo "ERROR: rttest2text.py not found in PATH"; \
 		exit 1; \
 	fi; \
 	./$< > skal.rtt; \
-	find $(TOPDIR) -name 'test-*.c' | xargs rttest2text.py skal.rtt
+	find $(TOPDIR) -name 'test-*.c' | xargs rttest2text.py skal.rtt; \
+	../../../integration-tests.py
 
 
 define INSTALL
@@ -212,7 +233,7 @@ OBJS = $(LIBSKAL_OBJS) $(SKALD_OBJS) $(RTTEST_MAIN_OBJ) $(SKAL_TEST_OBJS)
 	if [ $(D) == 1 ]; then \
 		echo "$$cmd"; \
 	else \
-		echo "DEP   $@"; \
+		echo "DEP     $@"; \
 	fi; \
 	$$cmd
 
@@ -222,6 +243,6 @@ OBJS = $(LIBSKAL_OBJS) $(SKALD_OBJS) $(RTTEST_MAIN_OBJ) $(SKAL_TEST_OBJS)
 	if [ $(D) == 1 ]; then \
 		echo "$$cmd"; \
 	else \
-		echo "DEPXX $@"; \
+		echo "DEP++   $@"; \
 	fi; \
 	$$cmd

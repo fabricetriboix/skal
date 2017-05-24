@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -55,13 +55,13 @@ static void handleSignal(int signum)
 }
 
 
-const char* gOptString = "hnw:u:S:f:F:t:i:d:s:b:";
+static const char* gOptString = "hnw:u:S:f:F:t:i:d:s:b:";
 
 static void usage(int ret)
 {
     printf( "Usage: skal-post [OPTIONS] NAME RECIPIENT\n"
             "Send a SKAL message to the given recipient.\n"
-            "Only NAME and RECIPIENT are mandatory.\n"
+            "Options:\n"
             "     NAME        Message name\n"
             "     RECIPIENT   Recipient of this message\n"
             "  -h             Print this usage information and exit\n"
@@ -404,7 +404,7 @@ int main(int argc, char** argv)
     args->argv = argv;
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    snprintf(cfg.name, sizeof(cfg.name), "skal-post");
+    cfg.name = "skal-post";
     cfg.processMsg = processMsg;
     cfg.cookie = args;
     SkalThreadCreate(&cfg);

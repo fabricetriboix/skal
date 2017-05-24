@@ -30,13 +30,11 @@
  +----------------*/
 
 
-struct SkalQueue
-{
-    char            name[SKAL_NAME_MAX];
+struct SkalQueue {
+    char*           name;
     SkalPlfMutex*   mutex;
     SkalPlfCondVar* condvar;
     int64_t         threshold;
-    int64_t         assertThreshold;
     CdsList*        internal;
     CdsList*        urgent;
     CdsList*        regular;
@@ -53,19 +51,14 @@ struct SkalQueue
 
 SkalQueue* SkalQueueCreate(const char* name, int64_t threshold)
 {
-    SKALASSERT(SkalIsAsciiString(name, SKAL_NAME_MAX));
+    SKALASSERT(SkalIsAsciiString(name));
     SKALASSERT(threshold > 0);
 
     SkalQueue* queue = SkalMallocZ(sizeof(*queue));
-    strncpy(queue->name, name, SKAL_NAME_MAX - 1);
+    queue->name = SkalStrdup(name);
     queue->mutex = SkalPlfMutexCreate();
     queue->condvar = SkalPlfCondVarCreate();
     queue->threshold = threshold;
-    if (threshold < 100) {
-        queue->assertThreshold = 1000;
-    } else {
-        queue->assertThreshold = threshold * 10;
-    }
     queue->internal=CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
     queue->urgent  =CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
     queue->regular =CdsListCreate(NULL, 0, (void(*)(CdsListItem*))SkalMsgUnref);
@@ -101,6 +94,7 @@ void SkalQueueDestroy(SkalQueue* queue)
     SkalPlfMutexUnlock(queue->mutex);
     SkalPlfCondVarDestroy(queue->condvar);
     SkalPlfMutexDestroy(queue->mutex);
+    free(queue->name);
     free(queue);
 }
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2016  Fabrice Triboix
+/* Copyright (c) 2016,2017  Fabrice Triboix
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,11 @@
  *
  * Please note all calls related to `SkalQueue` are MT-safe.
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 #include "skal.h"
 
@@ -144,5 +149,9 @@ bool SkalQueueIsOverHighThreshold(const SkalQueue* queue);
 bool SkalQueueIsOverLowThreshold(const SkalQueue* queue);
 
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SKAL_QUEUE_h_ */
