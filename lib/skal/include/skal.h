@@ -165,15 +165,12 @@ typedef void (*SkalUnmapF)(void* cookie, void* obj);
 
 /** The different scopes of a custom memory allocator
  *
- * Whenever a blob will move to a wider scope (eg: thread -> process), a new
+ * Whenever a blob will move to a wider scope (eg: process -> computer), a new
  * blob of the larger scope will be allocated, the content of the old blob will
  * be copied to the new blob, and the old blob will be deleted and replaced by
  * the new blob.
  */
 typedef enum {
-    /** The scope is limited to the current thread */
-    SKAL_ALLOCATOR_SCOPE_THREAD,
-
     /** The scope is limited to the current process; eg: "malloc" allocator */
     SKAL_ALLOCATOR_SCOPE_PROCESS,
 

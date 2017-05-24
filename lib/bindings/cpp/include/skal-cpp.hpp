@@ -44,7 +44,6 @@ class Msg; // Forward declaration
 class Allocator {
 public :
     enum class Scope {
-        THREAD,   /**< Suitable for current thread only */
         PROCESS,  /**< Suitable for current process; eg: "malloc" allocator */
         COMPUTER, /**< Suitable for current computer; eg: "shm" allocator */
         SYSTEM    /**< Suitable for current system; eg: NAS-backed object */
