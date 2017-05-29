@@ -20,8 +20,8 @@
 #include <string.h>
 
 
-static int   gBlobCount = 0;
-static void* gBlob = NULL;
+static int       gBlobCount = 0;
+static SkalBlob* gBlob = NULL;
 
 static SkalBlob* skalTestBlobCreate(void* cookie,
         const char* id, int64_t size_B)
@@ -146,3 +146,43 @@ RTT_GROUP_END(TestSkalBlob,
         skal_blob_id_should_be_correct,
         skal_should_open_blob,
         skal_should_free_blob)
+
+
+RTT_GROUP_START(TestMallocBlob, 0x00030002u,
+        skalBlobTestGroupEntry, skalBlobTestGroupExit)
+
+RTT_TEST_START(skal_malloc_should_create_blob)
+{
+    gBlob = SkalBlobCreate(NULL, NULL, 500);
+    RTT_ASSERT(gBlob != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_malloc_should_map_blob)
+{
+    uint8_t* ptr = SkalBlobMap(gBlob);
+    RTT_EXPECT(ptr != NULL);
+    strcpy((char*)ptr, "Hello, World!");
+    SkalBlobUnmap(gBlob);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_malloc_blob_should_have_correct_content)
+{
+    uint8_t* ptr = SkalBlobMap(gBlob);
+    RTT_EXPECT(SkalStrcmp((char*)ptr, "Hello, World!") == 0);
+    SkalBlobUnmap(gBlob);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_malloc_should_unref_blob)
+{
+    SkalBlobUnref(gBlob);
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestMallocBlob,
+        skal_malloc_should_create_blob,
+        skal_malloc_should_map_blob,
+        skal_malloc_blob_should_have_correct_content,
+        skal_malloc_should_unref_blob)

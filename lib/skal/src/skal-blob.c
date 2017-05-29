@@ -291,6 +291,7 @@ void SkalBlobExit(void)
 {
     SKALASSERT(gAllocatorMap != NULL);
     CdsMapDestroy(gAllocatorMap);
+    gAllocatorMap = NULL;
 }
 
 
