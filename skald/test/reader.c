@@ -92,7 +92,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 }
 
 
-static const char* gOptString = "hu:m:p:";
+static const char* gOptString = "hl:m:p:";
 
 static void usage(int ret)
 {
