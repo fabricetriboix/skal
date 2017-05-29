@@ -88,13 +88,13 @@ def runTest(description, timeout_s, body):
 def startSkaldReaderWriter(socketUrl, argsSkald, argsReader, argsWriter):
     logger.debug("Starting SKALD")
     url = "unix://skald.sock"
-    proc['skald'] = spawn(["skald", "-u", socketUrl] + argsSkald)
+    proc['skald'] = spawn(["skald", "-l", socketUrl] + argsSkald)
     time.sleep(0.01)
     logger.debug("Starting reader process")
-    proc['reader'] = spawn(["reader", "-u", socketUrl] + argsReader)
+    proc['reader'] = spawn(["reader", "-l", socketUrl] + argsReader)
     time.sleep(0.01)
     logger.debug("Starting writer process")
-    proc['writer'] = spawn(["writer", "-u", socketUrl] + argsWriter)
+    proc['writer'] = spawn(["writer", "-l", socketUrl] + argsWriter)
 
 
 def testSendOneMsg():
