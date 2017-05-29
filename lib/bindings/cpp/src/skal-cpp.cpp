@@ -36,7 +36,7 @@ namespace skal {
  * declarations of the `skal::Allocator` class to work.
  */
 
-void* skalCppAllocatorAllocate(void* cookie, const char* id, int64_t size_B)
+SkalBlob* skalCppAllocatorCreate(void* cookie, const char* id, int64_t size_B)
 {
     Allocator* allocator = (Allocator*)cookie;
     SKALASSERT(allocator != nullptr);
@@ -44,28 +44,68 @@ void* skalCppAllocatorAllocate(void* cookie, const char* id, int64_t size_B)
     if (id != nullptr) {
         tmp = id;
     }
-    return allocator->allocate(tmp, size_B);
+    return allocator->create(tmp, size_B);
 }
 
-void skalCppAllocatorDeallocate(void* cookie, void* obj)
+SkalBlob* skalCppAllocatorOpen(void* cookie, const char* id)
 {
     Allocator* allocator = (Allocator*)cookie;
     SKALASSERT(allocator != nullptr);
-    allocator->deallocate(obj);
+    std::string tmp;
+    if (id != nullptr) {
+        tmp = id;
+    }
+    return allocator->open(tmp);
 }
 
-void* skalCppAllocatorMap(void* cookie, void* obj)
+void skalCppAllocatorRef(void* cookie, SkalBlob* blob)
 {
     Allocator* allocator = (Allocator*)cookie;
     SKALASSERT(allocator != nullptr);
-    return allocator->map(obj);
+    SKALASSERT(blob != nullptr);
+    allocator->ref(*blob);
 }
 
-void skalCppAllocatorUnmap(void* cookie, void* obj)
+void skalCppAllocatorUnref(void* cookie, SkalBlob* blob)
 {
     Allocator* allocator = (Allocator*)cookie;
     SKALASSERT(allocator != nullptr);
-    allocator->unmap(obj);
+    SKALASSERT(blob != nullptr);
+    allocator->unref(*blob);
+}
+
+uint8_t* skalCppAllocatorMap(void* cookie, SkalBlob* blob)
+{
+    Allocator* allocator = (Allocator*)cookie;
+    SKALASSERT(allocator != nullptr);
+    SKALASSERT(blob != nullptr);
+    return allocator->map(*blob);
+}
+
+void skalCppAllocatorUnmap(void* cookie, SkalBlob* blob)
+{
+    Allocator* allocator = (Allocator*)cookie;
+    SKALASSERT(allocator != nullptr);
+    SKALASSERT(blob != NULL);
+    allocator->unmap(*blob);
+}
+
+
+const char* skalCppAllocatorBlobId(void* cookie, const SkalBlob* blob)
+{
+    Allocator* allocator = (Allocator*)cookie;
+    SKALASSERT(allocator != nullptr);
+    SKALASSERT(blob != NULL);
+    return allocator->blobid(*blob);
+}
+
+
+int64_t skalCppAllocatorBlobSize(void* cookie, const SkalBlob* blob)
+{
+    Allocator* allocator = (Allocator*)cookie;
+    SKALASSERT(allocator != nullptr);
+    SKALASSERT(blob != NULL);
+    return allocator->blobsize(*blob);
 }
 
 
@@ -74,9 +114,6 @@ Allocator::Allocator(const std::string& name, Scope scope)
     mAllocator.name = SkalStrdup(name.c_str());
 
     switch (scope) {
-    case Allocator::Scope::THREAD :
-        mAllocator.scope = SKAL_ALLOCATOR_SCOPE_THREAD;
-        break;
     case Allocator::Scope::PROCESS :
         mAllocator.scope = SKAL_ALLOCATOR_SCOPE_PROCESS;
         break;
@@ -90,10 +127,14 @@ Allocator::Allocator(const std::string& name, Scope scope)
         SKALPANIC_MSG("Invalid allocator scope: %d", (int)scope);
     }
 
-    mAllocator.allocate = skalCppAllocatorAllocate;
-    mAllocator.deallocate = skalCppAllocatorDeallocate;
+    mAllocator.create = skalCppAllocatorCreate;
+    mAllocator.open = skalCppAllocatorOpen;
+    mAllocator.ref = skalCppAllocatorRef;
+    mAllocator.unref = skalCppAllocatorUnref;
     mAllocator.map = skalCppAllocatorMap;
     mAllocator.unmap = skalCppAllocatorUnmap;
+    mAllocator.blobid = skalCppAllocatorBlobId;
+    mAllocator.blobsize = skalCppAllocatorBlobSize;
     mAllocator.cookie = this;
 }
 
@@ -197,15 +238,6 @@ std::string Blob::Id() const
     return id;
 }
 
-std::string Blob::Name() const
-{
-    const char* name = SkalBlobName(mBlob);
-    if (nullptr == name) {
-        name = "";
-    }
-    return name;
-}
-
 int64_t Blob::Size_B() const
 {
     return SkalBlobSize_B(mBlob);
@@ -226,27 +258,41 @@ Blob::ScopedMap::~ScopedMap()
     }
 }
 
-void* Blob::ScopedMap::Get() const
+uint8_t* Blob::ScopedMap::Get() const
 {
     return mPtr;
 }
 
-std::shared_ptr<Blob> CreateBlob(const std::string& allocator,
-        const std::string& id, const std::string& name, int64_t size_B)
+std::shared_ptr<Blob> CreateBlob(const std::string& allocatorName,
+        const std::string& id, int64_t size_B)
 {
-    const char* tmpAllocator = nullptr;
-    if (allocator.size() > 0) {
-        tmpAllocator = allocator.c_str();
+    const char* tmpAllocatorName = nullptr;
+    if (allocatorName.size() > 0) {
+        tmpAllocatorName = allocatorName.c_str();
     }
     const char* tmpId = nullptr;
     if (id.size() > 0) {
         tmpId = id.c_str();
     }
-    const char* tmpName = nullptr;
-    if (name.size() > 0) {
-        tmpName = name.c_str();
+    SkalBlob* blob = SkalBlobCreate(tmpAllocatorName, tmpId, size_B);
+    if (nullptr == blob) {
+        return nullptr;
     }
-    SkalBlob* blob = SkalBlobCreate(tmpAllocator, tmpId, tmpName, size_B);
+    return std::shared_ptr<Blob>(new Blob(blob));
+}
+
+std::shared_ptr<Blob> OpenBlob(const std::string& allocatorName,
+        const std::string& id)
+{
+    const char* tmpAllocatorName = nullptr;
+    if (allocatorName.size() > 0) {
+        tmpAllocatorName = allocatorName.c_str();
+    }
+    const char* tmpId = nullptr;
+    if (id.size() > 0) {
+        tmpId = id.c_str();
+    }
+    SkalBlob* blob = SkalBlobOpen(tmpAllocatorName, tmpId);
     if (nullptr == blob) {
         return nullptr;
     }
@@ -294,9 +340,9 @@ void Msg::AddField(const std::string& name, const uint8_t* miniblob, int size_B)
     SkalMsgAddMiniblob(mMsg, name.c_str(), miniblob, size_B);
 }
 
-void Msg::AttachBlob(const std::string& name, std::shared_ptr<Blob> blob)
+void Msg::AddField(const std::string& name, std::shared_ptr<Blob> blob)
 {
-    SkalMsgAttachBlob(mMsg, name.c_str(), blob->mBlob);
+    SkalMsgAddBlob(mMsg, name.c_str(), blob->mBlob);
 }
 
 bool Msg::HasField(const std::string& name)

@@ -23,48 +23,77 @@
 static int   gBlobCount = 0;
 static void* gBlob = NULL;
 
-static void* skalTestBlobAllocate(void* cookie, const char* id, int64_t size_B)
+static SkalBlob* skalTestBlobCreate(void* cookie,
+        const char* id, int64_t size_B)
 {
-    (void)id; // unused argument
     SKALASSERT(cookie == (void*)0xdeadbeef);
     gBlobCount++;
-    return malloc(size_B);
+    return malloc(sizeof(SkalBlob) + size_B);
 }
 
-static void skalTestBlobFree(void* cookie, void* obj)
+static SkalBlob* skalTestBlobOpen(void* cookie, const char* id)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
+    SkalBlob* blob;
+    int ret = sscanf(id, "%p", &blob);
+    SKALASSERT(1 == ret);
+    return blob;
+}
+
+static void skalTestBlobRef(void* cookie, SkalBlob* blob)
+{
+}
+
+static void skalTestBlobUnref(void* cookie, SkalBlob* blob)
+{
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    free(blob);
     gBlobCount--;
-    free(obj);
 }
 
-static void* skalTestBlobMap(void* cookie, void* obj)
+static uint8_t* skalTestBlobMap(void* cookie, SkalBlob* blob)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
-    return obj;
+    uint8_t* ptr = (uint8_t*)blob;
+    return ptr + sizeof(SkalBlob);
 }
 
-static void skalTestBlobUnmap(void* cookie, void* obj)
+static void skalTestBlobUnmap(void* cookie, SkalBlob* blob)
 {
-    (void)obj; // unused argument
     SKALASSERT(cookie == (void*)0xdeadbeef);
 }
 
-static SkalAllocator gSkalTestBlobAllocator = {
-    "test",                 // name
-    false,                  // interProcess
-    skalTestBlobAllocate,   // allocate
-    skalTestBlobFree,       // free
-    skalTestBlobMap,        // map
-    skalTestBlobUnmap,      // unmap
-    (void*)0xdeadbeef       // cookie
-};
+static const char* skalTestBlobId(void* cookie, const SkalBlob* blob)
+{
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    static char id[64];
+    snprintf(id, 64, "%p", blob);
+    return id;
+}
 
+static int64_t skalTestBlobSize(void* cookie, const SkalBlob* blob)
+{
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    return 1;
+}
 
 static RTBool skalBlobTestGroupEntry(void)
 {
     SkalPlfInit();
-    SkalBlobInit(&gSkalTestBlobAllocator, 1);
+    SkalAllocator test;
+    memset(&test, 0, sizeof(test));
+    test.name = "test";
+    test.scope = SKAL_ALLOCATOR_SCOPE_PROCESS;
+    test.create = skalTestBlobCreate;
+    test.open = skalTestBlobOpen;
+    test.ref = skalTestBlobRef;
+    test.unref = skalTestBlobUnref;
+    test.map = skalTestBlobMap;
+    test.unmap = skalTestBlobUnmap;
+    test.blobid = skalTestBlobId;
+    test.blobsize = skalTestBlobSize;
+    test.cookie = (void*)0xdeadbeef;
+    SkalBlobInit(&test, 1);
     return RTTrue;
 }
 
@@ -78,33 +107,30 @@ static RTBool skalBlobTestGroupExit(void)
 RTT_GROUP_START(TestSkalBlob, 0x00030001u,
         skalBlobTestGroupEntry, skalBlobTestGroupExit)
 
-RTT_TEST_START(skal_should_allocate_a_blob)
+RTT_TEST_START(skal_should_create_a_blob)
 {
-    gBlob = SkalBlobCreate("test", "dummy", "TestName", 1000);
+    gBlob = SkalBlobCreate("test", NULL, 1000);
     RTT_ASSERT(gBlob != NULL);
     RTT_ASSERT(gBlobCount == 1);
 }
 RTT_TEST_END
 
+static char gId[128];
+
 RTT_TEST_START(skal_blob_id_should_be_correct)
 {
     const char* id = SkalBlobId(gBlob);
     RTT_ASSERT(id != NULL);
-    RTT_EXPECT(strcmp(id, "dummy") == 0);
+    snprintf(gId, sizeof(gId), "%p", gBlob);
+    RTT_EXPECT(SkalStrcmp(id, gId) == 0);
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_blob_name_should_be_correct)
+RTT_TEST_START(skal_should_open_blob)
 {
-    const char* name = SkalBlobName(gBlob);
-    RTT_ASSERT(name != NULL);
-    RTT_EXPECT(strcmp(name, "TestName") == 0);
-}
-RTT_TEST_END
-
-RTT_TEST_START(skal_blob_size_should_be_correct)
-{
-    RTT_ASSERT(SkalBlobSize_B(gBlob) == 1000);
+    SkalBlob* blob = SkalBlobOpen("test", gId);
+    RTT_EXPECT(blob != NULL);
+    RTT_EXPECT(blob == gBlob);
 }
 RTT_TEST_END
 
@@ -116,8 +142,7 @@ RTT_TEST_START(skal_should_free_blob)
 RTT_TEST_END
 
 RTT_GROUP_END(TestSkalBlob,
-        skal_should_allocate_a_blob,
+        skal_should_create_a_blob,
         skal_blob_id_should_be_correct,
-        skal_blob_name_should_be_correct,
-        skal_blob_size_should_be_correct,
+        skal_should_open_blob,
         skal_should_free_blob)

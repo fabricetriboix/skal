@@ -60,30 +60,64 @@ public :
     virtual ~Allocator();
 
 private :
-    /** Allocate a block of memory
+    /** Create a new blob
      *
      * @param id     [in] Optional identifier (eg: buffer slot on a video card)
      * @param size_B [in] Optional minimum size to allocate, in bytes
-     */
-    virtual void* allocate(const std::string& id, int64_t size_B) = 0;
-
-    /** Deallocate a block of memory
      *
-     * @param obj [in] A block allocated with the previous `allocate()` method
+     * @return The newly created blob, or `nullptr` if error
      */
-    virtual void deallocate(void* obj) = 0;
+    virtual SkalBlob* create(const std::string& id, int64_t size_B) = 0;
 
-    /** Map a block of memory in the address space of the caller
+    /** Open an existing blob
      *
-     * @param obj [in] Block to map
+     * @param id [in] Optional identifier
+     *
+     * @return The opened blob, or `nullptr` if error
      */
-    virtual void* map(void* obj) = 0;
+    virtual SkalBlob* open(const std::string& id) = 0;
 
-    /** Unmap a block of memory
+    /** Add a reference to a blob
      *
-     * @param obj [in] Block to unmap
+     * @param blob [in,out] Blob to reference
      */
-    virtual void unmap(void* obj) = 0;
+    virtual void ref(SkalBlob& blob) = 0;
+
+    /** Remove a reference to a blob
+     *
+     * @param blob [in,out] Blob to unreference
+     */
+    virtual void unref(SkalBlob& blob) = 0;
+
+    /** Map a blob into the address space of the caller
+     *
+     * @param blob [in,out] Blob to map
+     *
+     * @return A pointer to the start of the blob
+     */
+    virtual uint8_t* map(SkalBlob& blob) = 0;
+
+    /** Unmap a blob
+     *
+     * @param blob [in,out] Blob to unmap
+     */
+    virtual void unmap(SkalBlob& blob) = 0;
+
+    /** Get a blob id
+     *
+     * @param blob [in] Blob to query
+     *
+     * @return Blob id
+     */
+    virtual const char* blobid(const SkalBlob& blob) = 0;
+
+    /** Get a blob size, in bytes
+     *
+     * @param blob [in] Blob to query
+     *
+     * @return Blob size, in bytes
+     */
+    virtual int64_t blobsize(const SkalBlob& blob) = 0;
 
     Allocator(const Allocator&) = delete;
     Allocator& operator=(const Allocator&) = delete;
@@ -92,10 +126,14 @@ private :
     SkalAllocator mAllocator;
 
     friend bool Init(const char*, std::vector<std::shared_ptr<Allocator>>);
-    friend void* skalCppAllocatorAllocate(void*, const char*, int64_t);
-    friend void skalCppAllocatorDeallocate(void*, void*);
-    friend void* skalCppAllocatorMap(void*, void*);
-    friend void skalCppAllocatorUnmap(void*, void*);
+    friend SkalBlob* skalCppAllocatorCreate(void*, const char*, int64_t);
+    friend SkalBlob* skalCppAllocatorOpen(void*, const char*);
+    friend void skalCppAllocatorRef(void*, SkalBlob*);
+    friend void skalCppAllocatorUnref(void*, SkalBlob*);
+    friend uint8_t* skalCppAllocatorMap(void*, SkalBlob*);
+    friend void skalCppAllocatorUnmap(void*, SkalBlob*);
+    friend const char* skalCppAllocatorBlobId(void*, const SkalBlob*);
+    friend int64_t skalCppAllocatorBlobSize(void*, const SkalBlob*);
 };
 
 
@@ -162,7 +200,7 @@ private :
 };
 
 
-/** This class represents a block of memory allocated through an `Allocator` */
+/** This class represents a blob created or opened through an `Allocator` */
 class Blob final {
 public :
     ~Blob();
@@ -181,10 +219,10 @@ public :
     public :
         ScopedMap(Blob& blob);
         ~ScopedMap();
-        void* Get() const;
+        uint8_t* Get() const;
     private :
         Blob* mBlob;
-        void* mPtr;
+        uint8_t* mPtr;
     };
 
 private :
@@ -199,25 +237,40 @@ private :
     SkalBlob* mBlob;
 
     friend std::shared_ptr<Blob> CreateBlob(const std::string& allocator,
-            const std::string& id, const std::string& name, int64_t size_B);
-
+            const std::string& id, int64_t size_B);
+    friend std::shared_ptr<Blob> OpenBlob(const std::string& allocator,
+            const std::string& id);
     friend class Msg;
 };
 
-/** Allocate a new blob
+/** Create a new blob
  *
- * @param allocator [in] Name of the allocator to use; may be the empty string,
- *                       in which case the "malloc" allocator is used
- * @param id        [in] Identifier for the allocator; may or may not be an
- *                       empty string depending on the chosen allocator
- * @param name      [in] A name for this blob; may be an empty string
- * @param size_B    [in] Minimum number of bytes to allocate; may or may not
- *                       be <=0 depending on the chosen allocator
+ * @param allocatorName [in] Name of the allocator to use; may be the empty
+ *                           string, in which case the "malloc" allocator is
+ *                           used
+ * @param id            [in] Identifier for the allocator; may or may not be an
+ *                           empty string depending on the chosen allocator
+ * @param size_B        [in] Minimum number of bytes to allocate; may or may not
+ *                           be <=0 depending on the chosen allocator
  *
- * @return A pointer to the blob, or `nullptr` in case of error
+ * @return A pointer to the newly created blob, or `nullptr` in case of error
  */
 std::shared_ptr<Blob> CreateBlob(const std::string& allocator,
-        const std::string& id, const std::string& name, int64_t size_B);
+        const std::string& id, int64_t size_B);
+
+/** Open an existing blob
+ *
+ * @param allocatorName [in] Name of the allocator to use; may be the empty
+ *                           string, in which case the "malloc" allocator is
+ *                           used
+ * @param id            [in] Identifier for the allocator; may or may not be an
+ *                           empty string depending on the chosen allocator
+ *
+ * @return A pointer to the opened blob, or `nullptr` in case of error
+ */
+std::shared_ptr<Blob> OpenBlob(const std::string& allocator,
+        const std::string& id);
+
 
 
 /** Message flag: it's OK to receive this message out of order */
@@ -279,13 +332,13 @@ public :
      */
     void AddField(const std::string& name, const uint8_t* miniblob, int size_B);
 
-    /** Attach a blob to the message
+    /** Add an extra blob field to the message
      *
      * @param name [in] Name for this field; please note this is unrelated to
-     *                  the blob's name
-     * @param blob [in] Blob to attach; must not be `nullptr`
+     *                  the blob's id
+     * @param blob [in] Blob to add; must not be `nullptr`
      */
-    void AttachBlob(const std::string& name, std::shared_ptr<Blob> blob);
+    void AddField(const std::string& name, std::shared_ptr<Blob> blob);
 
     /** Check if the message has a field with the given name */
     bool HasField(const std::string& name);

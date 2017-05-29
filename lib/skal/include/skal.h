@@ -33,6 +33,7 @@ extern "C" {
  */
 
 #include "skal-common.h"
+#include "cdsmap.h"
 
 
 
@@ -97,75 +98,151 @@ extern "C" {
 #define SKAL_MSG_FLAG_MULTICAST 0x10
 
 
-/** Prototype for a custom allocator
+// Forward declaration
+struct SkalAllocator;
+
+/** Structure representing a blob
  *
- * Such a function will be called to allocate a custom memory area.
+ * A blob is an arbitrary chunk of binary data. A blob is usually "large", from
+ * a few KiB to a few GiB.
+ *
+ * This structure is meant to be "derived" from.
+ */
+typedef struct {
+    struct SkalAllocator* allocator; /**< Allocator that allocated the blob */
+} SkalBlob;
+
+
+/** Prototype of a function to create a blob
+ *
+ * Such a function will be called to create a blob. Your blob must implement a
+ * concept of reference counter, and the reference counter must be set to 1 when
+ * this function returns.
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `id`: Optional identifier (eg: buffer slot on a video card)
- *  - `size_B`: Optional minimum size of the memory area to allocate, in bytes
+ *  - `id`: Identifier (eg: buffer slot on a video card, shared memory id, etc.)
+ *  - `size_B`: Minimum size of the memory area to allocate, in bytes
  *
- * This function must return an object that will be used later to map and unmap
- * the memory area into the process/thread memory space. It must return NULL in
- * case of error.
+ * Whether you use the arguments or not is up to your allocator. Do not set the
+ * `SkalBlob.allocator` pointer, this is set automatically.
+ *
+ * This function must return a blob object that will be used later to map and
+ * unmap the memory area into the process/thread memory space. It must return
+ * NULL in case of error.
  *
  * **This function is not allowed to block!**
  */
-typedef void* (*SkalAllocateF)(void* cookie, const char* id, int64_t size_B);
+typedef SkalBlob* (*SkalCreateBlobF)(void* cookie,
+        const char* id, int64_t size_B);
 
 
-/** Prototype for a custom de-allocator
+/** Prototype of a function to open an existing blob
  *
- * This function will be called to de-allocate a memory area previously
- * allocated with `SkalAllocateF`.
+ * Such a function will be called to open an existing blob. The blob's reference
+ * counter must not be touched by this function.
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `obj`: Object pointer returned by `SkalAllocateF` which must now be
- *    de-allocated
+ *  - `id`: Identifier (eg: buffer slot on a video card, shared memory id, etc.)
+ *
+ * Whether you use the arguments or not is up to your allocator. Do not set the
+ * `SkalBlob.allocator` pointer, this is set automatically.
+ *
+ * This function must return a blob object that will be used later to map and
+ * unmap the memory area into the process/thread memory space. It must return
+ * NULL in case of error.
  *
  * **This function is not allowed to block!**
  */
-typedef void (*SkalDeallocateF)(void* cookie, void* obj);
+typedef SkalBlob* (*SkalOpenBlobF)(void* cookie, const char* id);
 
 
-/** Prototype to map a custom memory area
+/** Prototype of a function to increment the reference counter of a blob
+ *
+ * The arguments are:
+ *  - `cookie`: Same value as `SkalAllocator.cookie`
+ *  - `blob`: Blob to reference
+ *
+ * **This function is not allowed to block!**
+ */
+typedef void (*SkalRefBlobF)(void* cookie, SkalBlob* blob);
+
+
+/** Prototype of a function to decrement the reference counter of a blob
+ *
+ * This function must de-allocate the blob if the reference counter reaches 0.
+ *
+ * The arguments are:
+ *  - `cookie`: Same value as `SkalAllocator.cookie`
+ *  - `blob`: Blob to unreference
+ *
+ * **This function is not allowed to block!**
+ */
+typedef void (*SkalUnrefBlobF)(void* cookie, SkalBlob* blob);
+
+
+/** Prototype of a function to map a blob
  *
  * This function will be called to allow the current process/thread to read
- * and/or write a memory area previously allocated with `SkalAllocateF`.
+ * and/or write a the memory area pointed to by the blob.
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `obj`: Object pointer returned by `SkalAllocateF` which must now be mapped
- *    into the process memory space
+ *  - `blob`: Blob which must be mapped into the caller's memory space
  *
  * This function must return a pointer to the mapped memory area, accessible
  * from the current process, or NULL in case of error.
  *
+ * After this function is called, you are guaranteed that only `SkalUnmapBlobF`
+ * will be called on this blob, before any other `Skal*BlobF` functions.
+ *
  * **This function is not allowed to block!**
  */
-typedef void* (*SkalMapF)(void* cookie, void* obj);
+typedef uint8_t* (*SkalMapBlobF)(void* cookie, SkalBlob* blob);
 
 
-/** Prototype to unmap a custom memory area
+/** Prototype of a function to unmap a blob
  *
  * This function will be called to terminate the current mapping initiated by a
- * previous call to `SkalMapF`.
+ * previous call to `SkalMapBlobF`.
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `obj`: Object pointer returned by `SkalAllocateF` which must now be
- *    unmapped from the process memory space
+ *  - `blob`: Blob which must now be unmapped from the process memory space
  *
  * **This function is not allowed to block!**
  */
-typedef void (*SkalUnmapF)(void* cookie, void* obj);
+typedef void (*SkalUnmapBlobF)(void* cookie, SkalBlob* blob);
+
+
+/** Prototype of a function to get the blob's id
+ *
+ * The arguments are:
+ *  - `cookie`: Same value as `SkalAllocator.cookie`
+ *  - `blob`: Blob to query
+ *
+ * This function may return NULL if the blob does not have any id.
+ *
+ * **This function is not allowed to block**
+ */
+typedef const char* (*SkalBlobIdF)(void* cookie, const SkalBlob* blob);
+
+
+/** Prototype of a function to get the blob's size in bytes
+ *
+ * The arguments are:
+ *  - `cookie`: Same value as `SkalAllocator.cookie`
+ *  - `blob`: Blob to query
+ *
+ * **This function is not allowed to block**
+ */
+typedef int64_t (*SkalBlobSizeF)(void* cookie, const SkalBlob* blob);
 
 
 /** The different scopes of a custom memory allocator
  *
- * Whenever a blob will move to a wider scope (eg: process -> computer), a new
+ * Whenever a blob will move to a wider scope (eg: thread -> process), a new
  * blob of the larger scope will be allocated, the content of the old blob will
  * be copied to the new blob, and the old blob will be deleted and replaced by
  * the new blob.
@@ -182,7 +259,7 @@ typedef enum {
 } SkalAllocatorScope;
 
 
-/** Structure representing a custom memory allocator
+/** Structure representing a blob allocator
  *
  * This could be used, for example, to allocate frame buffers on a video card,
  * network packets from a network processor, and other such exotic memory areas
@@ -198,7 +275,9 @@ typedef enum {
  *  - "shm": Allocates memory accessible within the computer (this uses the
  *    operating system shared memory capabilities)
  */
-typedef struct {
+typedef struct SkalAllocator {
+    CdsMapItem item; /**< Private, do not touch! */
+
     /** Allocator name
      *
      * This must be unique within the allocator's scope.
@@ -211,17 +290,32 @@ typedef struct {
      */
     SkalAllocatorScope scope;
 
-    /** Allocate a memory area; NULL not allowed */
-    SkalAllocateF allocate;
+    /** Create a new blob; must not be NULL */
+    SkalCreateBlobF create;
 
-    /** Deallocate a memory area; NULL not allowed */
-    SkalDeallocateF deallocate;
+    /** Open an existing blob; must not be NULL */
+    SkalOpenBlobF open;
 
-    /** Map a memory area into the process memory space; NULL not allowed */
-    SkalMapF map;
+    /** Increment a blob's reference counter; must not be NULL */
+    SkalRefBlobF ref;
 
-    /** Unmap a memory area from the process memory space; NULL not allowed */
-    SkalUnmapF unmap;
+    /** Decrement a blob's reference counter; must not be NULL
+     *
+     * The blob must be de-allocated if the reference counter reaches zero.
+     */
+    SkalUnrefBlobF unref;
+
+    /** Map a blob into the process memory space; must not be NULL */
+    SkalMapBlobF map;
+
+    /** Unmap a blob from the process memory space; must not be NULL */
+    SkalUnmapBlobF unmap;
+
+    /** Get the blob id */
+    SkalBlobIdF blobid;
+
+    /** Get the blob size in bytes */
+    SkalBlobSizeF blobsize;
 
     /** Cookie for the previous functions */
     void* cookie;
@@ -249,14 +343,6 @@ typedef enum {
     SKAL_ALARM_WARNING,
     SKAL_ALARM_ERROR
 } SkalAlarmSeverityE;
-
-
-/** Opaque type to a blob
- *
- * A blob is an arbitrary chunk of binary data. A blob is usually "large", from
- * a few KiB to a few GiB.
- */
-typedef struct SkalBlob SkalBlob;
 
 
 /** Opaque type to a SKAL message
@@ -344,8 +430,8 @@ typedef struct {
  * Please note that if an allocator has a scope of
  * `SKAL_ALLOCATOR_SCOPE_COMPUTER` or `SKAL_ALLOCATOR_SCOPE_SYSTEM`, you will
  * have to ensure that this allocator is also registered by any process that
- * might free blobs created by this allocator. Failure to do so will result in
- * asserts.
+ * might unreference blobs created by this allocator. Failure to do so will
+ * result in asserts.
  *
  * @return `true` if OK, `false` if can't connect to skald
  */
@@ -532,40 +618,42 @@ const char* SkalAlarmComment(const SkalAlarm* alarm);
 SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm);
 
 
-/** Create a blob
+/** Create a new blob
  *
- * @param allocator [in] Allocator to use to create the blob. This may be NULL,
- *                       or the empty string, in which case the "malloc"
- *                       allocator is used.
- * @param id        [in] Identifier for the allocator. NULL may or may not be a
- *                       valid value depending on the allocator.
- * @param name      [in] A name for this blob; may be NULL.
- * @param size_B    [in] Minimum number of bytes to allocate. <= 0 may or
- *                       may not be allowed, depending on the allocator.
+ * @param allocatorName [in] Allocator to use to create the blob. This may be
+ *                           NULL, or the empty string, in which case the
+ *                           "malloc" allocator will be used.
+ * @param id            [in] Blob identifier. NULL may or may not be a valid
+ *                           value depending on the allocator.
+ * @param size_B        [in] Minimum number of bytes to allocate. <= 0 may or
+ *                           may not be allowed, depending on the allocator.
  *
  * The following allocators are always available:
  *  - "malloc" (which is used when the `allocator` argument is NULL): This
- *    allocates memory using `malloc()`. The `id` argument is ignored, and
- *    `size_B` must be > 0.
+ *    allocates memory using `malloc()`. The `id` argument is ignored; `size_B`
+ *    must be > 0.
  *  - "shm": This allocates shared memory using `shm_open()`, etc. This type of
  *    memory can be accessed by various processes within the same computer. If
  *    you know you are creating a blob that will be sent to another process,
  *    creating it using the "shm" allocator will gain a bit of time because it
  *    will avoid an extra step of converting a "malloc" blob to a "shm" blob.
- *    The `id` argument is ignored, and `size_B` must be > 0.
+ *    The `id` argument is the name of the shared memory area to create (if the
+ *    name refers to an existing blob, no new blob will be created and this
+ *    function will return NULL); `size_B` must be > 0.
  *
- * Please note that if you create a blob using the "malloc" allocator, and
- * subsequently send the blob to another process, that's perfectly fine. Your
- * "malloc" blob will be automatically changed into a "shm" blob. This also
- * applies to a blob created with a custom allocator with the
- * `SkalAllocator.interProcess` flag set to `false`.
+ * The blob will automatically be converted to a blob of a wider scope if
+ * necessary. For example, a "malloc" blob will be converted to a "shm" blob if
+ * it is sent to a different process. This is completely transparent to you.
+ * However, please note that there is no "system" allocator provided by default.
+ * Blobs that are sent to a different computer will be copied over the network.
  *
  * **VERY IMPORTANT** SKAL does not provide any mechanism to allow exclusive
- * access to a blob (no mutex, no semaphore, etc.) as this would go against SKAL
- * philosophy. It is expected that the application designer will be sensible in
- * how the application will be designed.
+ * access to the memory area pointed to by a blob (no mutex, no semaphore, etc.)
+ * as this would go against SKAL philosophy. It is expected that the application
+ * designer will be sensible in how the application is designed.
  *
- * Let's expand a bit on the previous remark. First of all, please note there
+ * Let's expand a bit on the previous remark. Simultaneous access to a blob
+ * could happen if the blob is sent to 2 or more threads simultaneously. There
  * are 2 ways a blob can be sent to more than one thread:
  *  - A blob is referenced by different messages, and the messages are sent to
  *    their respective threads
@@ -580,22 +668,37 @@ SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm);
  * The following use case will require special attention: the blob is sent to
  * more than one thread, one of them will write to the memory area pointed to by
  * the blob. You would then have a race condition between the writing thread and
- * the reading thread(s). This situation would essentially show a bad
- * application design. Either:
+ * the reading thread(s). This situation would essentially show an application
+ * design that would run against SKAL philosophy. Either:
  *  - the data needs to be modified before it is read; in which case the writing
  *    thread should by the only recipient and forward the blob after
  *    modification
  *  - it does not matter whether the data is modified before or after it is
  *    read; the same as above applies here
  *  - the data needs to be modified after it is read; in this case, a more
- *    complex mechanism, possibly based on reference counters, would be required
+ *    complex mechanism for "joining" the paths the blob takes would be required
  *
- * @return The newly created blob with its reference count set to 1, or NULL in
- *         case of error (`allocator` does not exist, invalid `id` or `size_B`
- *         for the chosen allocator, or failed to allocate)
+ * @return The created blob, or NULL in case of error (`allocator` does not
+ *         exist, invalid `id` or `size_B` for the chosen allocator, or failed
+ *         to allocate)
  */
-SkalBlob* SkalBlobCreate(const char* allocator, const char* id,
-        const char* name, int64_t size_B);
+SkalBlob* SkalBlobCreate(const char* allocatorName,
+        const char* id, int64_t size_B);
+
+
+/** Open an existing blob
+ *
+ * @param allocatorName [in] Allocator to use to open the blob. This may be
+ *                           NULL, or the empty string, in which case the
+ *                           "malloc" allocator will be used.
+ * @param id            [in] Blob identifier for the allocator. NULL is normally
+ *                           not allowed, but that would depend on the
+ *                           allocator.
+ *
+ * @return The opened blob, or NULL in case of error (the blob does not exist or
+ *         invalid `id`)
+ */
+SkalBlob* SkalBlobOpen(const char* allocatorName, const char* id);
 
 
 /** Add a reference to a blob
@@ -611,9 +714,9 @@ void SkalBlobRef(SkalBlob* blob);
  *
  * This will decrement the blob's reference counter by one.
  *
- * If the reference counter becomes 0, the blob is freed. Therefore, always
- * assume you are the last to call `SkalBlobUnref()` on that blob and that it
- * does not exist anymore when this function returns.
+ * If the reference counter becomes 0, the blob is de-allocated. Therefore,
+ * always assume you are the last to call `SkalBlobUnref()` on that blob and
+ * that it does not exist anymore when this function returns.
  *
  * @param blob [in,out] Blob to de-reference; must not be NULL
  */
@@ -628,11 +731,15 @@ void SkalBlobUnref(SkalBlob* blob);
  * *You do not have exclusive access to the blob*, please refer to
  * `SkalBlobCreate()` for more information.
  *
+ * **You MUST call `SkalBlobUnmap()` when finished with it, and before any other
+ * `SkalBlob*()` functions. You are not allowed to block between a call to
+ * `SkalBlobMap()` and `SkalBlobUnmap()`.**
+ *
  * @param blob [in,out] Blob to map; must not be NULL
  *
  * @return A pointer to the mapped memory area, or NULL in case of error
  */
-void* SkalBlobMap(SkalBlob* blob);
+uint8_t* SkalBlobMap(SkalBlob* blob);
 
 
 /** Unmap the blob's memory from the current process memory
@@ -652,15 +759,6 @@ void SkalBlobUnmap(SkalBlob* blob);
  * @return The blob id, which may be NULL
  */
 const char* SkalBlobId(const SkalBlob* blob);
-
-
-/** Get the blob's name
- *
- * @param blob [in] Blob to query; must not be NULL
- *
- * @return The blob name, which may be NULL
- */
-const char* SkalBlobName(const SkalBlob* blob);
 
 
 /** Get the blob's size, in bytes
@@ -874,8 +972,11 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
  * @param msg  [in,out] Message to modify; must not be NULL
  * @param name [in]     Name of the blob; must not be NULL
  * @param blob [in,out] Blob to attach; must not be NULL
+ *
+ * Please note the `name` here is different from the blob id, although you can
+ * use the blob id if you fancy.
  */
-void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob);
+void SkalMsgAddBlob(SkalMsg* msg, const char* name, SkalBlob* blob);
 
 
 /** Attach an alarm to a message

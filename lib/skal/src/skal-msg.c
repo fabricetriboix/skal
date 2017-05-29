@@ -428,7 +428,7 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
 }
 
 
-void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
+void SkalMsgAddBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
 {
     SKALASSERT(blob != NULL);
     skalMsgField* field = skalMsgFieldAllocate(msg, name,
