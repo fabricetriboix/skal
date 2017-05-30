@@ -434,8 +434,6 @@ void SkalMsgAddBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
     skalMsgField* field = skalMsgFieldAllocate(msg, name,
             SKAL_MSG_FIELD_TYPE_BLOB);
     field->blob = blob;
-    SkalBlobRef(blob);
-    SKALPANIC_MSG("Attaching blobs is not yet supported"); // TODO
 }
 
 
@@ -889,9 +887,10 @@ static void skalFieldToJson(SkalStringBuilder* sb,
                     "  {\n"
                     "   \"name\": \"%s\",\n"
                     "   \"type\": \"blob\",\n"
-                    "   \"value\": \"%s\"\n"
+                    "   \"value\": \"%s:%s\"\n"
                     "  },\n",
                     name,
+                    SkalBlobAllocator(field->blob)->name,
                     id);
         }
         break;
@@ -1314,9 +1313,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
     case SKAL_MSG_FIELD_TYPE_MINIBLOB :
         {
             char* b64;
-            const char* tmp = skalMsgParseJsonString(value, &b64, true);
-            if (NULL == tmp) {
-                free(b64);
+            if (skalMsgParseJsonString(value, &b64, true) == NULL) {
                 return NULL;
             }
             field->miniblob = SkalBase64Decode(b64, &field->size_B);
@@ -1329,7 +1326,26 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
         break;
 
     case SKAL_MSG_FIELD_TYPE_BLOB :
-        SKALPANIC_MSG("Blobs not yet supported");
+        {
+            char* data;
+            if(skalMsgParseJsonString(value, &data, false) == NULL) {
+                return NULL;
+            }
+            char* ptr = strchr(data, ':');
+            if (NULL == ptr) {
+                SkalLog("SkalMsg: Invalid JSON: Character ':' required in field value for blobs");
+                free(data);
+                return NULL;
+            }
+            *ptr = '\0';
+            ptr++;
+            SkalBlob* blob = SkalBlobOpen(data, ptr);
+            free(data);
+            if (NULL == blob) {
+                SkalLog("SkalMsg: Invalid message: Can't open blob for allocator='%s', id='%s'",
+                        data, ptr);
+            }
+        }
         break;
 
     default :

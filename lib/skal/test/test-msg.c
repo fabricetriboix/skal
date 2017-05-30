@@ -15,6 +15,7 @@
  */
 
 #include "skal-msg.h"
+#include "skal-blob.h"
 #include "skal-alarm.h"
 #include "rttest.h"
 #include <stdlib.h>
@@ -24,6 +25,7 @@
 static RTBool testMsgGroupEnter(void)
 {
     SkalPlfInit();
+    SkalBlobInit(NULL, 0);
     SkalMsgInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread@mydomain");
     SkalSetDomain("mydomain");
@@ -34,6 +36,7 @@ static RTBool testMsgGroupExit(void)
 {
     SkalPlfThreadUnmakeSkal_DEBUG();
     SkalMsgExit();
+    SkalBlobExit();
     SkalPlfExit();
     return RTTrue;
 }
@@ -110,7 +113,17 @@ RTT_TEST_START(skal_msg_add_miniblob)
 }
 RTT_TEST_END
 
-// TODO: test attaching blob to msg
+RTT_TEST_START(skal_msg_add_blob)
+{
+    SkalBlob* blob = SkalBlobCreate(NULL, NULL, 500);
+    RTT_ASSERT(blob != NULL);
+    uint8_t* data = SkalBlobMap(blob);
+    RTT_ASSERT(data != NULL);
+    strcpy((char*)data, "Hello, World!");
+    SkalBlobUnmap(blob);
+    SkalMsgAddBlob(gMsg, "TestBlob", blob);
+}
+RTT_TEST_END
 
 RTT_TEST_START(skal_msg_should_have_correct_int)
 {
@@ -147,6 +160,19 @@ RTT_TEST_START(skal_msg_should_have_correct_miniblob)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_msg_should_have_correct_blob)
+{
+    RTT_EXPECT(SkalMsgHasBlob(gMsg, "TestBlob"));
+    SkalBlob* blob = SkalMsgGetBlob(gMsg, "TestBlob");
+    RTT_EXPECT(blob != NULL);
+    uint8_t* data = SkalBlobMap(blob);
+    RTT_ASSERT(data != NULL);
+    RTT_EXPECT(SkalStrcmp((char*)data, "Hello, World!") == 0);
+    SkalBlobUnmap(blob);
+    SkalBlobUnref(blob);
+}
+RTT_TEST_END
+
 RTT_TEST_START(skal_msg_should_attach_alarms)
 {
     gAlarm1 = SkalAlarmCreate("alarm1", SKAL_ALARM_NOTICE, true, true, NULL);
@@ -170,6 +196,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
     // NB: Fields will be ordered by name
     char timestamp[64];
     SkalPlfTimestamp(SkalMsgTimestamp_us(gMsg), timestamp, sizeof(timestamp));
+    SkalBlob* blob = SkalMsgGetBlob(gMsg, "TestBlob");
     char* expected = SkalSPrintf(
         "{\n"
         " \"version\": 1,\n"
@@ -181,6 +208,11 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         " \"flags\": 0,\n"
         " \"iflags\": 0,\n"
         " \"fields\": [\n"
+        "  {\n"
+        "   \"name\": \"TestBlob\",\n"
+        "   \"type\": \"blob\",\n"
+        "   \"value\": \"malloc:%p\"\n"
+        "  },\n"
         "  {\n"
         "   \"name\": \"TestDouble\",\n"
         "   \"type\": \"double\",\n"
@@ -224,8 +256,10 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         " ]\n"
         "}\n",
         timestamp,
+        blob,
         (long long)SkalAlarmTimestamp_us(gAlarm1),
         (long long)SkalAlarmTimestamp_us(gAlarm2));
+    SkalBlobUnref(blob);
 
     RTT_EXPECT(strcmp(json, expected) == 0);
     free(json);
@@ -272,15 +306,19 @@ RTT_TEST_START(skal_msg_should_copy_msg)
     RTT_EXPECT(SkalMsgTtl(msg) == SkalMsgTtl(gMsg));
 
     // Test fields
+
     RTT_EXPECT(SkalMsgHasInt(msg, "TestInt"));
     RTT_EXPECT(SkalMsgGetInt(msg, "TestInt") == -789);
+
     RTT_EXPECT(SkalMsgHasDouble(msg, "TestDouble"));
     double delta = SkalMsgGetDouble(msg, "TestDouble") - 3.456779999999999972715e+02;
     RTT_EXPECT(delta < (SkalMsgGetDouble(msg, "TestDouble") * 0.0000001));
+
     RTT_EXPECT(SkalMsgHasString(msg, "TestString"));
     RTT_EXPECT(SkalMsgHasAsciiString(msg, "TestString"));
     s = SkalMsgGetString(msg, "TestString");
     RTT_EXPECT(strcmp(s, "This is a test string") == 0);
+
     RTT_EXPECT(SkalMsgHasMiniblob(msg, "TestMiniblob"));
     int size_B;
     const uint8_t* miniblob = SkalMsgGetMiniblob(msg, "TestMiniblob", &size_B);
@@ -288,6 +326,15 @@ RTT_TEST_START(skal_msg_should_copy_msg)
     RTT_EXPECT(4 == size_B);
     uint8_t expected[4] = { 0x11, 0x22, 0x33, 0x44 };
     RTT_EXPECT(memcmp(miniblob, expected, sizeof(expected)) == 0);
+
+    RTT_EXPECT(SkalMsgHasBlob(msg, "TestBlob"));
+    SkalBlob* blob = SkalMsgGetBlob(msg, "TestBlob");
+    RTT_EXPECT(blob != NULL);
+    uint8_t* data = SkalBlobMap(blob);
+    RTT_EXPECT(data != NULL);
+    RTT_EXPECT(SkalStrcmp((char*)data, "Hello, World!") == 0);
+    SkalBlobUnmap(blob);
+    SkalBlobUnref(blob);
 
     // Test alarms
     SkalAlarm* alarm = SkalMsgDetachAlarm(msg);
@@ -564,10 +611,12 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_add_double,
         skal_msg_add_string,
         skal_msg_add_miniblob,
+        skal_msg_add_blob,
         skal_msg_should_have_correct_int,
         skal_msg_should_have_correct_double,
         skal_msg_should_have_correct_string,
         skal_msg_should_have_correct_miniblob,
+        skal_msg_should_have_correct_blob,
         skal_msg_should_attach_alarms,
         skal_msg_should_produce_correct_json,
         skal_msg_should_detach_alarm1,

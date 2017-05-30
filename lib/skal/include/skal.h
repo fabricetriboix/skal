@@ -280,7 +280,8 @@ typedef struct SkalAllocator {
 
     /** Allocator name
      *
-     * This must be unique within the allocator's scope.
+     * This must be unique within the allocator's scope. It must not contain the
+     * character ':'.
      */
     char* name;
 
@@ -1099,7 +1100,7 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
 /** Access a blob from a message
  *
  * The blob's reference counter will be incremented for you. Please call
- * `SkalBlobUnref(blob)` when you are done with it.
+ * `SkalBlobUnref()` when you are done with it.
  *
  * @param msg  [in] Message to query; must not be NULL
  * @param name [in] Name of the blob; must exists in this `msg`
@@ -1112,7 +1113,8 @@ SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name);
 /** Detach an alarm from a message
  *
  * You can call this function multiple times to extract all the alarms of the
- * message. The ownership of the alarm is transferred to you.
+ * message. The ownership of the alarm is transferred to you, please call
+ * `SkalAlarmUnref()` when you're finished with it.
  *
  * @param msg [in,out] Message to manipulate; must not be NULL
  *

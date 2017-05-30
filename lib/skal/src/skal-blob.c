@@ -414,6 +414,7 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
     SKALASSERT(gAllocatorMap != NULL);
     SKALASSERT(allocator != NULL);
     SKALASSERT(SkalIsAsciiString(allocator->name));
+    SKALASSERT(strchr(allocator->name, ':') == NULL);
     SKALASSERT(allocator->create != NULL);
     SKALASSERT(allocator->open != NULL);
     SKALASSERT(allocator->ref != NULL);
