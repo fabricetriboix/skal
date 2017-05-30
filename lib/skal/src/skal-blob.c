@@ -340,9 +340,7 @@ SkalBlob* SkalBlobOpen(const char* allocatorName, const char* id)
 
 void SkalBlobRef(SkalBlob* blob)
 {
-    SKALASSERT(blob != NULL);
-    SkalAllocator* allocator = blob->allocator;
-    SKALASSERT(allocator != NULL);
+    SkalAllocator* allocator = SkalBlobAllocator(blob);
     SKALASSERT(allocator->ref != NULL);
     allocator->ref(allocator->cookie, blob);
 }
@@ -350,9 +348,7 @@ void SkalBlobRef(SkalBlob* blob)
 
 void SkalBlobUnref(SkalBlob* blob)
 {
-    SKALASSERT(blob != NULL);
-    SkalAllocator* allocator = blob->allocator;
-    SKALASSERT(allocator != NULL);
+    SkalAllocator* allocator = SkalBlobAllocator(blob);
     SKALASSERT(allocator->unref != NULL);
     allocator->unref(allocator->cookie, blob);
 }
@@ -360,9 +356,7 @@ void SkalBlobUnref(SkalBlob* blob)
 
 uint8_t* SkalBlobMap(SkalBlob* blob)
 {
-    SKALASSERT(blob != NULL);
-    SkalAllocator* allocator = blob->allocator;
-    SKALASSERT(allocator != NULL);
+    SkalAllocator* allocator = SkalBlobAllocator(blob);
     SKALASSERT(allocator->map != NULL);
     return allocator->map(allocator->cookie, blob);
 }
@@ -370,9 +364,7 @@ uint8_t* SkalBlobMap(SkalBlob* blob)
 
 void SkalBlobUnmap(SkalBlob* blob)
 {
-    SKALASSERT(blob != NULL);
-    SkalAllocator* allocator = blob->allocator;
-    SKALASSERT(allocator != NULL);
+    SkalAllocator* allocator = SkalBlobAllocator(blob);
     SKALASSERT(allocator->unmap != NULL);
     allocator->unmap(allocator->cookie, blob);
 }
@@ -380,9 +372,7 @@ void SkalBlobUnmap(SkalBlob* blob)
 
 const char* SkalBlobId(const SkalBlob* blob)
 {
-    SKALASSERT(blob != NULL);
-    SkalAllocator* allocator = blob->allocator;
-    SKALASSERT(allocator != NULL);
+    SkalAllocator* allocator = SkalBlobAllocator(blob);
     SKALASSERT(allocator->blobid != NULL);
     return allocator->blobid(allocator->cookie, blob);
 }
@@ -390,11 +380,18 @@ const char* SkalBlobId(const SkalBlob* blob)
 
 int64_t SkalBlobSize_B(const SkalBlob* blob)
 {
+    SkalAllocator* allocator = SkalBlobAllocator(blob);
+    SKALASSERT(allocator->blobsize != NULL);
+    return allocator->blobsize(allocator->cookie, blob);
+}
+
+
+SkalAllocator* SkalBlobAllocator(const SkalBlob* blob)
+{
     SKALASSERT(blob != NULL);
     SkalAllocator* allocator = blob->allocator;
     SKALASSERT(allocator != NULL);
-    SKALASSERT(allocator->blobsize != NULL);
-    return allocator->blobsize(allocator->cookie, blob);
+    return allocator;
 }
 
 

@@ -46,6 +46,15 @@ void SkalBlobInit(const SkalAllocator* allocators, int size);
 void SkalBlobExit(void);
 
 
+/** Get the allocator that created/opened the blob
+ *
+ * @param blob [in] Blob to query; must not be NULL
+ *
+ * @return A pointer to the allocator that created/opened this blob, never NULL
+ */
+SkalAllocator* SkalBlobAllocator(const SkalBlob* blob);
+
+
 
 #ifdef __cplusplus
 }

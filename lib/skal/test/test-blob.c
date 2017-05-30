@@ -134,6 +134,14 @@ RTT_TEST_START(skal_should_open_blob)
 }
 RTT_TEST_END
 
+RTT_TEST_START(skal_blob_should_have_correct_allocator)
+{
+    SkalAllocator* allocator = SkalBlobAllocator(gBlob);
+    RTT_EXPECT(allocator != NULL);
+    RTT_EXPECT(SkalStrcmp(allocator->name, "test") == 0);
+}
+RTT_TEST_END
+
 RTT_TEST_START(skal_should_free_blob)
 {
     SkalBlobUnref(gBlob);
@@ -145,6 +153,7 @@ RTT_GROUP_END(TestSkalBlob,
         skal_should_create_a_blob,
         skal_blob_id_should_be_correct,
         skal_should_open_blob,
+        skal_blob_should_have_correct_allocator,
         skal_should_free_blob)
 
 
