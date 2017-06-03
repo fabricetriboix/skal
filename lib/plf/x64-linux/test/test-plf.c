@@ -214,3 +214,56 @@ RTT_GROUP_END(TestSkalPlfRegex,
         skal_plf_regex_should_match,
         skal_plf_regex_should_not_match,
         skal_plf_should_destroy_regex)
+
+RTT_GROUP_START(TestSkalPlfShm, 0x00010003u, NULL, NULL)
+
+static SkalPlfShm* gShm = NULL;
+
+RTT_TEST_START(skal_plf_should_create_shm)
+{
+    gShm = SkalPlfShmCreate("skal-plf-shm-test", 1000);
+    RTT_ASSERT(gShm != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_plf_should_open_and_write_shm)
+{
+    SkalPlfShm* shm = SkalPlfShmOpen("skal-plf-shm-test");
+    RTT_ASSERT(shm != NULL);
+    uint8_t* ptr = SkalPlfShmMap(shm);
+    RTT_ASSERT(ptr != NULL);
+    strcpy((char*)ptr, "Hello, World!");
+    SkalPlfShmClose(shm);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_plf_should_read_shm)
+{
+    uint8_t* ptr = SkalPlfShmMap(gShm);
+    RTT_ASSERT(ptr != NULL);
+    RTT_EXPECT(strcmp((char*)ptr, "Hello, World!") == 0);
+    SkalPlfShmUnmap(gShm);
+}
+RTT_TEST_END
+
+extern int64_t SkalPlfShmRefCount_DEBUG(void);
+RTT_TEST_START(skal_plf_should_unref_shm)
+{
+    SkalPlfShmUnref(gShm);
+    RTT_EXPECT(SkalPlfShmRefCount_DEBUG() == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_plf_should_close_shm)
+{
+    SkalPlfShmClose(gShm);
+    gShm = NULL;
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestSkalPlfShm,
+        skal_plf_should_create_shm,
+        skal_plf_should_open_and_write_shm,
+        skal_plf_should_read_shm,
+        skal_plf_should_unref_shm,
+        skal_plf_should_close_shm)

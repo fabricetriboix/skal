@@ -116,6 +116,10 @@ typedef void (*SkalPlfThreadFunction)(void* arg);
 typedef struct SkalPlfRegex SkalPlfRegex;
 
 
+/** Opaque type representing a shared memory area */
+typedef struct SkalPlfShm SkalPlfShm;
+
+
 
 /*------------------------------+
  | Public function declarations |
@@ -403,6 +407,112 @@ void SkalPlfRegexDestroy(SkalPlfRegex* regex);
  * @return Whether `str` matches `pattern`
  */
 bool SkalPlfRegexRun(const SkalPlfRegex* regex, const char* str);
+
+
+/** Create a shared memory area
+ *
+ * The memory area can be shared by different processes. Shared memory areas
+ * have reference counters, and the reference counter of a newly created shared
+ * memory area is set to 1.
+ *
+ * @param name   [in] Name of the shared memory area to create; must not be
+ *                    NULL; must be a null-terminated string with only ASCII
+ *                    characters in it; must not contain the character '/'; must
+ *                    not be too long according to the underlying OS
+ * @param size_B [in] Min size of the shared memory area, in bytes; must be >0
+ *
+ * @return The created shared memory area, or NULL in case of error (typically
+ *         when the shared memory area already exists)
+ */
+SkalPlfShm* SkalPlfShmCreate(const char* name, int64_t size_B);
+
+
+/** Open an existing shared memory area
+ *
+ * @param name [in] Name of the shared memory area to open; must not be NULL;
+ *                  must be a null-terminated string with only ASCII characters
+ *                  in it; must not contain the character '/'; must not be too
+ *                  long according to the underlying OS
+ *
+ * @return The opened shared memory area, or NULL in case of error (typically
+ *         when the shared memory area has not been created yet)
+ */
+SkalPlfShm* SkalPlfShmOpen(const char* name);
+
+
+/** Close an opened shared memory area
+ *
+ * You must call this function after having called `SkalPlfShmCreate()` or
+ * `SkalPlfShmOpen()`. This will not destroy the shared memory area, but just
+ * close it and free up internal structures. The shared memory area will be
+ * unmapped if necessary.
+ *
+ * `shm` will be freed and can't be accessed after this function returns.
+ *
+ * @param shm [in,out] Shared memory area to close; must not be NULL
+ */
+void SkalPlfShmClose(SkalPlfShm* shm);
+
+
+/** Add a reference a shared memory area
+ *
+ * This increment the shared memory area's reference counter by one.
+ *
+ * It's OK to call this function while the shared memory area is mapped.
+ *
+ * @param shm [in,out] Shared memory area to reference; must not be NULL
+ */
+void SkalPlfShmRef(SkalPlfShm* shm);
+
+
+/** Remove a reference to a shared memory area
+ *
+ * This decrements the shared memory area's reference counter by one. If the
+ * reference counter reaches 0, the shared memory area is deallocated. Please
+ * note you will still need to call `SkalPlfShmClose()` on `shm`.
+ *
+ * It's OK to call this function while the shared memory area is mapped. If the
+ * last reference is removed while the shared memory area is mapped, it is
+ * unmapped first and then destroyed.
+ *
+ * @param shm [in,out] Shared memory area to unreference; must not be NULL
+ */
+void SkalPlfShmUnref(SkalPlfShm* shm);
+
+
+/** Map a shared memory area in the caller's address space
+ *
+ * If the shared memory area is already mapped, no action is taken and a pointer
+ * to the area is returned.
+ *
+ * You must call `SkalPlfShmUnmap()` when finished.
+ *
+ * @param shm [in,out] Shared memory area to map; must not be NULL
+ *
+ * @return Pointer to the first byte of the shared memory area; this function
+ *         never returns NULL
+ */
+uint8_t* SkalPlfShmMap(SkalPlfShm* shm);
+
+
+/** Unmap a shared memory area from the caller's address space
+ *
+ * If you called `SkalPlfShmMap()` multiple times, that does not make a
+ * difference and the area is unmapped immediately. All pointers returned by
+ * `SkalPlfShmMap()` become invalid.
+ *
+ * @param shm [in,out] Shared memory area to unmap; must not be NULL
+ */
+void SkalPlfShmUnmap(SkalPlfShm* shm);
+
+
+/** Get the shared memory area size, in bytes
+ *
+ * @param shm [in] Shared memory area to query; must not be NULL
+ *
+ * @return The size of the shared memory area, in bytes; always >0
+ */
+int64_t SkalPlfShmSize_B(const SkalPlfShm* shm);
 
 
 
