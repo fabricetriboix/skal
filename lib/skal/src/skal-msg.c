@@ -65,11 +65,11 @@ typedef struct {
     int              size_B; // Used only for strings and miniblobs
     char*            name;
     union {
-        int64_t   i;
-        double    d;
-        char*     s;
-        uint8_t*  miniblob;
-        SkalBlob* blob;
+        int64_t        i;
+        double         d;
+        char*          s;
+        uint8_t*       miniblob;
+        SkalBlobProxy* blob;
     };
 } skalMsgField;
 
@@ -193,6 +193,15 @@ static const char* skalMsgParseJsonString(const char* json,
 static skalMsgFieldProperty skalMsgFieldStrToProp(const char* str);
 
 
+/** Duplicate a blob proxy, a la `dup(2)`
+ *
+ * @param blob [in] Blob proxy to duplicate; must not be NULL
+ *
+ * @return Duplicated blob proxy; never NULL
+ */
+static SkalBlobProxy* skalMsgDupBlob(SkalBlobProxy* blob);
+
+
 
 /*------------------+
  | Global variables |
@@ -306,6 +315,11 @@ void SkalMsgRef(SkalMsg* msg)
     SKALASSERT(msg != NULL);
     gMsgRefCount_DEBUG++;
     msg->ref++;
+
+    // NB: We don't increment the reference counters of blobs and alarms. Having
+    // just one reference for the message itself is enough, as that reference
+    // will be removed when the message is destroyed (i.e. when the last
+    // reference to that msg is removed).
 }
 
 
@@ -428,7 +442,7 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
 }
 
 
-void SkalMsgAddBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
+void SkalMsgAddBlob(SkalMsg* msg, const char* name, SkalBlobProxy* blob)
 {
     SKALASSERT(blob != NULL);
     skalMsgField* field = skalMsgFieldAllocate(msg, name,
@@ -566,7 +580,7 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
 }
 
 
-SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
+SkalBlobProxy* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name));
@@ -574,11 +588,7 @@ SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     SKALASSERT(field != NULL);
     SKALASSERT(SKAL_MSG_FIELD_TYPE_BLOB == field->type);
-
-    SkalBlob* blob = field->blob;
-    SKALASSERT(blob != NULL);
-    SkalBlobRef(blob);
-    return blob;
+    return skalMsgDupBlob(field->blob);
 }
 
 
@@ -638,8 +648,7 @@ SkalMsg* SkalMsgCopyEx(const SkalMsg* msg,
             break;
         case SKAL_MSG_FIELD_TYPE_BLOB :
             if (copyBlobs) {
-                SkalBlobRef(field->blob);
-                copyField->blob = field->blob;
+                copyField->blob = skalMsgDupBlob(field->blob);
             }
             break;
         default :
@@ -721,6 +730,22 @@ char* SkalMsgToJson(const SkalMsg* msg)
 }
 
 
+void SkalMsgRefBlobs(const SkalMsg* msg)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(msg->fields != NULL);
+
+    for (   CdsMapItem* item = CdsMapIteratorStart(msg->fields, true, NULL);
+            item != NULL;
+            item = CdsMapIteratorNext(msg->fields, NULL)) {
+        skalMsgField* field = (skalMsgField*)item;
+        if (SKAL_MSG_FIELD_TYPE_BLOB == field->type) {
+            SkalBlobRef(field->blob);
+        }
+    }
+}
+
+
 SkalMsg* SkalMsgCreateFromJson(const char* json)
 {
     SKALASSERT(json != NULL);
@@ -741,6 +766,22 @@ SkalMsg* SkalMsgCreateFromJson(const char* json)
         msg = NULL;
     }
     return msg;
+}
+
+
+void SkalMsgUnrefBlobs(const SkalMsg* msg)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(msg->fields != NULL);
+
+    for (   CdsMapItem* item = CdsMapIteratorStart(msg->fields, true, NULL);
+            item != NULL;
+            item = CdsMapIteratorNext(msg->fields, NULL)) {
+        skalMsgField* field = (skalMsgField*)item;
+        if (SKAL_MSG_FIELD_TYPE_BLOB == field->type) {
+            SkalBlobUnref(field->blob);
+        }
+    }
 }
 
 
@@ -807,7 +848,9 @@ static void skalFieldMapUnref(CdsMapItem* item)
         free(field->miniblob);
         break;
     case SKAL_MSG_FIELD_TYPE_BLOB :
-        SkalBlobUnref(field->blob);
+        if (field->blob != NULL) {
+            SkalBlobClose(field->blob);
+        }
         break;
     default :
         break; // nothing to do
@@ -879,7 +922,11 @@ static void skalFieldToJson(SkalStringBuilder* sb,
 
     case SKAL_MSG_FIELD_TYPE_BLOB :
         {
+            const char* allocatorName = "";
             const char* id = "";
+            if (field->blob->allocator != NULL) {
+                allocatorName = field->blob->allocator->name;
+            }
             if (SkalBlobId(field->blob) != NULL) {
                 id = SkalBlobId(field->blob);
             }
@@ -890,7 +937,7 @@ static void skalFieldToJson(SkalStringBuilder* sb,
                     "   \"value\": \"%s:%s\"\n"
                     "  },\n",
                     name,
-                    SkalBlobAllocator(field->blob)->name,
+                    allocatorName,
                     id);
         }
         break;
@@ -1339,12 +1386,13 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
             }
             *ptr = '\0';
             ptr++;
-            SkalBlob* blob = SkalBlobOpen(data, ptr);
-            free(data);
-            if (NULL == blob) {
-                SkalLog("SkalMsg: Invalid message: Can't open blob for allocator='%s', id='%s'",
-                        data, ptr);
+            field->blob = SkalBlobOpen(data, ptr);
+            if (NULL == field->blob) {
+                SkalLog("SkalMsg: Failed to open blob '%s:%s'", data, ptr);
+                free(data);
+                return NULL;
             }
+            free(data);
         }
         break;
 
@@ -1417,4 +1465,16 @@ static skalMsgFieldProperty skalMsgFieldStrToProp(const char* str)
         property = SKAL_MSG_FIELD_PROPERTY_VALUE;
     }
     return property;
+}
+
+
+static SkalBlobProxy* skalMsgDupBlob(SkalBlobProxy* blob)
+{
+    SKALASSERT(blob != NULL);
+    SkalAllocator* allocator = SkalBlobAllocator(blob);
+    SkalBlobProxy* copy = SkalBlobOpen(allocator->name, SkalBlobId(blob));
+
+    // This blob is already opened and referenced, so `copy` can't be NULL
+    SKALASSERT(copy != NULL);
+    return copy;
 }

@@ -79,12 +79,15 @@ struct SkalPlfShm {
 };
 
 
+#define SKAL_SHM_MAGIC "SkalShm"
+
+
 /** Structure at the beginning of a shared memory area */
 typedef struct {
+    char    magic[8];    /**< Magic number */
     int64_t ref;         /**< Reference counter */
     int64_t size_B;      /**< Number of bytes initially requested */
     int64_t totalSize_B; /**< Total size of the shm, including hdr */
-    int64_t pad;
 } skalPlfShmHeader;
 
 

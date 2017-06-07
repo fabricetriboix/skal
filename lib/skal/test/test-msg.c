@@ -115,7 +115,7 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_msg_add_blob)
 {
-    SkalBlob* blob = SkalBlobCreate(NULL, NULL, 500);
+    SkalBlobProxy* blob = SkalBlobCreate(NULL, NULL, 500);
     RTT_ASSERT(blob != NULL);
     uint8_t* data = SkalBlobMap(blob);
     RTT_ASSERT(data != NULL);
@@ -163,13 +163,13 @@ RTT_TEST_END
 RTT_TEST_START(skal_msg_should_have_correct_blob)
 {
     RTT_EXPECT(SkalMsgHasBlob(gMsg, "TestBlob"));
-    SkalBlob* blob = SkalMsgGetBlob(gMsg, "TestBlob");
+    SkalBlobProxy* blob = SkalMsgGetBlob(gMsg, "TestBlob");
     RTT_EXPECT(blob != NULL);
     uint8_t* data = SkalBlobMap(blob);
     RTT_ASSERT(data != NULL);
     RTT_EXPECT(SkalStrcmp((char*)data, "Hello, World!") == 0);
     SkalBlobUnmap(blob);
-    SkalBlobUnref(blob);
+    SkalBlobClose(blob);
 }
 RTT_TEST_END
 
@@ -196,7 +196,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
     // NB: Fields will be ordered by name
     char timestamp[64];
     SkalPlfTimestamp(SkalMsgTimestamp_us(gMsg), timestamp, sizeof(timestamp));
-    SkalBlob* blob = SkalMsgGetBlob(gMsg, "TestBlob");
+    SkalBlobProxy* blob = SkalMsgGetBlob(gMsg, "TestBlob");
     char* expected = SkalSPrintf(
         "{\n"
         " \"version\": 1,\n"
@@ -211,7 +211,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         "  {\n"
         "   \"name\": \"TestBlob\",\n"
         "   \"type\": \"blob\",\n"
-        "   \"value\": \"malloc:%p\"\n"
+        "   \"value\": \"malloc:%s\"\n"
         "  },\n"
         "  {\n"
         "   \"name\": \"TestDouble\",\n"
@@ -256,10 +256,10 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         " ]\n"
         "}\n",
         timestamp,
-        blob,
+        SkalBlobId(blob),
         (long long)SkalAlarmTimestamp_us(gAlarm1),
         (long long)SkalAlarmTimestamp_us(gAlarm2));
-    SkalBlobUnref(blob);
+    SkalBlobClose(blob);
 
     RTT_EXPECT(strcmp(json, expected) == 0);
     free(json);
@@ -328,13 +328,13 @@ RTT_TEST_START(skal_msg_should_copy_msg)
     RTT_EXPECT(memcmp(miniblob, expected, sizeof(expected)) == 0);
 
     RTT_EXPECT(SkalMsgHasBlob(msg, "TestBlob"));
-    SkalBlob* blob = SkalMsgGetBlob(msg, "TestBlob");
+    SkalBlobProxy* blob = SkalMsgGetBlob(msg, "TestBlob");
     RTT_EXPECT(blob != NULL);
     uint8_t* data = SkalBlobMap(blob);
     RTT_EXPECT(data != NULL);
     RTT_EXPECT(SkalStrcmp((char*)data, "Hello, World!") == 0);
     SkalBlobUnmap(blob);
-    SkalBlobUnref(blob);
+    SkalBlobClose(blob);
 
     // Test alarms
     SkalAlarm* alarm = SkalMsgDetachAlarm(msg);
