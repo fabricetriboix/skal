@@ -232,6 +232,15 @@ char* SkalStringBuilderFinish(SkalStringBuilder* sb);
 bool SkalIsAsciiString(const char* str);
 
 
+/** Somewhat safer replacement for `strlen(3)`
+ *
+ * @param str [in] String to query; may be NULL or a null-terminated string
+ *
+ * @return The number of bytes in `str`, excluding the null-terminated character
+ */
+int SkalStrlen(const char* str);
+
+
 /** Safer replacement for `strcmp(3)`
  *
  * @param lhs [in] Left-hand side string to compare; must be NULL or a UTF-8

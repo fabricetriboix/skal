@@ -13,11 +13,15 @@ require the commercial license, please contact me:
 Getting started
 ---------------
 
-    $ scons --help
-    $ scons --mkdoc -j4    # Build
-    $ ./run_unit_tests.py  # Run the unit tests
-    $ ./install.py --help
-    $ ./install.py         # Install
+    $ vim Makefile                    # Adjust your settings
+    $ make                            # Build
+    $ make test                       # Run unit & integration tests
+    $ make install PREFIX=/your/path  # Install into PREFIX
+
+The Makefile will use ccache if available. You can disable it by adding
+`CCACHE=` on the command line, like so:
+
+    $ make CCACHE=
 
 Read the doxygen documentation to learn how to use SKAL.
 

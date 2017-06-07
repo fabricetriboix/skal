@@ -46,6 +46,22 @@ void SkalBlobInit(const SkalAllocator* allocators, int size);
 void SkalBlobExit(void);
 
 
+/** Get the allocator that created/opened the blob
+ *
+ * @param blob [in] Blob to query; must not be NULL
+ *
+ * @return A pointer to the allocator that created/opened this blob, never NULL
+ */
+SkalAllocator* SkalBlobAllocator(const SkalBlobProxy* blob);
+
+
+/** DEBUG: Get the number of blob references in this process
+ *
+ * This is a debug/testing function.
+ */
+int64_t SkalBlobRefCount_DEBUG(void);
+
+
 
 #ifdef __cplusplus
 }

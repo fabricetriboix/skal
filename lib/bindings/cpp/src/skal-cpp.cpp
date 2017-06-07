@@ -36,7 +36,8 @@ namespace skal {
  * declarations of the `skal::Allocator` class to work.
  */
 
-void* skalCppAllocatorAllocate(void* cookie, const char* id, int64_t size_B)
+SkalBlobProxy* skalCppAllocatorCreate(void* cookie,
+        const char* id, int64_t size_B)
 {
     Allocator* allocator = (Allocator*)cookie;
     SKALASSERT(allocator != nullptr);
@@ -44,28 +45,76 @@ void* skalCppAllocatorAllocate(void* cookie, const char* id, int64_t size_B)
     if (id != nullptr) {
         tmp = id;
     }
-    return allocator->allocate(tmp, size_B);
+    return allocator->create(tmp, size_B);
 }
 
-void skalCppAllocatorDeallocate(void* cookie, void* obj)
+SkalBlobProxy* skalCppAllocatorOpen(void* cookie, const char* id)
 {
     Allocator* allocator = (Allocator*)cookie;
     SKALASSERT(allocator != nullptr);
-    allocator->deallocate(obj);
+    std::string tmp;
+    if (id != nullptr) {
+        tmp = id;
+    }
+    return allocator->open(tmp);
 }
 
-void* skalCppAllocatorMap(void* cookie, void* obj)
+void skalCppAllocatorClose(void* cookie, SkalBlobProxy* blob)
 {
     Allocator* allocator = (Allocator*)cookie;
     SKALASSERT(allocator != nullptr);
-    return allocator->map(obj);
+    SKALASSERT(blob != nullptr);
+    allocator->close(*blob);
 }
 
-void skalCppAllocatorUnmap(void* cookie, void* obj)
+void skalCppAllocatorRef(void* cookie, SkalBlobProxy* blob)
 {
     Allocator* allocator = (Allocator*)cookie;
     SKALASSERT(allocator != nullptr);
-    allocator->unmap(obj);
+    SKALASSERT(blob != nullptr);
+    allocator->ref(*blob);
+}
+
+void skalCppAllocatorUnref(void* cookie, SkalBlobProxy* blob)
+{
+    Allocator* allocator = (Allocator*)cookie;
+    SKALASSERT(allocator != nullptr);
+    SKALASSERT(blob != nullptr);
+    allocator->unref(*blob);
+}
+
+uint8_t* skalCppAllocatorMap(void* cookie, SkalBlobProxy* blob)
+{
+    Allocator* allocator = (Allocator*)cookie;
+    SKALASSERT(allocator != nullptr);
+    SKALASSERT(blob != nullptr);
+    return allocator->map(*blob);
+}
+
+void skalCppAllocatorUnmap(void* cookie, SkalBlobProxy* blob)
+{
+    Allocator* allocator = (Allocator*)cookie;
+    SKALASSERT(allocator != nullptr);
+    SKALASSERT(blob != NULL);
+    allocator->unmap(*blob);
+}
+
+
+const char* skalCppAllocatorBlobId(void* cookie, const SkalBlobProxy* blob)
+{
+    Allocator* allocator = (Allocator*)cookie;
+    SKALASSERT(allocator != nullptr);
+    SKALASSERT(blob != NULL);
+    return allocator->blobid(*blob);
+}
+
+
+int64_t skalCppAllocatorBlobSize(void* cookie, const SkalBlobProxy* blob)
+{
+    Allocator* allocator = (Allocator*)cookie;
+    SKALASSERT(allocator != nullptr);
+    SKALASSERT(blob != NULL);
+    return allocator->blobsize(*blob);
 }
 
 
@@ -74,9 +123,6 @@ Allocator::Allocator(const std::string& name, Scope scope)
     mAllocator.name = SkalStrdup(name.c_str());
 
     switch (scope) {
-    case Allocator::Scope::THREAD :
-        mAllocator.scope = SKAL_ALLOCATOR_SCOPE_THREAD;
-        break;
     case Allocator::Scope::PROCESS :
         mAllocator.scope = SKAL_ALLOCATOR_SCOPE_PROCESS;
         break;
@@ -90,10 +136,15 @@ Allocator::Allocator(const std::string& name, Scope scope)
         SKALPANIC_MSG("Invalid allocator scope: %d", (int)scope);
     }
 
-    mAllocator.allocate = skalCppAllocatorAllocate;
-    mAllocator.deallocate = skalCppAllocatorDeallocate;
+    mAllocator.create = skalCppAllocatorCreate;
+    mAllocator.open = skalCppAllocatorOpen;
+    mAllocator.close = skalCppAllocatorClose;
+    mAllocator.ref = skalCppAllocatorRef;
+    mAllocator.unref = skalCppAllocatorUnref;
     mAllocator.map = skalCppAllocatorMap;
     mAllocator.unmap = skalCppAllocatorUnmap;
+    mAllocator.blobid = skalCppAllocatorBlobId;
+    mAllocator.blobsize = skalCppAllocatorBlobSize;
     mAllocator.cookie = this;
 }
 
@@ -179,16 +230,16 @@ int64_t Alarm::Timestamp_us() const
  | Blobs |
  +-------*/
 
-Blob::Blob(SkalBlob* blob) : mBlob(blob)
+BlobProxy::BlobProxy(SkalBlobProxy* blob) : mBlob(blob)
 {
 }
 
-Blob::~Blob()
+BlobProxy::~BlobProxy()
 {
     SkalBlobUnref(mBlob);
 }
 
-std::string Blob::Id() const
+std::string BlobProxy::Id() const
 {
     const char* id = SkalBlobId(mBlob);
     if (nullptr == id) {
@@ -197,21 +248,12 @@ std::string Blob::Id() const
     return id;
 }
 
-std::string Blob::Name() const
-{
-    const char* name = SkalBlobName(mBlob);
-    if (nullptr == name) {
-        name = "";
-    }
-    return name;
-}
-
-int64_t Blob::Size_B() const
+int64_t BlobProxy::Size_B() const
 {
     return SkalBlobSize_B(mBlob);
 }
 
-Blob::ScopedMap::ScopedMap(Blob& blob)
+BlobProxy::ScopedMap::ScopedMap(BlobProxy& blob)
     : mBlob(&blob), mPtr(SkalBlobMap(blob.mBlob))
 {
     if (nullptr == mPtr) {
@@ -219,38 +261,52 @@ Blob::ScopedMap::ScopedMap(Blob& blob)
     }
 }
 
-Blob::ScopedMap::~ScopedMap()
+BlobProxy::ScopedMap::~ScopedMap()
 {
     if (mPtr != nullptr) {
         SkalBlobUnmap(mBlob->mBlob);
     }
 }
 
-void* Blob::ScopedMap::Get() const
+uint8_t* BlobProxy::ScopedMap::Get() const
 {
     return mPtr;
 }
 
-std::shared_ptr<Blob> CreateBlob(const std::string& allocator,
-        const std::string& id, const std::string& name, int64_t size_B)
+std::shared_ptr<BlobProxy> CreateBlob(const std::string& allocatorName,
+        const std::string& id, int64_t size_B)
 {
-    const char* tmpAllocator = nullptr;
-    if (allocator.size() > 0) {
-        tmpAllocator = allocator.c_str();
+    const char* tmpAllocatorName = nullptr;
+    if (allocatorName.size() > 0) {
+        tmpAllocatorName = allocatorName.c_str();
     }
     const char* tmpId = nullptr;
     if (id.size() > 0) {
         tmpId = id.c_str();
     }
-    const char* tmpName = nullptr;
-    if (name.size() > 0) {
-        tmpName = name.c_str();
-    }
-    SkalBlob* blob = SkalBlobCreate(tmpAllocator, tmpId, tmpName, size_B);
+    SkalBlobProxy* blob = SkalBlobCreate(tmpAllocatorName, tmpId, size_B);
     if (nullptr == blob) {
         return nullptr;
     }
-    return std::shared_ptr<Blob>(new Blob(blob));
+    return std::shared_ptr<BlobProxy>(new BlobProxy(blob));
+}
+
+std::shared_ptr<BlobProxy> OpenBlob(const std::string& allocatorName,
+        const std::string& id)
+{
+    const char* tmpAllocatorName = nullptr;
+    if (allocatorName.size() > 0) {
+        tmpAllocatorName = allocatorName.c_str();
+    }
+    const char* tmpId = nullptr;
+    if (id.size() > 0) {
+        tmpId = id.c_str();
+    }
+    SkalBlobProxy* blob = SkalBlobOpen(tmpAllocatorName, tmpId);
+    if (nullptr == blob) {
+        return nullptr;
+    }
+    return std::shared_ptr<BlobProxy>(new BlobProxy(blob));
 }
 
 
@@ -294,9 +350,9 @@ void Msg::AddField(const std::string& name, const uint8_t* miniblob, int size_B)
     SkalMsgAddMiniblob(mMsg, name.c_str(), miniblob, size_B);
 }
 
-void Msg::AttachBlob(const std::string& name, std::shared_ptr<Blob> blob)
+void Msg::AddField(const std::string& name, std::shared_ptr<BlobProxy> blob)
 {
-    SkalMsgAttachBlob(mMsg, name.c_str(), blob->mBlob);
+    SkalMsgAddBlob(mMsg, name.c_str(), blob->mBlob);
 }
 
 bool Msg::HasField(const std::string& name)
@@ -324,10 +380,10 @@ const uint8_t* Msg::GetMiniblobField(const std::string& name, int& size_B) const
     return SkalMsgGetMiniblob(mMsg, name.c_str(), &size_B);
 }
 
-std::shared_ptr<Blob> Msg::GetBlob(const std::string& name) const
+std::shared_ptr<BlobProxy> Msg::GetBlob(const std::string& name) const
 {
-    SkalBlob* blob = SkalMsgGetBlob(mMsg, name.c_str());
-    return std::shared_ptr<Blob>(new Blob(blob));
+    SkalBlobProxy* blob = SkalMsgGetBlob(mMsg, name.c_str());
+    return std::shared_ptr<BlobProxy>(new BlobProxy(blob));
 }
 
 void Msg::AttachAlarm(std::shared_ptr<Alarm> alarm)

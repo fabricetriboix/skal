@@ -333,6 +333,16 @@ bool SkalIsAsciiString(const char* str)
 }
 
 
+int SkalStrlen(const char* str)
+{
+    int len = 0;
+    if (str != NULL) {
+        len = (int)strlen(str);
+    }
+    return len;
+}
+
+
 int SkalStrcmp(const char* lhs, const char* rhs)
 {
     if (NULL == lhs) {

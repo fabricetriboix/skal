@@ -20,51 +20,124 @@
 #include <string.h>
 
 
-static int   gBlobCount = 0;
-static void* gBlob = NULL;
+static SkalBlobProxy* gBlob = NULL;
+static SkalBlobProxy* gBlob2 = NULL;
 
-static void* skalTestBlobAllocate(void* cookie, const char* id, int64_t size_B)
-{
-    (void)id; // unused argument
-    SKALASSERT(cookie == (void*)0xdeadbeef);
-    gBlobCount++;
-    return malloc(size_B);
-}
+typedef struct {
+    SkalBlobProxy parent;
+    int* ptr;
+} blobProxy;
 
-static void skalTestBlobFree(void* cookie, void* obj)
+static SkalBlobProxy* skalTestBlobCreate(void* cookie,
+        const char* id, int64_t size_B)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
-    gBlobCount--;
-    free(obj);
+    blobProxy* blob = SkalMallocZ(sizeof(*blob));
+    int* ptr = SkalMalloc(size_B + sizeof(int));
+    *ptr = 1;
+    blob->ptr = ptr;
+    return (SkalBlobProxy*)blob;
 }
 
-static void* skalTestBlobMap(void* cookie, void* obj)
+static SkalBlobProxy* skalTestBlobOpen(void* cookie, const char* id)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
-    return obj;
+    int* ptr;
+    int ret = sscanf(id, "%p", &ptr);
+    SKALASSERT(1 == ret);
+    blobProxy* blob = SkalMallocZ(sizeof(*blob));
+    blob->ptr = ptr;
+    (*ptr)++;
+    return (SkalBlobProxy*)blob;
 }
 
-static void skalTestBlobUnmap(void* cookie, void* obj)
+static void skalTestBlobClose(void* cookie, SkalBlobProxy* sblob)
 {
-    (void)obj; // unused argument
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(sblob != NULL);
+    blobProxy* blob = (blobProxy*)sblob;
+    int* ptr = blob->ptr;
+    SKALASSERT(ptr != NULL);
+    (*ptr)--;
+    if (*ptr <= 0) {
+        free(ptr);
+    }
+    free(blob);
+}
+
+static void skalTestBlobRef(void* cookie, SkalBlobProxy* sblob)
+{
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(sblob != NULL);
+    blobProxy* blob = (blobProxy*)sblob;
+    int* ptr = blob->ptr;
+    SKALASSERT(ptr != NULL);
+    (*ptr)--;
+}
+
+static void skalTestBlobUnref(void* cookie, SkalBlobProxy* sblob)
+{
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(sblob != NULL);
+    blobProxy* blob = (blobProxy*)sblob;
+    int* ptr = blob->ptr;
+    SKALASSERT(ptr != NULL);
+    (*ptr)--;
+    if (*ptr <= 0) {
+        free(ptr);
+        blob->ptr = NULL;
+    }
+}
+
+static uint8_t* skalTestBlobMap(void* cookie, SkalBlobProxy* sblob)
+{
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(sblob != NULL);
+    blobProxy* blob = (blobProxy*)sblob;
+    uint8_t* ptr = (uint8_t*)(blob->ptr);
+    SKALASSERT(ptr != NULL);
+    return ptr + sizeof(int);
+}
+
+static void skalTestBlobUnmap(void* cookie, SkalBlobProxy* blob)
+{
     SKALASSERT(cookie == (void*)0xdeadbeef);
 }
 
-static SkalAllocator gSkalTestBlobAllocator = {
-    "test",                 // name
-    false,                  // interProcess
-    skalTestBlobAllocate,   // allocate
-    skalTestBlobFree,       // free
-    skalTestBlobMap,        // map
-    skalTestBlobUnmap,      // unmap
-    (void*)0xdeadbeef       // cookie
-};
+static const char* skalTestBlobId(void* cookie, const SkalBlobProxy* sblob)
+{
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(sblob != NULL);
+    blobProxy* blob = (blobProxy*)sblob;
+    static char id[64];
+    snprintf(id, sizeof(id), "%p", blob->ptr);
+    return id;
+}
 
+static int64_t skalTestBlobSize(void* cookie, const SkalBlobProxy* blob)
+{
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    return 100;
+}
 
 static RTBool skalBlobTestGroupEntry(void)
 {
     SkalPlfInit();
-    SkalBlobInit(&gSkalTestBlobAllocator, 1);
+    SkalAllocator test;
+    memset(&test, 0, sizeof(test));
+    test.name = "test";
+    test.scope = SKAL_ALLOCATOR_SCOPE_PROCESS;
+    test.create = skalTestBlobCreate;
+    test.open = skalTestBlobOpen;
+    test.close = skalTestBlobClose;
+    test.ref = skalTestBlobRef;
+    test.unref = skalTestBlobUnref;
+    test.map = skalTestBlobMap;
+    test.unmap = skalTestBlobUnmap;
+    test.blobid = skalTestBlobId;
+    test.blobsize = skalTestBlobSize;
+    test.cookie = (void*)0xdeadbeef;
+    SkalBlobInit(&test, 1);
     return RTTrue;
 }
 
@@ -78,46 +151,118 @@ static RTBool skalBlobTestGroupExit(void)
 RTT_GROUP_START(TestSkalBlob, 0x00030001u,
         skalBlobTestGroupEntry, skalBlobTestGroupExit)
 
-RTT_TEST_START(skal_should_allocate_a_blob)
+RTT_TEST_START(skal_should_create_a_blob)
 {
-    gBlob = SkalBlobCreate("test", "dummy", "TestName", 1000);
+    gBlob = SkalBlobCreate("test", NULL, 1000);
     RTT_ASSERT(gBlob != NULL);
-    RTT_ASSERT(gBlobCount == 1);
 }
 RTT_TEST_END
+
+static char gId[128];
 
 RTT_TEST_START(skal_blob_id_should_be_correct)
 {
     const char* id = SkalBlobId(gBlob);
     RTT_ASSERT(id != NULL);
-    RTT_EXPECT(strcmp(id, "dummy") == 0);
+    snprintf(gId, sizeof(gId), "%s", id);
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_blob_name_should_be_correct)
+RTT_TEST_START(skal_blob_ref_count_should_be_one)
 {
-    const char* name = SkalBlobName(gBlob);
-    RTT_ASSERT(name != NULL);
-    RTT_EXPECT(strcmp(name, "TestName") == 0);
+    RTT_EXPECT(SkalBlobRefCount_DEBUG() == 1);
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_blob_size_should_be_correct)
+RTT_TEST_START(skal_should_open_blob)
 {
-    RTT_ASSERT(SkalBlobSize_B(gBlob) == 1000);
+    gBlob2 = SkalBlobOpen("test", gId);
+    RTT_EXPECT(gBlob2 != NULL);
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_should_free_blob)
+RTT_TEST_START(skal_blob_ref_count_should_be_two)
 {
-    SkalBlobUnref(gBlob);
-    RTT_ASSERT(gBlobCount == 0);
+    RTT_EXPECT(SkalBlobRefCount_DEBUG() == 2);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_blob_should_close_opened_blob)
+{
+    SkalBlobClose(gBlob2);
+    gBlob2 = NULL;
+    RTT_EXPECT(SkalBlobRefCount_DEBUG() == 1);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_blob_should_have_correct_allocator)
+{
+    SkalAllocator* allocator = SkalBlobAllocator(gBlob);
+    RTT_EXPECT(allocator != NULL);
+    RTT_EXPECT(SkalStrcmp(allocator->name, "test") == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_should_close_blob)
+{
+    SkalBlobClose(gBlob);
+    gBlob = NULL;
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_blob_ref_count_should_be_zero)
+{
+    RTT_EXPECT(SkalBlobRefCount_DEBUG() == 0);
 }
 RTT_TEST_END
 
 RTT_GROUP_END(TestSkalBlob,
-        skal_should_allocate_a_blob,
+        skal_should_create_a_blob,
         skal_blob_id_should_be_correct,
-        skal_blob_name_should_be_correct,
-        skal_blob_size_should_be_correct,
-        skal_should_free_blob)
+        skal_blob_ref_count_should_be_one,
+        skal_should_open_blob,
+        skal_blob_ref_count_should_be_two,
+        skal_blob_should_close_opened_blob,
+        skal_blob_should_have_correct_allocator,
+        skal_should_close_blob,
+        skal_blob_ref_count_should_be_zero)
+
+
+RTT_GROUP_START(TestMallocBlob, 0x00030002u,
+        skalBlobTestGroupEntry, skalBlobTestGroupExit)
+
+RTT_TEST_START(skal_malloc_should_create_blob)
+{
+    gBlob = SkalBlobCreate(NULL, NULL, 500);
+    RTT_ASSERT(gBlob != NULL);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_malloc_should_map_blob)
+{
+    uint8_t* ptr = SkalBlobMap(gBlob);
+    RTT_EXPECT(ptr != NULL);
+    strcpy((char*)ptr, "Hello, World!");
+    SkalBlobUnmap(gBlob);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_malloc_blob_should_have_correct_content)
+{
+    uint8_t* ptr = SkalBlobMap(gBlob);
+    RTT_EXPECT(SkalStrcmp((char*)ptr, "Hello, World!") == 0);
+    SkalBlobUnmap(gBlob);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_malloc_should_close_blob)
+{
+    SkalBlobClose(gBlob);
+}
+RTT_TEST_END
+
+RTT_GROUP_END(TestMallocBlob,
+        skal_malloc_should_create_blob,
+        skal_malloc_should_map_blob,
+        skal_malloc_blob_should_have_correct_content,
+        skal_malloc_should_close_blob)

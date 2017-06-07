@@ -22,6 +22,7 @@
 #include "skal-plf.h"
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 #include <time.h>
 #include <fcntl.h>
@@ -30,6 +31,7 @@
 #include <signal.h>
 #include <string.h>
 #include <regex.h>
+#include <linux/limits.h>
 
 
 
@@ -67,6 +69,32 @@ struct SkalPlfRegex {
 };
 
 
+struct SkalPlfShm {
+    char*    name;        /**< shm name */
+    char*    path;        /**< shm path, as used in `shm_open()` */
+    int      fd;          /**< shm file */
+    int64_t  size_B;      /**< Number of bytes initially requested */
+    int64_t  totalSize_B; /**< Actual size of the shm, including its header */
+    uint8_t* ptr;         /**< Start of shm if mapped, NULL if not mapped */
+};
+
+
+#define SKAL_SHM_MAGIC "SkalShm"
+
+
+/** Structure at the beginning of a shared memory area */
+typedef struct {
+    char    magic[8];    /**< Magic number */
+    int64_t ref;         /**< Reference counter */
+    int64_t size_B;      /**< Number of bytes initially requested */
+    int64_t totalSize_B; /**< Total size of the shm, including hdr */
+} skalPlfShmHeader;
+
+
+/** Debug: How many references have we to shared memory areas? */
+static int64_t gShmRefCount = 0;
+
+
 
 /*-------------------------------+
  | Private function declarations |
@@ -84,6 +112,17 @@ static void skalPlfThreadSpecificFree(void* arg);
  * @return Always NULL
  */
 static void* skalPlfThreadRun(void* arg);
+
+
+/** Check the name of a shared memory area
+ *
+ * Assert if the name is not valid. If the name is valid, returns a string with
+ * a '/' prepended to the name.
+ *
+ * @return Path suitable for Linux use; please call `free(3)` on it when
+ *         finished; this function never returns NULL
+ */
+static char* skalPlfCheckShmName(const char* name);
 
 
 
@@ -524,6 +563,156 @@ bool SkalPlfRegexRun(const SkalPlfRegex* regex, const char* str)
 }
 
 
+SkalPlfShm* SkalPlfShmCreate(const char* name, int64_t size_B)
+{
+    char* path = skalPlfCheckShmName(name);
+    SKALASSERT(size_B > 0);
+    int fd = shm_open(path, O_RDWR | O_CREAT | O_EXCL, SKAL_SHM_PERM);
+    if (fd < 0) {
+        free(path);
+        return NULL;
+    }
+
+    int64_t totalSize_B = (off_t)size_B + sizeof(skalPlfShmHeader);
+    int ret = ftruncate(fd, (off_t)totalSize_B);
+    if (ret < 0) {
+        close(fd);
+        shm_unlink(path);
+        free(path);
+        return NULL;
+    }
+
+    // Initialise shared memory header
+    skalPlfShmHeader* hdr = (skalPlfShmHeader*)mmap(NULL,
+            totalSize_B, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    SKALASSERT(hdr != MAP_FAILED);
+    hdr->ref = 1;
+    gShmRefCount++;
+    hdr->size_B = size_B;
+    hdr->totalSize_B = totalSize_B;
+
+    SkalPlfShm* shm = malloc(sizeof(*shm));
+    SKALASSERT(shm != NULL);
+    shm->name = strdup(name);
+    SKALASSERT(shm->name != NULL);
+    shm->path = path;
+    shm->fd = fd;
+    shm->size_B = size_B;
+    shm->totalSize_B = totalSize_B;
+    shm->ptr = (uint8_t*)hdr;
+    return shm;
+}
+
+
+SkalPlfShm* SkalPlfShmOpen(const char* name)
+{
+    char* path = skalPlfCheckShmName(name);
+    int fd = shm_open(path, O_RDWR, SKAL_SHM_PERM);
+    if (fd < 0) {
+        free(path);
+        return NULL;
+    }
+
+    skalPlfShmHeader* hdr = (skalPlfShmHeader*)mmap(NULL,
+            sizeof(*hdr), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    SKALASSERT(hdr != MAP_FAILED);
+    int64_t size_B = hdr->size_B;
+    int64_t totalSize_B = hdr->totalSize_B;
+    int ret = munmap(hdr, sizeof(*hdr));
+    SKALASSERT(0 == ret);
+
+    SkalPlfShm* shm = malloc(sizeof(*shm));
+    SKALASSERT(shm != NULL);
+    shm->name = strdup(name);
+    SKALASSERT(shm->name != NULL);
+    shm->path = path;
+    shm->fd = fd;
+    shm->size_B = size_B;
+    shm->totalSize_B = totalSize_B;
+    shm->ptr = NULL;
+    return shm;
+}
+
+
+void SkalPlfShmClose(SkalPlfShm* shm)
+{
+    SKALASSERT(shm != NULL);
+    SkalPlfShmUnmap(shm);
+    if (shm->fd >= 0) {
+        close(shm->fd);
+    }
+    free(shm->name);
+    free(shm->path);
+    free(shm);
+}
+
+
+void SkalPlfShmRef(SkalPlfShm* shm)
+{
+    SKALASSERT(shm != NULL);
+    if (NULL == shm->ptr) {
+        (void)SkalPlfShmMap(shm);
+    }
+    skalPlfShmHeader* hdr = (skalPlfShmHeader*)shm->ptr;
+    (hdr->ref)++;
+    gShmRefCount++;
+}
+
+
+void SkalPlfShmUnref(SkalPlfShm* shm)
+{
+    SKALASSERT(shm != NULL);
+    if (NULL == shm->ptr) {
+        (void)SkalPlfShmMap(shm);
+    }
+    skalPlfShmHeader* hdr = (skalPlfShmHeader*)shm->ptr;
+    (hdr->ref)--;
+    gShmRefCount--;
+    if (hdr->ref <= 0) {
+        SkalPlfShmUnmap(shm);
+        close(shm->fd);
+        shm->fd = -1;
+        shm_unlink(shm->path);
+    }
+}
+
+
+uint8_t* SkalPlfShmMap(SkalPlfShm* shm)
+{
+    SKALASSERT(shm != NULL);
+    if (NULL == shm->ptr) {
+        shm->ptr = mmap(NULL,
+            shm->totalSize_B, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
+        SKALASSERT(shm->ptr != MAP_FAILED);
+    }
+    return shm->ptr + sizeof(skalPlfShmHeader);
+}
+
+
+void SkalPlfShmUnmap(SkalPlfShm* shm)
+{
+    SKALASSERT(shm != NULL);
+    if (shm->ptr != NULL) {
+        int ret = munmap(shm->ptr, shm->totalSize_B);
+        SKALASSERT(0 == ret);
+        shm->ptr = NULL;
+    }
+}
+
+
+int64_t SkalPlfShmSize_B(const SkalPlfShm* shm)
+{
+    SKALASSERT(shm != NULL);
+    return shm->size_B;
+}
+
+
+int64_t SkalPlfShmRefCount_DEBUG(void)
+{
+    return gShmRefCount;
+}
+
+
 
 /*----------------------------------+
  | Private function implementations |
@@ -557,4 +746,24 @@ static void* skalPlfThreadRun(void* arg)
     thread->func(thread->arg);
 
     return NULL;
+}
+
+
+static char* skalPlfCheckShmName(const char* name)
+{
+    SKALASSERT(name != NULL);
+    for (size_t i = 0; i < (NAME_MAX - 1); i++) {
+        char c = name[i];
+        if ('\0' == c) {
+            size_t len = i + 2;
+            char* path = malloc(len);
+            SKALASSERT(path != NULL);
+            int n = snprintf(path, len, "/%s", name);
+            SKALASSERT(n < (int)len);
+            return path;
+        }
+        SKALASSERT((c >= 0x20) && (c <= 0x7e));
+        SKALASSERT(c != '/');
+    }
+    SKALPANIC_MSG("String too long");
 }
