@@ -75,12 +75,12 @@ static bool processMsg(void* cookie, SkalMsg* msg)
                     (long long)n, (long long)(*counter));
             ok = false;
         } else {
+            fprintf(stderr, "XXX received packet %d\n", (int)(*counter));
             if (SkalMsgHasField(msg, "easter-egg")) {
                 // This was the last packet
-                fprintf(stderr, "XXX received last packet\n");
+                fprintf(stderr, "XXX this is the last packet\n");
                 ok = false;
             } else {
-                fprintf(stderr, "XXX received packet %d\n", (int)(*counter));
                 if (gDelay_us > 0) {
                     usleep(gDelay_us); // Simulate some kind of processing
                 }
@@ -116,7 +116,9 @@ int main(int argc, char** argv)
     while (opt != -1) {
         opt = getopt(argc, argv, gOptString);
         switch (opt) {
-        case 'h':
+        case -1 :
+            break;
+        case 'h' :
             usage(0);
             break;
         case 'l' :
@@ -135,7 +137,8 @@ int main(int argc, char** argv)
                 exit(2);
             }
             break;
-        default:
+        default :
+            usage(1);
             break;
         }
     }

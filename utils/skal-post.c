@@ -367,6 +367,10 @@ int main(int argc, char** argv)
                 url = SkalStrdup(optarg);
             }
             break;
+        case '?' :
+            fprintf(stderr, "Unknown argument -%c\n", (char)optopt);
+            exit(1);
+            break;
         default :
             break;
         }

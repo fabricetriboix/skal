@@ -111,6 +111,8 @@ int main(int argc, char** argv)
     while (opt != -1) {
         opt = getopt(argc, argv, gOptString);
         switch (opt) {
+        case -1 :
+            break;
         case 'h' :
             usage(0);
             break;
@@ -134,7 +136,8 @@ int main(int argc, char** argv)
         case 'm' :
             gIsMulticast = true;
             break;
-        default:
+        default :
+            usage(1);
             break;
         }
     }
