@@ -11,8 +11,8 @@ import subprocess
 
 # Parse arguments
 parser = argparse.ArgumentParser(description="Run SKAL system tests")
-parser.add_argument("-v", "--verbose", default=False, action="store_true",
-        help="Be verbose")
+parser.add_argument("-v", "--verbose", default=0, action="count",
+        help="Be verbose; -vv to print debug messages")
 args = parser.parse_args()
 
 # Setup logger
@@ -21,8 +21,10 @@ handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger = logging.getLogger(__name__)
 logger.addHandler(handler)
-if args.verbose:
+if args.verbose >= 2:
     logger.setLevel(logging.DEBUG)
+elif args.verbose >= 1:
+    logger.setLevel(logging.INFO)
 else:
     logger.setLevel(logging.WARNING)
 
@@ -139,6 +141,17 @@ def testSendFiveMsgToGroup():
     return True
 
 runTest("Send five messages to a multicast group", 0.5, testSendFiveMsgToGroup)
+
+
+def testSendFiftyMsg():
+    startSkaldReaderWriter("unix://skald.sock",
+            ["-d", "TestDomain"], [], ["-c", "50", "reader"])
+    logger.debug("Wait for reader process to finish")
+    proc['reader'].wait()
+    del(proc['reader'])
+    return True
+
+runTest("Send fifty messages through SKALD", 0.5, testSendFiveMsg)
 
 
 # Check for memory leaks
