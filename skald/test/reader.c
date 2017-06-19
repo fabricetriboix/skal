@@ -92,7 +92,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 }
 
 
-static const char* gOptString = "hl:m:p:";
+static const char* gOptString = "hl:m:n:p:";
 
 static void usage(int ret)
 {
@@ -102,6 +102,7 @@ static void usage(int ret)
             "  -h           Print this usage information and exit\n"
             "  -l URL       URL to connect to skald\n"
             "  -m GROUP     Receive messages from this multicast GROUP\n"
+            "  -n NAME      Name to use for reader thread (default=reader)\n"
             "  -p DELAY_us  Pause for DELAY_us after each message; default=%d; can be 0\n",
             gDelay_us);
     exit(ret);
@@ -112,6 +113,7 @@ int main(int argc, char** argv)
 {
     char* url = NULL;
     char* group = NULL;
+    char* name = "reader";
     int opt = 0;
     while (opt != -1) {
         opt = getopt(argc, argv, gOptString);
@@ -130,6 +132,9 @@ int main(int argc, char** argv)
             break;
         case 'm' :
             group = SkalStrdup(optarg);
+            break;
+        case 'n':
+            name = optarg;
             break;
         case 'p' :
             if (sscanf(optarg, "%d", &gDelay_us) != 1) {
@@ -168,7 +173,7 @@ int main(int argc, char** argv)
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.name = "reader";
+    cfg.name = name;
     cfg.processMsg = processMsg;
     int64_t* counter = malloc(sizeof(counter));
     *counter = 0;

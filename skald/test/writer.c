@@ -90,7 +90,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 }
 
 
-static const char* gOptString = "hc:l:m";
+static const char* gOptString = "hc:l:mn:";
 
 static void usage(int ret)
 {
@@ -101,7 +101,8 @@ static void usage(int ret)
             "  -h            Print this usage information and exit\n"
             "  -c COUNT      How many messages to send (default: 10)\n"
             "  -l URL        URL to connect to skald\n"
-            "  -m            RECIPIENT is a multicast group instead of a thread\n");
+            "  -m            RECIPIENT is a multicast group instead of a thread\n"
+            "  -n NAME       Name to use for writer thread (default=writer)\n");
     exit(ret);
 }
 
@@ -110,6 +111,7 @@ int main(int argc, char** argv)
 {
     long long count = 10;
     char* url = NULL;
+    char* name = "writer";
     int opt = 0;
     while (opt != -1) {
         opt = getopt(argc, argv, gOptString);
@@ -138,6 +140,9 @@ int main(int argc, char** argv)
             break;
         case 'm' :
             gIsMulticast = true;
+            break;
+        case 'n' :
+            name = optarg;
             break;
         default :
             usage(1);
@@ -177,7 +182,7 @@ int main(int argc, char** argv)
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.name = "writer";
+    cfg.name = name;
     cfg.processMsg = processMsg;
     int64_t* counter = malloc(sizeof(*counter));
     *counter = 0;
@@ -185,7 +190,7 @@ int main(int argc, char** argv)
     SkalThreadCreate(&cfg);
 
     // Kickstart
-    SkalMsg* msg = SkalMsgCreate("kick", "writer");
+    SkalMsg* msg = SkalMsgCreate("kick", name);
     SkalMsgSend(msg);
 
     SkalPause();
