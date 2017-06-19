@@ -154,6 +154,17 @@ def testSendFiftyMsg():
 runTest("Send fifty messages through SKALD", 0.5, testSendFiveMsg)
 
 
+def testSendOneThousandMsg():
+    startSkaldReaderWriter("unix://skald.sock",
+            ["-d", "TestDomain"], [], ["-c", "1000", "reader"])
+    logger.debug("Wait for reader process to finish")
+    proc['reader'].wait()
+    del(proc['reader'])
+    return True
+
+runTest("Send 1,000 messages through SKALD", 3, testSendOneThousandMsg)
+
+
 # Check for memory leaks
 memoryLeak = False
 for p, f in outputFiles.items():
