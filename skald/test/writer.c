@@ -64,7 +64,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 {
     bool ok = true;
     int64_t* count = (int64_t*)cookie;
-    if (strcmp(SkalMsgName(msg), "kick") == 0) {
+    if (SkalStrcmp(SkalMsgName(msg), "kick") == 0) {
         uint8_t flags = 0;
         if (gIsMulticast) {
             flags = SKAL_MSG_FLAG_MULTICAST;
@@ -73,15 +73,18 @@ static bool processMsg(void* cookie, SkalMsg* msg)
         SkalMsgAddInt(pkt, "number", *count);
         (*count)++;
         if (*count >= gCount) {
-            // This is the last message
+            // This is the last message; send it and wait for the "done" message
+            // from the reader thread.
             SkalMsgAddInt(pkt, "easter-egg", 1);
-            ok = false;
         } else {
             // Send a message to ourselves to keep going
             SkalMsg* kick = SkalMsgCreate("kick", "writer");
             SkalMsgSend(kick);
         }
         SkalMsgSend(pkt);
+
+    } else if (SkalStrcmp(SkalMsgName(msg), "done") == 0) {
+        ok = false;
     }
     return ok;
 }
