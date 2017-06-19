@@ -161,6 +161,8 @@ typedef struct {
 
 
 /** Structure that holds information about a group */
+// TODO: refactor groups: use `pattern` as the first key, as this will make
+// dispatching multicast messages faster.
 typedef struct {
     CdsMapItem item;
 
@@ -1343,12 +1345,11 @@ static bool skaldSendOnSocket(int sockid, const char* json)
             sockid, json, strlen(json) + 1);
     SKALASSERT(result != SKAL_NET_SEND_INVAL_SOCKID);
 
-    skaldCtx* ctx;
+    skaldCtx* ctx = SkalNetGetContext(gNet, sockid);
+    SKALASSERT(ctx != NULL);
     switch (result) {
     case SKAL_NET_SEND_OK :
         sent = true;
-        ctx = SkalNetGetContext(gNet, sockid);
-        SKALASSERT(ctx != NULL);
         if (ctx->sendFail) {
             SkaldAlarmNew("skal-io-send-fail", SKAL_ALARM_WARNING, false, true,
                     "Can send over socket '%s' again", ctx->name);
@@ -1358,25 +1359,22 @@ static bool skaldSendOnSocket(int sockid, const char* json)
 
     case SKAL_NET_SEND_TOO_BIG :
     case SKAL_NET_SEND_TRUNC :
-        ctx = SkalNetGetContext(gNet, sockid);
-        SKALASSERT(ctx != NULL);
         SkaldAlarmNew("skal-io-send-fail", SKAL_ALARM_WARNING, true, true,
                 "Failed to send over socket '%s' (socket still alive)",
                 ctx->name);
+        ctx->sendFail = true;
         break;
 
     case SKAL_NET_SEND_RESET :
-        ctx = SkalNetGetContext(gNet, sockid);
-        SKALASSERT(ctx != NULL);
         SkaldAlarmNew("skal-io-send-fail-reset", SKAL_ALARM_ERROR, true, false,
                 "Failed to send over socket '%s' (closed by peer)", ctx->name);
+        SkalNetSocketDestroy(gNet, sockid);
         break;
 
     default :
-        ctx = SkalNetGetContext(gNet, sockid);
-        SKALASSERT(ctx != NULL);
         SkaldAlarmNew("skal-io-send-fail-error", SKAL_ALARM_ERROR, true, false,
                 "Failed to send over socket '%s' (general error)", ctx->name);
+        SkalNetSocketDestroy(gNet, sockid);
         break;
     }
     return sent;
@@ -1397,9 +1395,7 @@ static void skaldMsgSendTo(SkalMsg* msg, int sockid)
     case SKALD_SOCKET_PROCESS :
         {
             char* json = SkalMsgToJson(msg);
-            if (!skaldSendOnSocket(sockid, json)) {
-                SkalNetSocketDestroy(gNet, sockid);
-            } else {
+            if (skaldSendOnSocket(sockid, json)) {
                 skaldTrace(msg, json);
             }
             free(json);
