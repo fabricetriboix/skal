@@ -1527,6 +1527,7 @@ static SkalNetSendResult skalNetSendPacket(SkalNet* net, int sockid,
                 done = true;
                 break;
             case EPIPE :
+            case ECONNRESET :
                 result = SKAL_NET_SEND_RESET;
                 done = true;
                 break;
