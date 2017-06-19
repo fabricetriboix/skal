@@ -55,7 +55,7 @@ RTT_TEST_START(skal_alarm_should_have_correct_name)
 {
     const char* name = SkalAlarmName(gAlarm);
     RTT_EXPECT(name != NULL);
-    RTT_EXPECT(strcmp(name, "total-meltdown") == 0);
+    RTT_EXPECT(SkalStrcmp(name, "total-meltdown") == 0);
 }
 RTT_TEST_END
 
@@ -69,7 +69,7 @@ RTT_TEST_START(skal_alarm_should_have_correct_origin)
 {
     const char* origin = SkalAlarmOrigin(gAlarm);
     RTT_EXPECT(origin != NULL);
-    RTT_EXPECT(strcmp(origin, "TestThreadA") == 0);
+    RTT_EXPECT(SkalStrcmp(origin, "TestThreadA") == 0);
 }
 RTT_TEST_END
 
@@ -96,7 +96,7 @@ RTT_TEST_START(skal_alarm_should_have_correct_comment)
 {
     const char* comment = SkalAlarmComment(gAlarm);
     RTT_EXPECT(comment != NULL);
-    RTT_EXPECT(strcmp(comment, "Hello, world! 9") == 0);
+    RTT_EXPECT(SkalStrcmp(comment, "Hello, world! 9") == 0);
 }
 RTT_TEST_END
 
@@ -115,7 +115,7 @@ RTT_TEST_START(skal_alarm_should_convert_to_json)
         (long long)SkalAlarmTimestamp_us(gAlarm));
     char* json = SkalAlarmToJson(gAlarm, 2);
     RTT_EXPECT(json != NULL);
-    RTT_EXPECT(strcmp(json, expected) == 0);
+    RTT_EXPECT(SkalStrcmp(json, expected) == 0);
     free(expected);
     free(json);
 }
@@ -144,7 +144,7 @@ RTT_TEST_START(skal_alarm_should_parse_json)
 
     const char* s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "Bla bla bla") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "Bla bla bla") == 0);
 
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_ERROR);
     RTT_EXPECT(SkalAlarmOrigin(alarm) == NULL);
@@ -154,7 +154,7 @@ RTT_TEST_START(skal_alarm_should_parse_json)
 
     s = SkalAlarmComment(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "this is a test") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "this is a test") == 0);
 
     SkalAlarmUnref(alarm);
 

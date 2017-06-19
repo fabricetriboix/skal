@@ -435,7 +435,7 @@ bool SkalThreadInit(const char* skaldUrl)
 
     // Wait for master thread to finish initialisation
     SkalMsg* msg = SkalQueuePop_BLOCKING(gGlobalQueue, false);
-    SKALASSERT(strcmp(SkalMsgName(msg), "skal-master-init-done") == 0);
+    SKALASSERT(SkalStrcmp(SkalMsgName(msg), "skal-master-init-done") == 0);
     SkalMsgUnref(msg);
     return true;
 }
@@ -454,7 +454,7 @@ void SkalThreadExit(void)
     SkalQueuePush(gMaster->queue, msg);
 
     SkalMsg* resp = SkalQueuePop_BLOCKING(gGlobalQueue, false);
-    SKALASSERT(strcmp(SkalMsgName(resp), "skal-master-terminated") == 0);
+    SKALASSERT(SkalStrcmp(SkalMsgName(resp), "skal-master-terminated") == 0);
     SkalMsgUnref(resp);
 
     skalThreadUnref(gMaster);
@@ -788,7 +788,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
     bool ok = true;
 
     const char* msgName = SkalMsgName(msg);
-    if (strcmp(msgName, "skal-xoff") == 0) {
+    if (SkalStrcmp(msgName, "skal-xoff") == 0) {
         // A thread is telling me to stop sending to it
         const char* sender = SkalMsgSender(msg);
         CdsMapItem* item = CdsMapSearch(priv->xoff, (void*)sender);
@@ -805,7 +805,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
         SkalMsgSetIFlags(msg2, SKAL_MSG_IFLAG_INTERNAL);
         SkalMsgSend(msg2);
 
-    } else if (strcmp(msgName, "skal-xon") == 0) {
+    } else if (SkalStrcmp(msgName, "skal-xon") == 0) {
         // A thread is telling me I can resume sending to it
         const char* sender = SkalMsgSender(msg);
         CdsMapItem* item = CdsMapSearch(priv->xoff, (void*)sender);
@@ -816,7 +816,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
             CdsMapItemRemove(priv->xoff, item);
         }
 
-    } else if (strcmp(msgName, "skal-ntf-xon") == 0) {
+    } else if (SkalStrcmp(msgName, "skal-ntf-xon") == 0) {
         // A thread is telling me I should notify it when it can send messages
         // again to me
         const char* sender = SkalMsgSender(msg);
@@ -829,7 +829,7 @@ static bool skalThreadHandleInternalMsg(skalThreadPrivate* priv, SkalMsg* msg)
             SKALASSERT(inserted);
         }
 
-    } else if (strcmp(msgName, "skal-terminate") == 0) {
+    } else if (SkalStrcmp(msgName, "skal-terminate") == 0) {
         ok = false;
     }
 
@@ -901,7 +901,7 @@ static void skalMasterThreadRun(void* arg)
     if (NULL == msg) {
         SKALPANIC_MSG("Invalid message received from skald; wrong message format version?");
     }
-    SKALASSERT(strcmp(SkalMsgName(msg), "skal-init-domain") == 0);
+    SKALASSERT(SkalStrcmp(SkalMsgName(msg), "skal-init-domain") == 0);
     SkalSetDomain(SkalMsgGetString(msg, "domain"));
     SkalMsgUnref(msg);
     SkalNetEventUnref(event);
@@ -1015,7 +1015,7 @@ static bool skalMasterProcessMsg(SkalMsg* msg)
 
     bool ok = true;
     const char* msgName = SkalMsgName(msg);
-    if (strcmp(msgName, "skal-master-terminate") == 0) {
+    if (SkalStrcmp(msgName, "skal-master-terminate") == 0) {
         // I have been asked to terminate myself
         //  => Tell all threads to terminate themselves
         SkalPlfMutexLock(gMutex);
@@ -1035,7 +1035,7 @@ static bool skalMasterProcessMsg(SkalMsg* msg)
         SkalPlfMutexUnlock(gMutex);
         SkalMsgUnref(msg);
 
-    } else if (strcmp(msgName, "skal-terminated") == 0) {
+    } else if (SkalStrcmp(msgName, "skal-terminated") == 0) {
         // A thread is telling me it just finished
         SkalPlfMutexLock(gMutex);
         CdsMapRemove(gThreads, (void*)SkalMsgSender(msg));

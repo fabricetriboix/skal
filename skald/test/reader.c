@@ -62,13 +62,13 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 {
     bool ok = true;
     int64_t* counter = (int64_t*)cookie;
-    if (strcmp(SkalMsgName(msg), "subscribe") == 0) {
+    if (SkalStrcmp(SkalMsgName(msg), "subscribe") == 0) {
         const char* group = SkalMsgGetString(msg, "group");
         SkalMsg* subscribeMsg = SkalMsgCreate("skal-subscribe", "skald");
         SkalMsgAddString(subscribeMsg, "group", group);
         SkalMsgSend(subscribeMsg);
 
-    } else if (strcmp(SkalMsgName(msg), "test-pkt") == 0) {
+    } else if (SkalStrcmp(SkalMsgName(msg), "test-pkt") == 0) {
         int64_t n = SkalMsgGetInt(msg, "number");
         if (n != *counter) {
             fprintf(stderr, "Received packet %lld, expected %lld\n",

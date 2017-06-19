@@ -68,7 +68,7 @@ static void pseudoSkald(void* arg)
                 SKALASSERT(hasnull);
                 SkalMsg* msg = SkalMsgCreateFromJson(json);
                 SKALASSERT(msg != NULL);
-                if (strcmp(SkalMsgName(msg), "skal-init-master-born") == 0) {
+                if (SkalStrcmp(SkalMsgName(msg), "skal-init-master-born") == 0){
                     SkalMsg* resp = SkalMsgCreate("skal-init-domain",
                             "skal-master");
                     SkalMsgSetIFlags(resp, SKAL_MSG_IFLAG_INTERNAL);
@@ -150,16 +150,16 @@ static int gResult = -1;
 
 static bool testSimpleProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgName(msg), "quit") == 0) {
+    if (SkalStrcmp(SkalMsgName(msg), "quit") == 0) {
         return false;
     }
     if (cookie != (void*)0xdeadbabe) {
         gError = 1;
-    } else if (strcmp(SkalMsgName(msg), "ping") != 0) {
+    } else if (SkalStrcmp(SkalMsgName(msg), "ping") != 0) {
         gError = 2;
-    } else if (strcmp(SkalMsgSender(msg), "TestThread@local")!=0) {
+    } else if (SkalStrcmp(SkalMsgSender(msg), "TestThread@local")!=0) {
         gError = 3;
-    } else if (strcmp(SkalMsgRecipient(msg), "simple@local") != 0) {
+    } else if (SkalStrcmp(SkalMsgRecipient(msg), "simple@local") != 0) {
         gError = 4;
     } else {
         gPinged = true;
@@ -218,7 +218,7 @@ static int gMsgRecv = 0;
 
 static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgName(msg), "ping") == 0) {
+    if (SkalStrcmp(SkalMsgName(msg), "ping") == 0) {
         int64_t count = SkalMsgGetInt(msg, "count");
         if (count != (int64_t)gMsgRecv) {
             gError++;
@@ -231,7 +231,7 @@ static bool testReceiverProcessMsg(void* cookie, SkalMsg* msg)
 
 static bool testStufferProcessMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgName(msg), "kick") == 0) {
+    if (SkalStrcmp(SkalMsgName(msg), "kick") == 0) {
         SkalMsg* msg2 = SkalMsgCreate("ping", "receiver");
         SkalMsgAddInt(msg2, "count", gMsgSend);
         SkalMsgSend(msg2);

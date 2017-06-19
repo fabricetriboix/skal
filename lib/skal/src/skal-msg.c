@@ -1035,7 +1035,7 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
 static const char* skalMsgParseJsonProperty(const char* json,
         const char* name, SkalMsg* msg)
 {
-    if (strcmp(name, "version") == 0) {
+    if (SkalStrcmp(name, "version") == 0) {
         int tmp;
         if (sscanf(json, "%d", &tmp) != 1) {
             SkalLog("SkalMsg: Invalid JSON: Can't parse integer for 'version'");
@@ -1052,7 +1052,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "timestamp") == 0) {
+    } else if (SkalStrcmp(name, "timestamp") == 0) {
         char* timestamp = NULL;
         json = skalMsgParseJsonString(json, &timestamp, true);
         if (json != NULL) {
@@ -1067,16 +1067,16 @@ static const char* skalMsgParseJsonProperty(const char* json,
             }
         }
 
-    } else if (strcmp(name, "name") == 0) {
+    } else if (SkalStrcmp(name, "name") == 0) {
         json = skalMsgParseJsonString(json, &msg->name, true);
 
-    } else if (strcmp(name, "sender") == 0) {
+    } else if (SkalStrcmp(name, "sender") == 0) {
         json = skalMsgParseJsonString(json, &msg->sender, true);
 
-    } else if (strcmp(name, "recipient") == 0) {
+    } else if (SkalStrcmp(name, "recipient") == 0) {
         json = skalMsgParseJsonString(json, &msg->recipient, true);
 
-    } else if (strcmp(name, "ttl") == 0) {
+    } else if (SkalStrcmp(name, "ttl") == 0) {
         int tmp;
         if (sscanf(json, "%d", &tmp) != 1) {
             SkalLog("SkalMsg: Invalid JSON: Can't parse integer for 'ttl'");
@@ -1092,7 +1092,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "flags") == 0) {
+    } else if (SkalStrcmp(name, "flags") == 0) {
         unsigned int tmp;
         if (sscanf(json, "%u", &tmp) != 1) {
             SkalLog("SkalMsg: Invalid JSON: Can't parse unsigned integer for 'flags'");
@@ -1104,7 +1104,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "iflags") == 0) {
+    } else if (SkalStrcmp(name, "iflags") == 0) {
         unsigned int tmp;
         if (sscanf(json, "%u", &tmp) != 1) {
             SkalLog("SkalMsg: Invalid JSON: Can't parse unsigned integer for 'iflags'");
@@ -1116,7 +1116,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "fields") == 0) {
+    } else if (SkalStrcmp(name, "fields") == 0) {
         if (*json != '[') {
             SkalLog("SkalMsg: Invalid JSON: Expected '['");
             return NULL;
@@ -1145,7 +1145,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
         }
         json++;
 
-    } else if (strcmp(name, "alarms") == 0) {
+    } else if (SkalStrcmp(name, "alarms") == 0) {
         if (*json != '[') {
             SkalLog("SkalMsg: Invalid JSON: Expected '['");
             return NULL;
@@ -1230,15 +1230,15 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
         case SKAL_MSG_FIELD_PROPERTY_TYPE :
             json = skalMsgParseJsonString(json, &str, true);
             if (json != NULL) {
-                if (strcmp(str, "int") == 0) {
+                if (SkalStrcmp(str, "int") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_INT;
-                } else if (strcmp(str, "double") == 0) {
+                } else if (SkalStrcmp(str, "double") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_DOUBLE;
-                } else if (strcmp(str, "string") == 0) {
+                } else if (SkalStrcmp(str, "string") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_STRING;
-                } else if (strcmp(str, "miniblob") == 0) {
+                } else if (SkalStrcmp(str, "miniblob") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_MINIBLOB;
-                } else if (strcmp(str, "blob") == 0) {
+                } else if (SkalStrcmp(str, "blob") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_BLOB;
                 } else {
                     SkalLog("SkalMsg: Invalid JSON: Unknown field type '%s'",
@@ -1457,11 +1457,11 @@ static skalMsgFieldProperty skalMsgFieldStrToProp(const char* str)
 {
     SKALASSERT(str != NULL);
     skalMsgFieldProperty property = SKAL_MSG_FIELD_PROPERTY_INVALID;
-    if (strcmp(str, "name") == 0) {
+    if (SkalStrcmp(str, "name") == 0) {
         property = SKAL_MSG_FIELD_PROPERTY_NAME;
-    } else if (strcmp(str, "type") == 0) {
+    } else if (SkalStrcmp(str, "type") == 0) {
         property = SKAL_MSG_FIELD_PROPERTY_TYPE;
-    } else if (strcmp(str, "value") == 0) {
+    } else if (SkalStrcmp(str, "value") == 0) {
         property = SKAL_MSG_FIELD_PROPERTY_VALUE;
     }
     return property;
