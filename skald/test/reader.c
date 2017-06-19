@@ -75,10 +75,8 @@ static bool processMsg(void* cookie, SkalMsg* msg)
                     (long long)n, (long long)(*counter));
             ok = false;
         } else {
-            fprintf(stderr, "XXX received packet %d\n", (int)(*counter));
             if (SkalMsgHasField(msg, "easter-egg")) {
                 // This was the last packet
-                fprintf(stderr, "XXX this is the last packet\n");
                 SkalMsg* resp = SkalMsgCreate("done", SkalMsgSender(msg));
                 SkalMsgSend(resp);
                 ok = false;
