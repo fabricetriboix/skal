@@ -63,7 +63,7 @@ RTT_TEST_START(skal_sprintf_should_format_a_string)
     int x = 19;
     gString = SkalSPrintf("Hello %s! %d", world, x);
     RTT_ASSERT(gString != NULL);
-    RTT_EXPECT(strcmp(gString, "Hello world! 19") == 0);
+    RTT_EXPECT(SkalStrcmp(gString, "Hello world! 19") == 0);
 }
 RTT_TEST_END
 
@@ -79,7 +79,7 @@ RTT_TEST_START(skal_sprintf_should_format_a_long_string)
 {
     gString = SkalSPrintf("%s", gLongString);
     RTT_ASSERT(gString != NULL);
-    RTT_ASSERT(strcmp(gString, gLongString) == 0);
+    RTT_ASSERT(SkalStrcmp(gString, gLongString) == 0);
 }
 RTT_TEST_END
 
@@ -118,7 +118,7 @@ RTT_TEST_START(skal_sb_should_finish)
 {
     char* str = SkalStringBuilderFinish(gSB);
     gSB = NULL;
-    RTT_EXPECT(strcmp(str, "18Hello world!?") == 0);
+    RTT_EXPECT(SkalStrcmp(str, "18Hello world!?") == 0);
     free(str);
 }
 RTT_TEST_END
@@ -143,7 +143,7 @@ RTT_TEST_START(skal_base64_should_encode3_1_byte)
     memset(buffer, 0, sizeof(buffer));
     int n = SkalBase64Encode3(bytes, sizeof(bytes), buffer, sizeof(buffer));
     RTT_EXPECT(1 == n);
-    RTT_EXPECT(strcmp(buffer, "AA==") == 0);
+    RTT_EXPECT(SkalStrcmp(buffer, "AA==") == 0);
 }
 RTT_TEST_END
 
@@ -154,7 +154,7 @@ RTT_TEST_START(skal_base64_should_encode3_2_bytes)
     memset(buffer, 0, sizeof(buffer));
     int n = SkalBase64Encode3(bytes, sizeof(bytes), buffer, sizeof(buffer));
     RTT_EXPECT(2 == n);
-    RTT_EXPECT(strcmp(buffer, "yv4=") == 0);
+    RTT_EXPECT(SkalStrcmp(buffer, "yv4=") == 0);
 }
 RTT_TEST_END
 
@@ -165,7 +165,7 @@ RTT_TEST_START(skal_base64_should_encode3_3_bytes)
     memset(buffer, 0, sizeof(buffer));
     int n = SkalBase64Encode3(bytes, sizeof(bytes), buffer, sizeof(buffer));
     RTT_EXPECT(3 == n);
-    RTT_EXPECT(strcmp(buffer, "yv6q") == 0);
+    RTT_EXPECT(SkalStrcmp(buffer, "yv6q") == 0);
 }
 RTT_TEST_END
 
@@ -174,7 +174,7 @@ RTT_TEST_START(skal_base64_should_encode_1_byte)
     uint8_t bytes[1] = { 0xff };
     char* str = SkalBase64Encode(bytes, sizeof(bytes));
     RTT_ASSERT(str != NULL);
-    RTT_EXPECT(strcmp(str, "/w==") == 0);
+    RTT_EXPECT(SkalStrcmp(str, "/w==") == 0);
     free(str);
 }
 RTT_TEST_END
@@ -184,7 +184,7 @@ RTT_TEST_START(skal_base64_should_encode_2_bytes)
     uint8_t bytes[2] = { 0xff, 0x00 };
     char* str = SkalBase64Encode(bytes, sizeof(bytes));
     RTT_ASSERT(str != NULL);
-    RTT_EXPECT(strcmp(str, "/wA=") == 0);
+    RTT_EXPECT(SkalStrcmp(str, "/wA=") == 0);
     free(str);
 }
 RTT_TEST_END
@@ -194,7 +194,7 @@ RTT_TEST_START(skal_base64_should_encode_3_bytes)
     uint8_t bytes[3] = { 0xff, 0x00, 0x55 };
     char* str = SkalBase64Encode(bytes, sizeof(bytes));
     RTT_ASSERT(str != NULL);
-    RTT_EXPECT(strcmp(str, "/wBV") == 0);
+    RTT_EXPECT(SkalStrcmp(str, "/wBV") == 0);
     free(str);
 }
 RTT_TEST_END
@@ -204,7 +204,7 @@ RTT_TEST_START(skal_base64_should_encode_4_bytes)
     uint8_t bytes[4] = { 0xff, 0x00, 0x55, 0x11 };
     char* str = SkalBase64Encode(bytes, sizeof(bytes));
     RTT_ASSERT(str != NULL);
-    RTT_EXPECT(strcmp(str, "/wBVEQ==") == 0);
+    RTT_EXPECT(SkalStrcmp(str, "/wBVEQ==") == 0);
     free(str);
 }
 RTT_TEST_END
@@ -215,7 +215,7 @@ RTT_TEST_START(skal_base64_should_encode_10_bytes)
         0xad };
     char* str = SkalBase64Encode(bytes, sizeof(bytes));
     RTT_ASSERT(str != NULL);
-    RTT_EXPECT(strcmp(str, "D6PwcgDVVBGHrQ==") == 0);
+    RTT_EXPECT(SkalStrcmp(str, "D6PwcgDVVBGHrQ==") == 0);
     free(str);
 }
 RTT_TEST_END

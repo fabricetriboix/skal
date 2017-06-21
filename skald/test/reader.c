@@ -62,13 +62,13 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 {
     bool ok = true;
     int64_t* counter = (int64_t*)cookie;
-    if (strcmp(SkalMsgName(msg), "subscribe") == 0) {
+    if (SkalStrcmp(SkalMsgName(msg), "subscribe") == 0) {
         const char* group = SkalMsgGetString(msg, "group");
         SkalMsg* subscribeMsg = SkalMsgCreate("skal-subscribe", "skald");
         SkalMsgAddString(subscribeMsg, "group", group);
         SkalMsgSend(subscribeMsg);
 
-    } else if (strcmp(SkalMsgName(msg), "test-pkt") == 0) {
+    } else if (SkalStrcmp(SkalMsgName(msg), "test-pkt") == 0) {
         int64_t n = SkalMsgGetInt(msg, "number");
         if (n != *counter) {
             fprintf(stderr, "Received packet %lld, expected %lld\n",
@@ -77,10 +77,10 @@ static bool processMsg(void* cookie, SkalMsg* msg)
         } else {
             if (SkalMsgHasField(msg, "easter-egg")) {
                 // This was the last packet
-                fprintf(stderr, "XXX received last packet\n");
+                SkalMsg* resp = SkalMsgCreate("done", SkalMsgSender(msg));
+                SkalMsgSend(resp);
                 ok = false;
             } else {
-                fprintf(stderr, "XXX received packet %d\n", (int)(*counter));
                 if (gDelay_us > 0) {
                     usleep(gDelay_us); // Simulate some kind of processing
                 }
@@ -92,7 +92,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 }
 
 
-static const char* gOptString = "hl:m:p:";
+static const char* gOptString = "hl:m:n:q:p:";
 
 static void usage(int ret)
 {
@@ -102,6 +102,8 @@ static void usage(int ret)
             "  -h           Print this usage information and exit\n"
             "  -l URL       URL to connect to skald\n"
             "  -m GROUP     Receive messages from this multicast GROUP\n"
+            "  -n NAME      Name to use for reader thread (default=reader)\n"
+            "  -q QTHR      Queue threshold (default=10)\n"
             "  -p DELAY_us  Pause for DELAY_us after each message; default=%d; can be 0\n",
             gDelay_us);
     exit(ret);
@@ -112,11 +114,15 @@ int main(int argc, char** argv)
 {
     char* url = NULL;
     char* group = NULL;
+    char* name = "reader";
+    int queueThreshold = 10;
     int opt = 0;
     while (opt != -1) {
         opt = getopt(argc, argv, gOptString);
         switch (opt) {
-        case 'h':
+        case -1 :
+            break;
+        case 'h' :
             usage(0);
             break;
         case 'l' :
@@ -129,13 +135,27 @@ int main(int argc, char** argv)
         case 'm' :
             group = SkalStrdup(optarg);
             break;
+        case 'n':
+            name = optarg;
+            break;
+        case 'q' :
+            if (sscanf(optarg, "%d", &queueThreshold) != 1) {
+                fprintf(stderr, "Invalid QTHR: '%s'\n", optarg);
+                exit(2);
+            }
+            if (queueThreshold < 0) {
+                fprintf(stderr, "Invalid QTHR: %d\n", queueThreshold);
+                exit(2);
+            }
+            break;
         case 'p' :
             if (sscanf(optarg, "%d", &gDelay_us) != 1) {
                 fprintf(stderr, "Invalid DELAY_us: '%s'\n", optarg);
                 exit(2);
             }
             break;
-        default:
+        default :
+            usage(1);
             break;
         }
     }
@@ -165,12 +185,12 @@ int main(int argc, char** argv)
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.name = "reader";
+    cfg.name = name;
     cfg.processMsg = processMsg;
     int64_t* counter = malloc(sizeof(counter));
     *counter = 0;
     cfg.cookie = counter;
-    cfg.queueThreshold = 10;
+    cfg.queueThreshold = queueThreshold;
     SkalThreadCreate(&cfg);
 
     if (group != NULL) {

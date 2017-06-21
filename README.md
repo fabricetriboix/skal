@@ -9,9 +9,25 @@ SKAL is dual-licensed under the GPLv3 and a commercial license. If you
 require the commercial license, please contact me:
 "Fabrice Triboix" <ftriboix-at-gmail-dot-com>.
 
+SKAL is an multi-threaded, data-driven and scalable application
+framework written in C that has the following objectives:
+ - Make writing multi-threaded application a piece of cake and
+   fool-proof; this is done by relying entirely on messages and getting
+   rid of mutexes, semaphores and shared memory
+ - Be efficient at moving data around; SKAL aims for low-latency and/or
+   high throughput applications
+ - Make writing distributed applications transparent; a thread can be
+   moved to another process or another computer transparently
+ - Fast, small footprint, portable; minimise RAM, CPU and network usage
+
 
 Getting started
 ---------------
+
+You will need to install
+[rtsys](https://github.com/fabricetriboix/rtsys) and
+[cds](https://github.com/fabricetriboix/cds) first. Make sure they are
+installed where the compiler can find them.
 
     $ vim Makefile                    # Adjust your settings
     $ make                            # Build

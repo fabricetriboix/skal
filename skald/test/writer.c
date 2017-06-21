@@ -27,6 +27,7 @@
 static int64_t gCount = 0;
 static const char* gRecipient = NULL;
 static bool gIsMulticast = false;
+static char* gName = "writer";
 
 static enum {
     STARTING,
@@ -64,7 +65,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 {
     bool ok = true;
     int64_t* count = (int64_t*)cookie;
-    if (strcmp(SkalMsgName(msg), "kick") == 0) {
+    if (SkalStrcmp(SkalMsgName(msg), "kick") == 0) {
         uint8_t flags = 0;
         if (gIsMulticast) {
             flags = SKAL_MSG_FLAG_MULTICAST;
@@ -73,21 +74,24 @@ static bool processMsg(void* cookie, SkalMsg* msg)
         SkalMsgAddInt(pkt, "number", *count);
         (*count)++;
         if (*count >= gCount) {
-            // This is the last message
+            // This is the last message; send it and wait for the "done" message
+            // from the reader thread.
             SkalMsgAddInt(pkt, "easter-egg", 1);
-            ok = false;
         } else {
             // Send a message to ourselves to keep going
-            SkalMsg* kick = SkalMsgCreate("kick", "writer");
+            SkalMsg* kick = SkalMsgCreate("kick", gName);
             SkalMsgSend(kick);
         }
         SkalMsgSend(pkt);
+
+    } else if (SkalStrcmp(SkalMsgName(msg), "done") == 0) {
+        ok = false;
     }
     return ok;
 }
 
 
-static const char* gOptString = "hc:l:m";
+static const char* gOptString = "hc:l:mn:";
 
 static void usage(int ret)
 {
@@ -98,7 +102,8 @@ static void usage(int ret)
             "  -h            Print this usage information and exit\n"
             "  -c COUNT      How many messages to send (default: 10)\n"
             "  -l URL        URL to connect to skald\n"
-            "  -m            RECIPIENT is a multicast group instead of a thread\n");
+            "  -m            RECIPIENT is a multicast group instead of a thread\n"
+            "  -n NAME       Name to use for writer thread (default=writer)\n");
     exit(ret);
 }
 
@@ -111,6 +116,8 @@ int main(int argc, char** argv)
     while (opt != -1) {
         opt = getopt(argc, argv, gOptString);
         switch (opt) {
+        case -1 :
+            break;
         case 'h' :
             usage(0);
             break;
@@ -134,7 +141,11 @@ int main(int argc, char** argv)
         case 'm' :
             gIsMulticast = true;
             break;
-        default:
+        case 'n' :
+            gName = optarg;
+            break;
+        default :
+            usage(1);
             break;
         }
     }
@@ -171,7 +182,7 @@ int main(int argc, char** argv)
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.name = "writer";
+    cfg.name = gName;
     cfg.processMsg = processMsg;
     int64_t* counter = malloc(sizeof(*counter));
     *counter = 0;
@@ -179,7 +190,7 @@ int main(int argc, char** argv)
     SkalThreadCreate(&cfg);
 
     // Kickstart
-    SkalMsg* msg = SkalMsgCreate("kick", "writer");
+    SkalMsg* msg = SkalMsgCreate("kick", gName);
     SkalMsgSend(msg);
 
     SkalPause();

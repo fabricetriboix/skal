@@ -173,7 +173,7 @@ test: skal_unit_tests writer reader skald
 	fi; \
 	./$< > skal.rtt; \
 	find $(TOPDIR) -name 'test-*.c' | xargs rttest2text.py skal.rtt; \
-	../../../integration-tests.py
+	../../../integration-tests.py -v
 
 
 define INSTALL

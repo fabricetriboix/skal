@@ -364,10 +364,10 @@ static const char* skalAlarmParseJsonString(const char* json, char** str)
 static const char* skalAlarmParseJsonBool(const char* json, bool* b)
 {
     json = skalAlarmSkipSpaces(json);
-    if (strncmp(json, "true", 4) == 0) {
+    if (SkalStartsWith(json, "true")) {
         *b = true;
         json += 4;
-    } else if (strncmp(json, "false", 5) == 0) {
+    } else if (SkalStartsWith(json, "false")) {
         *b = false;
         json += 5;
     } else {
@@ -427,11 +427,11 @@ static const char* skalAlarmParseJson(const char* json, SkalAlarm* alarm)
                 return NULL;
             }
             SKALASSERT(str != NULL);
-            if (strcmp(str, "notice") == 0) {
+            if (SkalStrcmp(str, "notice") == 0) {
                 alarm->severity = SKAL_ALARM_NOTICE;
-            } else if (strcmp(str, "warning") == 0) {
+            } else if (SkalStrcmp(str, "warning") == 0) {
                 alarm->severity = SKAL_ALARM_WARNING;
-            } else if (strcmp(str, "error") == 0) {
+            } else if (SkalStrcmp(str, "error") == 0) {
                 alarm->severity = SKAL_ALARM_ERROR;
             } else {
                 SkalLog("SkalAlarm: Invalid JSON alarm object: unknown alarm severity: \"%s\"", str);
@@ -531,19 +531,19 @@ static skalAlarmProperty skalAlarmStrToProp(const char* str)
 {
     SKALASSERT(str != NULL);
     skalAlarmProperty property = SKAL_ALARM_PROPERTY_INVALID;
-    if (strcmp(str, "name") == 0) {
+    if (SkalStrcmp(str, "name") == 0) {
         property = SKAL_ALARM_PROPERTY_NAME;
-    } else if (strcmp(str, "severity") == 0) {
+    } else if (SkalStrcmp(str, "severity") == 0) {
         property = SKAL_ALARM_PROPERTY_SEVERITY;
-    } else if (strcmp(str, "origin") == 0) {
+    } else if (SkalStrcmp(str, "origin") == 0) {
         property = SKAL_ALARM_PROPERTY_ORIGIN;
-    } else if (strcmp(str, "isOn") == 0) {
+    } else if (SkalStrcmp(str, "isOn") == 0) {
         property = SKAL_ALARM_PROPERTY_ISON;
-    } else if (strcmp(str, "autoOff") == 0) {
+    } else if (SkalStrcmp(str, "autoOff") == 0) {
         property = SKAL_ALARM_PROPERTY_AUTOOFF;
-    } else if (strcmp(str, "timestamp_us") == 0) {
+    } else if (SkalStrcmp(str, "timestamp_us") == 0) {
         property = SKAL_ALARM_PROPERTY_TIMESTAMP;
-    } else if (strcmp(str, "comment") == 0) {
+    } else if (SkalStrcmp(str, "comment") == 0) {
         property = SKAL_ALARM_PROPERTY_COMMENT;
     }
     return property;

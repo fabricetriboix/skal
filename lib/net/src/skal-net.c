@@ -1526,6 +1526,11 @@ static SkalNetSendResult skalNetSendPacket(SkalNet* net, int sockid,
                 result = SKAL_NET_SEND_TOO_BIG;
                 done = true;
                 break;
+            case EPIPE :
+            case ECONNRESET :
+                result = SKAL_NET_SEND_RESET;
+                done = true;
+                break;
             default :
                 {
                     // Unexpected error
