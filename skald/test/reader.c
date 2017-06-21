@@ -92,7 +92,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
 }
 
 
-static const char* gOptString = "hl:m:n:p:";
+static const char* gOptString = "hl:m:n:q:p:";
 
 static void usage(int ret)
 {
@@ -103,6 +103,7 @@ static void usage(int ret)
             "  -l URL       URL to connect to skald\n"
             "  -m GROUP     Receive messages from this multicast GROUP\n"
             "  -n NAME      Name to use for reader thread (default=reader)\n"
+            "  -q QTHR      Queue threshold (default=10)\n"
             "  -p DELAY_us  Pause for DELAY_us after each message; default=%d; can be 0\n",
             gDelay_us);
     exit(ret);
@@ -114,6 +115,7 @@ int main(int argc, char** argv)
     char* url = NULL;
     char* group = NULL;
     char* name = "reader";
+    int queueThreshold = 10;
     int opt = 0;
     while (opt != -1) {
         opt = getopt(argc, argv, gOptString);
@@ -135,6 +137,16 @@ int main(int argc, char** argv)
             break;
         case 'n':
             name = optarg;
+            break;
+        case 'q' :
+            if (sscanf(optarg, "%d", &queueThreshold) != 1) {
+                fprintf(stderr, "Invalid QTHR: '%s'\n", optarg);
+                exit(2);
+            }
+            if (queueThreshold < 0) {
+                fprintf(stderr, "Invalid QTHR: %d\n", queueThreshold);
+                exit(2);
+            }
             break;
         case 'p' :
             if (sscanf(optarg, "%d", &gDelay_us) != 1) {
@@ -178,7 +190,7 @@ int main(int argc, char** argv)
     int64_t* counter = malloc(sizeof(counter));
     *counter = 0;
     cfg.cookie = counter;
-    cfg.queueThreshold = 10;
+    cfg.queueThreshold = queueThreshold;
     SkalThreadCreate(&cfg);
 
     if (group != NULL) {

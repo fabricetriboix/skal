@@ -27,6 +27,7 @@
 static int64_t gCount = 0;
 static const char* gRecipient = NULL;
 static bool gIsMulticast = false;
+static char* gName = "writer";
 
 static enum {
     STARTING,
@@ -78,7 +79,7 @@ static bool processMsg(void* cookie, SkalMsg* msg)
             SkalMsgAddInt(pkt, "easter-egg", 1);
         } else {
             // Send a message to ourselves to keep going
-            SkalMsg* kick = SkalMsgCreate("kick", "writer");
+            SkalMsg* kick = SkalMsgCreate("kick", gName);
             SkalMsgSend(kick);
         }
         SkalMsgSend(pkt);
@@ -111,7 +112,6 @@ int main(int argc, char** argv)
 {
     long long count = 10;
     char* url = NULL;
-    char* name = "writer";
     int opt = 0;
     while (opt != -1) {
         opt = getopt(argc, argv, gOptString);
@@ -142,7 +142,7 @@ int main(int argc, char** argv)
             gIsMulticast = true;
             break;
         case 'n' :
-            name = optarg;
+            gName = optarg;
             break;
         default :
             usage(1);
@@ -182,7 +182,7 @@ int main(int argc, char** argv)
 
     SkalThreadCfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.name = name;
+    cfg.name = gName;
     cfg.processMsg = processMsg;
     int64_t* counter = malloc(sizeof(*counter));
     *counter = 0;
@@ -190,7 +190,7 @@ int main(int argc, char** argv)
     SkalThreadCreate(&cfg);
 
     // Kickstart
-    SkalMsg* msg = SkalMsgCreate("kick", name);
+    SkalMsg* msg = SkalMsgCreate("kick", gName);
     SkalMsgSend(msg);
 
     SkalPause();

@@ -76,6 +76,7 @@ results = list()
 
 # Test runner
 def runTest(description, timeout_s, body):
+    start_time = time.time()
     timer = threading.Timer(timeout_s, timeout)
     proc.clear()
     logger.info(description)
@@ -83,20 +84,39 @@ def runTest(description, timeout_s, body):
     success = body()
     timer.cancel()
     terminateAll()
+    duration = time.time() - start_time
+    logger.info("  Test took {0:.2f}s".format(duration))
     results.append((description, success))
+
+
+# Utility function to start skald
+def startSkald(socketUrl, args):
+    logger.debug("Starting SKALD")
+    proc['skald'] = spawn(["skald", "-l", socketUrl] + args)
+    time.sleep(0.01)
+
+
+# Utility function to start a reader
+def startReader(socketUrl, readerName, args):
+    logger.debug("Starting reader process: {}".format(readerName))
+    rargs = ["reader", "-l", socketUrl, "-n", readerName] + args
+    proc[readerName] = spawn(rargs)
+    time.sleep(0.01)
+
+
+# Utility function to start a writer
+def startWriter(socketUrl, writerName, args):
+    logger.debug("Starting writer process: {}".format(writerName))
+    rargs = ["writer", "-l", socketUrl, "-n", writerName] + args
+    proc[writerName] = spawn(rargs)
+    time.sleep(0.01)
 
 
 # Utility function to start skald, one reader and one writer
 def startSkaldReaderWriter(socketUrl, argsSkald, argsReader, argsWriter):
-    logger.debug("Starting SKALD")
-    url = "unix://skald.sock"
-    proc['skald'] = spawn(["skald", "-l", socketUrl] + argsSkald)
-    time.sleep(0.01)
-    logger.debug("Starting reader process")
-    proc['reader'] = spawn(["reader", "-l", socketUrl] + argsReader)
-    time.sleep(0.01)
-    logger.debug("Starting writer process")
-    proc['writer'] = spawn(["writer", "-l", socketUrl] + argsWriter)
+    startSkald(socketUrl, argsSkald)
+    startReader(socketUrl, "reader", argsReader)
+    startWriter(socketUrl, "writer", argsWriter)
 
 
 def testSendOneMsg():
@@ -163,6 +183,29 @@ def testSendOneThousandMsg():
     return True
 
 runTest("Send 1,000 messages through SKALD", 3, testSendOneThousandMsg)
+
+
+def testStress():
+    socketUrl = "unix://skald.sock"
+    startSkald(socketUrl, ["-d", "TestDomain"])
+    pairCount = 100
+    msgCount = 10000
+    logger.debug("Starting {} reader/writer pairs sending each {} messages"
+            .format(pairCount, msgCount))
+    procToWaitFor = list()
+    for i in range(pairCount):
+        readerName = "reader{}".format(i)
+        procToWaitFor.append(readerName)
+        writerName = "writer{}".format(i)
+        startReader(socketUrl, readerName, ["-p", "0"])
+        startWriter(socketUrl, writerName, ["-c", str(msgCount), readerName])
+    logger.debug("Wait for reader processes to finish")
+    for name in procToWaitFor:
+        proc[name].wait()
+        del(proc[name])
+    return True
+
+runTest("Stress test", 200, testStress)
 
 
 # Check for memory leaks
