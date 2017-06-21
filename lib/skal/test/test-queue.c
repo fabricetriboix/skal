@@ -72,7 +72,7 @@ RTT_TEST_START(skal_should_pop_urgent_msg)
     RTT_ASSERT(msg != NULL);
     const char* name = SkalMsgName(msg);
     RTT_ASSERT(name != NULL);
-    RTT_EXPECT(strcmp(name, "UrgentMsg") == 0);
+    RTT_EXPECT(SkalStrcmp(name, "UrgentMsg") == 0);
     SkalMsgUnref(msg);
 }
 RTT_TEST_END
@@ -83,7 +83,7 @@ RTT_TEST_START(skal_should_pop_regular_msg)
     RTT_ASSERT(msg != NULL);
     const char* name = SkalMsgName(msg);
     RTT_ASSERT(name != NULL);
-    RTT_EXPECT(strcmp(name, "TestMsg") == 0);
+    RTT_EXPECT(SkalStrcmp(name, "TestMsg") == 0);
     SkalMsgUnref(msg);
 }
 RTT_TEST_END

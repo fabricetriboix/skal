@@ -50,7 +50,7 @@ SKAL_TEST_OBJS = test-plf.o test-common.o test-net.o test-blob.o test-alarm.o \
 		test-msg.o test-queue.o test-thread.o
 
 # Libraries to link against when building programs
-LINKLIBS = -lskal -lcds -lrttest -lrtsys
+LINKLIBS = -lskal -lcds -lrttest -lrtsys -lrt
 ifeq ($(V),debug)
 LINKLIBS += -lflloc
 endif
@@ -173,7 +173,7 @@ test: skal_unit_tests writer reader skald
 	fi; \
 	./$< > skal.rtt; \
 	find $(TOPDIR) -name 'test-*.c' | xargs rttest2text.py skal.rtt; \
-	../../../integration-tests.py
+	../../../integration-tests.py -v
 
 
 define INSTALL

@@ -65,11 +65,11 @@ typedef struct {
     int              size_B; // Used only for strings and miniblobs
     char*            name;
     union {
-        int64_t   i;
-        double    d;
-        char*     s;
-        uint8_t*  miniblob;
-        SkalBlob* blob;
+        int64_t        i;
+        double         d;
+        char*          s;
+        uint8_t*       miniblob;
+        SkalBlobProxy* blob;
     };
 } skalMsgField;
 
@@ -193,6 +193,15 @@ static const char* skalMsgParseJsonString(const char* json,
 static skalMsgFieldProperty skalMsgFieldStrToProp(const char* str);
 
 
+/** Duplicate a blob proxy, a la `dup(2)`
+ *
+ * @param blob [in] Blob proxy to duplicate; must not be NULL
+ *
+ * @return Duplicated blob proxy; never NULL
+ */
+static SkalBlobProxy* skalMsgDupBlob(SkalBlobProxy* blob);
+
+
 
 /*------------------+
  | Global variables |
@@ -306,6 +315,11 @@ void SkalMsgRef(SkalMsg* msg)
     SKALASSERT(msg != NULL);
     gMsgRefCount_DEBUG++;
     msg->ref++;
+
+    // NB: We don't increment the reference counters of blobs and alarms. Having
+    // just one reference for the message itself is enough, as that reference
+    // will be removed when the message is destroyed (i.e. when the last
+    // reference to that msg is removed).
 }
 
 
@@ -428,14 +442,12 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
 }
 
 
-void SkalMsgAttachBlob(SkalMsg* msg, const char* name, SkalBlob* blob)
+void SkalMsgAddBlob(SkalMsg* msg, const char* name, SkalBlobProxy* blob)
 {
     SKALASSERT(blob != NULL);
     skalMsgField* field = skalMsgFieldAllocate(msg, name,
             SKAL_MSG_FIELD_TYPE_BLOB);
     field->blob = blob;
-    SkalBlobRef(blob);
-    SKALPANIC_MSG("Attaching blobs is not yet supported"); // TODO
 }
 
 
@@ -568,7 +580,7 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
 }
 
 
-SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
+SkalBlobProxy* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
 {
     SKALASSERT(msg != NULL);
     SKALASSERT(SkalIsAsciiString(name));
@@ -576,11 +588,7 @@ SkalBlob* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     SKALASSERT(field != NULL);
     SKALASSERT(SKAL_MSG_FIELD_TYPE_BLOB == field->type);
-
-    SkalBlob* blob = field->blob;
-    SKALASSERT(blob != NULL);
-    SkalBlobRef(blob);
-    return blob;
+    return skalMsgDupBlob(field->blob);
 }
 
 
@@ -640,8 +648,7 @@ SkalMsg* SkalMsgCopyEx(const SkalMsg* msg,
             break;
         case SKAL_MSG_FIELD_TYPE_BLOB :
             if (copyBlobs) {
-                SkalBlobRef(field->blob);
-                copyField->blob = field->blob;
+                copyField->blob = skalMsgDupBlob(field->blob);
             }
             break;
         default :
@@ -723,6 +730,22 @@ char* SkalMsgToJson(const SkalMsg* msg)
 }
 
 
+void SkalMsgRefBlobs(const SkalMsg* msg)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(msg->fields != NULL);
+
+    for (   CdsMapItem* item = CdsMapIteratorStart(msg->fields, true, NULL);
+            item != NULL;
+            item = CdsMapIteratorNext(msg->fields, NULL)) {
+        skalMsgField* field = (skalMsgField*)item;
+        if (SKAL_MSG_FIELD_TYPE_BLOB == field->type) {
+            SkalBlobRef(field->blob);
+        }
+    }
+}
+
+
 SkalMsg* SkalMsgCreateFromJson(const char* json)
 {
     SKALASSERT(json != NULL);
@@ -743,6 +766,22 @@ SkalMsg* SkalMsgCreateFromJson(const char* json)
         msg = NULL;
     }
     return msg;
+}
+
+
+void SkalMsgUnrefBlobs(const SkalMsg* msg)
+{
+    SKALASSERT(msg != NULL);
+    SKALASSERT(msg->fields != NULL);
+
+    for (   CdsMapItem* item = CdsMapIteratorStart(msg->fields, true, NULL);
+            item != NULL;
+            item = CdsMapIteratorNext(msg->fields, NULL)) {
+        skalMsgField* field = (skalMsgField*)item;
+        if (SKAL_MSG_FIELD_TYPE_BLOB == field->type) {
+            SkalBlobUnref(field->blob);
+        }
+    }
 }
 
 
@@ -809,7 +848,9 @@ static void skalFieldMapUnref(CdsMapItem* item)
         free(field->miniblob);
         break;
     case SKAL_MSG_FIELD_TYPE_BLOB :
-        SkalBlobUnref(field->blob);
+        if (field->blob != NULL) {
+            SkalBlobClose(field->blob);
+        }
         break;
     default :
         break; // nothing to do
@@ -881,7 +922,11 @@ static void skalFieldToJson(SkalStringBuilder* sb,
 
     case SKAL_MSG_FIELD_TYPE_BLOB :
         {
+            const char* allocatorName = "";
             const char* id = "";
+            if (field->blob->allocator != NULL) {
+                allocatorName = field->blob->allocator->name;
+            }
             if (SkalBlobId(field->blob) != NULL) {
                 id = SkalBlobId(field->blob);
             }
@@ -889,9 +934,10 @@ static void skalFieldToJson(SkalStringBuilder* sb,
                     "  {\n"
                     "   \"name\": \"%s\",\n"
                     "   \"type\": \"blob\",\n"
-                    "   \"value\": \"%s\"\n"
+                    "   \"value\": \"%s:%s\"\n"
                     "  },\n",
                     name,
+                    allocatorName,
                     id);
         }
         break;
@@ -989,7 +1035,7 @@ static bool skalMsgParseJson(const char* json, SkalMsg* msg)
 static const char* skalMsgParseJsonProperty(const char* json,
         const char* name, SkalMsg* msg)
 {
-    if (strcmp(name, "version") == 0) {
+    if (SkalStrcmp(name, "version") == 0) {
         int tmp;
         if (sscanf(json, "%d", &tmp) != 1) {
             SkalLog("SkalMsg: Invalid JSON: Can't parse integer for 'version'");
@@ -1006,7 +1052,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "timestamp") == 0) {
+    } else if (SkalStrcmp(name, "timestamp") == 0) {
         char* timestamp = NULL;
         json = skalMsgParseJsonString(json, &timestamp, true);
         if (json != NULL) {
@@ -1021,16 +1067,16 @@ static const char* skalMsgParseJsonProperty(const char* json,
             }
         }
 
-    } else if (strcmp(name, "name") == 0) {
+    } else if (SkalStrcmp(name, "name") == 0) {
         json = skalMsgParseJsonString(json, &msg->name, true);
 
-    } else if (strcmp(name, "sender") == 0) {
+    } else if (SkalStrcmp(name, "sender") == 0) {
         json = skalMsgParseJsonString(json, &msg->sender, true);
 
-    } else if (strcmp(name, "recipient") == 0) {
+    } else if (SkalStrcmp(name, "recipient") == 0) {
         json = skalMsgParseJsonString(json, &msg->recipient, true);
 
-    } else if (strcmp(name, "ttl") == 0) {
+    } else if (SkalStrcmp(name, "ttl") == 0) {
         int tmp;
         if (sscanf(json, "%d", &tmp) != 1) {
             SkalLog("SkalMsg: Invalid JSON: Can't parse integer for 'ttl'");
@@ -1046,7 +1092,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "flags") == 0) {
+    } else if (SkalStrcmp(name, "flags") == 0) {
         unsigned int tmp;
         if (sscanf(json, "%u", &tmp) != 1) {
             SkalLog("SkalMsg: Invalid JSON: Can't parse unsigned integer for 'flags'");
@@ -1058,7 +1104,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "iflags") == 0) {
+    } else if (SkalStrcmp(name, "iflags") == 0) {
         unsigned int tmp;
         if (sscanf(json, "%u", &tmp) != 1) {
             SkalLog("SkalMsg: Invalid JSON: Can't parse unsigned integer for 'iflags'");
@@ -1070,7 +1116,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
             json++;
         }
 
-    } else if (strcmp(name, "fields") == 0) {
+    } else if (SkalStrcmp(name, "fields") == 0) {
         if (*json != '[') {
             SkalLog("SkalMsg: Invalid JSON: Expected '['");
             return NULL;
@@ -1099,7 +1145,7 @@ static const char* skalMsgParseJsonProperty(const char* json,
         }
         json++;
 
-    } else if (strcmp(name, "alarms") == 0) {
+    } else if (SkalStrcmp(name, "alarms") == 0) {
         if (*json != '[') {
             SkalLog("SkalMsg: Invalid JSON: Expected '['");
             return NULL;
@@ -1184,15 +1230,15 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
         case SKAL_MSG_FIELD_PROPERTY_TYPE :
             json = skalMsgParseJsonString(json, &str, true);
             if (json != NULL) {
-                if (strcmp(str, "int") == 0) {
+                if (SkalStrcmp(str, "int") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_INT;
-                } else if (strcmp(str, "double") == 0) {
+                } else if (SkalStrcmp(str, "double") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_DOUBLE;
-                } else if (strcmp(str, "string") == 0) {
+                } else if (SkalStrcmp(str, "string") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_STRING;
-                } else if (strcmp(str, "miniblob") == 0) {
+                } else if (SkalStrcmp(str, "miniblob") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_MINIBLOB;
-                } else if (strcmp(str, "blob") == 0) {
+                } else if (SkalStrcmp(str, "blob") == 0) {
                     field->type = SKAL_MSG_FIELD_TYPE_BLOB;
                 } else {
                     SkalLog("SkalMsg: Invalid JSON: Unknown field type '%s'",
@@ -1314,9 +1360,7 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
     case SKAL_MSG_FIELD_TYPE_MINIBLOB :
         {
             char* b64;
-            const char* tmp = skalMsgParseJsonString(value, &b64, true);
-            if (NULL == tmp) {
-                free(b64);
+            if (skalMsgParseJsonString(value, &b64, true) == NULL) {
                 return NULL;
             }
             field->miniblob = SkalBase64Decode(b64, &field->size_B);
@@ -1329,7 +1373,27 @@ static const char* skalMsgParseJsonField(const char* json, skalMsgField* field)
         break;
 
     case SKAL_MSG_FIELD_TYPE_BLOB :
-        SKALPANIC_MSG("Blobs not yet supported");
+        {
+            char* data;
+            if(skalMsgParseJsonString(value, &data, false) == NULL) {
+                return NULL;
+            }
+            char* ptr = strchr(data, ':');
+            if (NULL == ptr) {
+                SkalLog("SkalMsg: Invalid JSON: Character ':' required in field value for blobs");
+                free(data);
+                return NULL;
+            }
+            *ptr = '\0';
+            ptr++;
+            field->blob = SkalBlobOpen(data, ptr);
+            if (NULL == field->blob) {
+                SkalLog("SkalMsg: Failed to open blob '%s:%s'", data, ptr);
+                free(data);
+                return NULL;
+            }
+            free(data);
+        }
         break;
 
     default :
@@ -1393,12 +1457,24 @@ static skalMsgFieldProperty skalMsgFieldStrToProp(const char* str)
 {
     SKALASSERT(str != NULL);
     skalMsgFieldProperty property = SKAL_MSG_FIELD_PROPERTY_INVALID;
-    if (strcmp(str, "name") == 0) {
+    if (SkalStrcmp(str, "name") == 0) {
         property = SKAL_MSG_FIELD_PROPERTY_NAME;
-    } else if (strcmp(str, "type") == 0) {
+    } else if (SkalStrcmp(str, "type") == 0) {
         property = SKAL_MSG_FIELD_PROPERTY_TYPE;
-    } else if (strcmp(str, "value") == 0) {
+    } else if (SkalStrcmp(str, "value") == 0) {
         property = SKAL_MSG_FIELD_PROPERTY_VALUE;
     }
     return property;
+}
+
+
+static SkalBlobProxy* skalMsgDupBlob(SkalBlobProxy* blob)
+{
+    SKALASSERT(blob != NULL);
+    SkalAllocator* allocator = SkalBlobAllocator(blob);
+    SkalBlobProxy* copy = SkalBlobOpen(allocator->name, SkalBlobId(blob));
+
+    // This blob is already opened and referenced, so `copy` can't be NULL
+    SKALASSERT(copy != NULL);
+    return copy;
 }

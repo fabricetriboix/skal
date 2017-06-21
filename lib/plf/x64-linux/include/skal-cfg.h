@@ -80,6 +80,14 @@ extern "C" {
 #define SKAL_NET_MAX_BUFSIZE_B 212992
 
 
+/** Permissions for shared memory files
+ *
+ * These are set to read/write for both the creator of the shared memory file
+ * and the group, but no access to others.
+ */
+#define SKAL_SHM_PERM (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
+
+
 
 /* @} */
 

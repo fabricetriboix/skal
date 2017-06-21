@@ -96,13 +96,26 @@ uint8_t SkalMsgIFlags(const SkalMsg* msg);
  * referenced by their ids in the JSON string. If the message is to be sent over
  * the network, the content of each blob must be passed using a separate mean.
  *
- * @param msg [in] Message to encode
+ * **VERY IMPORTANT** If blobs are attached to this message and you want the
+ * lifespan of the blobs to exceed the lifespan of the message structure itself
+ * (for example because you want to send the JSON to another thread), you must
+ * call `SkalMsgRefBlobs()` prior to sending the message. The recipient should
+ * call `SkalMsgUnrefBlobs()` once the JSON is successfully parsed.
+ *
+ * @param msg [in] Message to encode; must not be NULL
  *
  * @return The JSON string representing the message; this function never returns
  *         NULL. Once finished with the JSON string, you must release it by
  *         calling `free()` on it.
  */
 char* SkalMsgToJson(const SkalMsg* msg);
+
+
+/** Add a reference to all blobs in the message
+ *
+ * @param msg [in] Message containing the blobs to reference; must not be NULL
+ */
+void SkalMsgRefBlobs(const SkalMsg* msg);
 
 
 /** Create a message from a JSON string
@@ -112,12 +125,23 @@ char* SkalMsgToJson(const SkalMsg* msg);
  * function. Until all the blobs attached to this message are reconstructed,
  * this message will remain partial and can't be sent to anyone.
  *
- * @param json [in] JSON string to parse
+ * Once all the blobs have been received and the message is complete, please
+ * call `SkalMsgUnrefBlobs()` to remove the extra reference to the blobs used
+ * during the message's transit.
+ *
+ * @param json [in] JSON string to parse; must not be NULL
  *
  * @return The newly created SKAL message, with its reference counter set to 1,
  *         or NULL if the JSON string is not valid.
  */
 SkalMsg* SkalMsgCreateFromJson(const char* json);
+
+
+/** Remove a reference to all blobs in the message
+ *
+ * @param msg [in] Message containing the blobs to unreference; must not be NULL
+ */
+void SkalMsgUnrefBlobs(const SkalMsg* msg);
 
 
 /** Set the domain name for this process

@@ -192,7 +192,7 @@ RTT_TEST_START(skal_net_pipe_should_receive_data)
         remaining -= event->in.size_B;
         SkalNetEventUnref(event);
     }
-    RTT_EXPECT(strncmp(buffer, "Hello, World!", sizeof(buffer)) == 0);
+    RTT_EXPECT(SkalStartsWith(buffer, "Hello, World!"));
 }
 RTT_TEST_END
 
@@ -290,7 +290,7 @@ RTT_TEST_START(skal_net_unix_stream_should_recv_ping)
     RTT_ASSERT(gClientSockid == event->sockid);
     RTT_ASSERT(5 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("ping", event->in.data, 5) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "ping"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -311,7 +311,7 @@ RTT_TEST_START(skal_net_unix_stream_should_recv_pong)
     RTT_ASSERT(gCommSockid == event->sockid);
     RTT_ASSERT(5 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("pong", event->in.data, 5) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "pong"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -425,7 +425,7 @@ RTT_TEST_START(skal_net_unix_dgram_should_recv_hello)
     RTT_ASSERT(gClientSockid == event->sockid);
     RTT_ASSERT(7 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("Hello, ", event->in.data, 7) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "Hello, "));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -438,7 +438,7 @@ RTT_TEST_START(skal_net_unix_dgram_should_recv_world)
     RTT_ASSERT(gClientSockid == event->sockid);
     RTT_ASSERT(7 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("World!", event->in.data, 8) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "World!"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -459,7 +459,7 @@ RTT_TEST_START(skal_net_unix_dgram_should_recv_hi)
     RTT_ASSERT(gCommSockid == event->sockid);
     RTT_ASSERT(3 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("hi", event->in.data, 3) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "hi"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -576,7 +576,7 @@ RTT_TEST_START(skal_net_unix_seqpkt_should_recv_hello)
     RTT_ASSERT(gClientSockid == event->sockid);
     RTT_ASSERT(7 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("Hello, ", event->in.data, 7) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "Hello, "));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -589,7 +589,7 @@ RTT_TEST_START(skal_net_unix_seqpkt_should_recv_world)
     RTT_ASSERT(gClientSockid == event->sockid);
     RTT_ASSERT(7 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("World!", event->in.data, 7) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "World!"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -610,7 +610,7 @@ RTT_TEST_START(skal_net_unix_seqpkt_should_recv_hi)
     RTT_ASSERT(gCommSockid == event->sockid);
     RTT_ASSERT(3 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("hi", event->in.data, 3) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "hi"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -719,7 +719,7 @@ RTT_TEST_START(skal_net_tcp_should_recv_ping)
     RTT_ASSERT(gClientSockid == event->sockid);
     RTT_ASSERT(5 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("ping", event->in.data, 5) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "ping"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -740,7 +740,7 @@ RTT_TEST_START(skal_net_tcp_should_recv_pong)
     RTT_ASSERT(gCommSockid == event->sockid);
     RTT_ASSERT(5 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("pong", event->in.data, 5) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "pong"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -856,7 +856,7 @@ RTT_TEST_START(skal_net_udp_should_recv_hello)
     RTT_ASSERT(gClientSockid == event->sockid);
     RTT_ASSERT(7 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("Hello, ", event->in.data, 7) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "Hello, "));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -869,7 +869,7 @@ RTT_TEST_START(skal_net_udp_should_recv_world)
     RTT_ASSERT(gClientSockid == event->sockid);
     RTT_ASSERT(7 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("World!", event->in.data, 8) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "World!"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END
@@ -890,7 +890,7 @@ RTT_TEST_START(skal_net_udp_should_recv_hi)
     RTT_ASSERT(gCommSockid == event->sockid);
     RTT_ASSERT(3 == event->in.size_B);
     RTT_ASSERT(event->in.data != NULL);
-    RTT_EXPECT(strncmp("hi", event->in.data, 3) == 0);
+    RTT_EXPECT(SkalStartsWith(event->in.data, "hi"));
     SkalNetEventUnref(event);
 }
 RTT_TEST_END

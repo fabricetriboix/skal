@@ -15,6 +15,7 @@
  */
 
 #include "skal-msg.h"
+#include "skal-blob.h"
 #include "skal-alarm.h"
 #include "rttest.h"
 #include <stdlib.h>
@@ -24,6 +25,7 @@
 static RTBool testMsgGroupEnter(void)
 {
     SkalPlfInit();
+    SkalBlobInit(NULL, 0);
     SkalMsgInit();
     SkalPlfThreadMakeSkal_DEBUG("TestThread@mydomain");
     SkalSetDomain("mydomain");
@@ -34,6 +36,7 @@ static RTBool testMsgGroupExit(void)
 {
     SkalPlfThreadUnmakeSkal_DEBUG();
     SkalMsgExit();
+    SkalBlobExit();
     SkalPlfExit();
     return RTTrue;
 }
@@ -59,7 +62,7 @@ RTT_TEST_START(skal_msg_should_have_correct_name)
 {
     const char* name = SkalMsgName(gMsg);
     RTT_ASSERT(name != NULL);
-    RTT_EXPECT(strcmp(name, "TestName") == 0);
+    RTT_EXPECT(SkalStrcmp(name, "TestName") == 0);
 }
 RTT_TEST_END
 
@@ -67,7 +70,7 @@ RTT_TEST_START(skal_msg_should_have_correct_sender)
 {
     const char* sender = SkalMsgSender(gMsg);
     RTT_ASSERT(sender != NULL);
-    RTT_EXPECT(strcmp(sender, "TestThread@mydomain") == 0);
+    RTT_EXPECT(SkalStrcmp(sender, "TestThread@mydomain") == 0);
 }
 RTT_TEST_END
 
@@ -75,7 +78,7 @@ RTT_TEST_START(skal_msg_should_have_correct_recipient)
 {
     const char* recipient = SkalMsgRecipient(gMsg);
     RTT_ASSERT(recipient != NULL);
-    RTT_EXPECT(strcmp(recipient, "dummy-dst@mydomain") == 0);
+    RTT_EXPECT(SkalStrcmp(recipient, "dummy-dst@mydomain") == 0);
 }
 RTT_TEST_END
 
@@ -110,7 +113,17 @@ RTT_TEST_START(skal_msg_add_miniblob)
 }
 RTT_TEST_END
 
-// TODO: test attaching blob to msg
+RTT_TEST_START(skal_msg_add_blob)
+{
+    SkalBlobProxy* blob = SkalBlobCreate(NULL, NULL, 500);
+    RTT_ASSERT(blob != NULL);
+    uint8_t* data = SkalBlobMap(blob);
+    RTT_ASSERT(data != NULL);
+    strcpy((char*)data, "Hello, World!");
+    SkalBlobUnmap(blob);
+    SkalMsgAddBlob(gMsg, "TestBlob", blob);
+}
+RTT_TEST_END
 
 RTT_TEST_START(skal_msg_should_have_correct_int)
 {
@@ -132,7 +145,7 @@ RTT_TEST_END
 RTT_TEST_START(skal_msg_should_have_correct_string)
 {
     const char* s = SkalMsgGetString(gMsg, "TestString");
-    RTT_EXPECT(strcmp(s, "This is a test string") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "This is a test string") == 0);
 }
 RTT_TEST_END
 
@@ -144,6 +157,19 @@ RTT_TEST_START(skal_msg_should_have_correct_miniblob)
     RTT_EXPECT(4 == size_B);
     uint8_t expected[4] = { 0x11, 0x22, 0x33, 0x44 };
     RTT_EXPECT(memcmp(data, expected, sizeof(expected)) == 0);
+}
+RTT_TEST_END
+
+RTT_TEST_START(skal_msg_should_have_correct_blob)
+{
+    RTT_EXPECT(SkalMsgHasBlob(gMsg, "TestBlob"));
+    SkalBlobProxy* blob = SkalMsgGetBlob(gMsg, "TestBlob");
+    RTT_EXPECT(blob != NULL);
+    uint8_t* data = SkalBlobMap(blob);
+    RTT_ASSERT(data != NULL);
+    RTT_EXPECT(SkalStrcmp((char*)data, "Hello, World!") == 0);
+    SkalBlobUnmap(blob);
+    SkalBlobClose(blob);
 }
 RTT_TEST_END
 
@@ -170,6 +196,7 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
     // NB: Fields will be ordered by name
     char timestamp[64];
     SkalPlfTimestamp(SkalMsgTimestamp_us(gMsg), timestamp, sizeof(timestamp));
+    SkalBlobProxy* blob = SkalMsgGetBlob(gMsg, "TestBlob");
     char* expected = SkalSPrintf(
         "{\n"
         " \"version\": 1,\n"
@@ -181,6 +208,11 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         " \"flags\": 0,\n"
         " \"iflags\": 0,\n"
         " \"fields\": [\n"
+        "  {\n"
+        "   \"name\": \"TestBlob\",\n"
+        "   \"type\": \"blob\",\n"
+        "   \"value\": \"malloc:%s\"\n"
+        "  },\n"
         "  {\n"
         "   \"name\": \"TestDouble\",\n"
         "   \"type\": \"double\",\n"
@@ -224,10 +256,12 @@ RTT_TEST_START(skal_msg_should_produce_correct_json)
         " ]\n"
         "}\n",
         timestamp,
+        SkalBlobId(blob),
         (long long)SkalAlarmTimestamp_us(gAlarm1),
         (long long)SkalAlarmTimestamp_us(gAlarm2));
+    SkalBlobClose(blob);
 
-    RTT_EXPECT(strcmp(json, expected) == 0);
+    RTT_EXPECT(SkalStrcmp(json, expected) == 0);
     free(json);
     free(expected);
 
@@ -242,11 +276,11 @@ RTT_TEST_START(skal_msg_should_detach_alarm1)
     RTT_EXPECT(alarm != NULL);
     const char* s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "alarm1") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "alarm1") == 0);
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_NOTICE);
     s = SkalAlarmOrigin(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "TestThread@mydomain") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "TestThread@mydomain") == 0);
     RTT_EXPECT(SkalAlarmIsOn(alarm));
     RTT_EXPECT(SkalAlarmAutoOff(alarm));
     RTT_EXPECT(SkalAlarmComment(alarm) == NULL);
@@ -260,10 +294,10 @@ RTT_TEST_START(skal_msg_should_copy_msg)
     RTT_EXPECT(SkalMsgTimestamp_us(msg) == SkalMsgTimestamp_us(gMsg));
     const char* s = SkalMsgName(msg);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, SkalMsgName(gMsg)) == 0);
+    RTT_EXPECT(SkalStrcmp(s, SkalMsgName(gMsg)) == 0);
     s = SkalMsgSender(msg);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, SkalMsgSender(gMsg)) == 0);
+    RTT_EXPECT(SkalStrcmp(s, SkalMsgSender(gMsg)) == 0);
     s = SkalMsgRecipient(msg);
     RTT_EXPECT(s != NULL);
     RTT_EXPECT(SkalStartsWith(s, "blackhole"));
@@ -272,15 +306,19 @@ RTT_TEST_START(skal_msg_should_copy_msg)
     RTT_EXPECT(SkalMsgTtl(msg) == SkalMsgTtl(gMsg));
 
     // Test fields
+
     RTT_EXPECT(SkalMsgHasInt(msg, "TestInt"));
     RTT_EXPECT(SkalMsgGetInt(msg, "TestInt") == -789);
+
     RTT_EXPECT(SkalMsgHasDouble(msg, "TestDouble"));
     double delta = SkalMsgGetDouble(msg, "TestDouble") - 3.456779999999999972715e+02;
     RTT_EXPECT(delta < (SkalMsgGetDouble(msg, "TestDouble") * 0.0000001));
+
     RTT_EXPECT(SkalMsgHasString(msg, "TestString"));
     RTT_EXPECT(SkalMsgHasAsciiString(msg, "TestString"));
     s = SkalMsgGetString(msg, "TestString");
-    RTT_EXPECT(strcmp(s, "This is a test string") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "This is a test string") == 0);
+
     RTT_EXPECT(SkalMsgHasMiniblob(msg, "TestMiniblob"));
     int size_B;
     const uint8_t* miniblob = SkalMsgGetMiniblob(msg, "TestMiniblob", &size_B);
@@ -289,22 +327,31 @@ RTT_TEST_START(skal_msg_should_copy_msg)
     uint8_t expected[4] = { 0x11, 0x22, 0x33, 0x44 };
     RTT_EXPECT(memcmp(miniblob, expected, sizeof(expected)) == 0);
 
+    RTT_EXPECT(SkalMsgHasBlob(msg, "TestBlob"));
+    SkalBlobProxy* blob = SkalMsgGetBlob(msg, "TestBlob");
+    RTT_EXPECT(blob != NULL);
+    uint8_t* data = SkalBlobMap(blob);
+    RTT_EXPECT(data != NULL);
+    RTT_EXPECT(SkalStrcmp((char*)data, "Hello, World!") == 0);
+    SkalBlobUnmap(blob);
+    SkalBlobClose(blob);
+
     // Test alarms
     SkalAlarm* alarm = SkalMsgDetachAlarm(msg);
     RTT_EXPECT(alarm != NULL);
     s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "alarm2") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "alarm2") == 0);
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_ERROR);
     s = SkalAlarmOrigin(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "TestThread@mydomain") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "TestThread@mydomain") == 0);
     RTT_EXPECT(!SkalAlarmIsOn(alarm));
     RTT_EXPECT(!SkalAlarmAutoOff(alarm));
     RTT_EXPECT(SkalAlarmTimestamp_us(alarm) == SkalAlarmTimestamp_us(gAlarm2));
     s = SkalAlarmComment(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "This is a test") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "This is a test") == 0);
     SkalAlarmUnref(alarm);
     alarm = SkalMsgDetachAlarm(msg);
     RTT_EXPECT(NULL == alarm);
@@ -319,16 +366,16 @@ RTT_TEST_START(skal_msg_should_detach_alarm2)
     RTT_EXPECT(alarm != NULL);
     const char* s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "alarm2") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "alarm2") == 0);
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_ERROR);
     s = SkalAlarmOrigin(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "TestThread@mydomain") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "TestThread@mydomain") == 0);
     RTT_EXPECT(!SkalAlarmIsOn(alarm));
     RTT_EXPECT(!SkalAlarmAutoOff(alarm));
     s = SkalAlarmComment(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "This is a test") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "This is a test") == 0);
     SkalAlarmUnref(alarm);
 }
 RTT_TEST_END
@@ -414,15 +461,15 @@ RTT_TEST_START(skal_msg_should_create_from_json)
 
     const char* s = SkalMsgName(msg);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "SomeName") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "SomeName") == 0);
 
     s = SkalMsgSender(msg);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "Some\\Thread@domainA") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "Some\\Thread@domainA") == 0);
 
     s = SkalMsgRecipient(msg);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "you@wonderland") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "you@wonderland") == 0);
 
     uint8_t i = SkalMsgFlags(msg);
     RTT_EXPECT(SKAL_MSG_FLAG_UDP == i);
@@ -454,17 +501,17 @@ RTT_TEST_START(skal_msg_should_create_from_json)
     RTT_EXPECT(SkalMsgHasField(msg, "SomeString"));
     s = SkalMsgGetString(msg, "SomeString");
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "This is a test string2") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "This is a test string2") == 0);
 
     SkalAlarm* alarm = SkalMsgDetachAlarm(msg);
     RTT_EXPECT(alarm != NULL);
     s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "AlarmNameA") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "AlarmNameA") == 0);
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_NOTICE);
     s = SkalAlarmOrigin(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "PanicAttak@wilderness") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "PanicAttak@wilderness") == 0);
     RTT_EXPECT(SkalAlarmIsOn(alarm));
     RTT_EXPECT(!SkalAlarmAutoOff(alarm));
     RTT_EXPECT(SkalAlarmTimestamp_us(alarm) == 1234567890LL);
@@ -475,7 +522,7 @@ RTT_TEST_START(skal_msg_should_create_from_json)
     RTT_EXPECT(alarm != NULL);
     s = SkalAlarmName(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "AlarmNameB") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "AlarmNameB") == 0);
     RTT_EXPECT(SkalAlarmSeverity(alarm) == SKAL_ALARM_WARNING);
     RTT_EXPECT(SkalAlarmOrigin(alarm) == NULL);
     RTT_EXPECT(!SkalAlarmIsOn(alarm));
@@ -483,7 +530,7 @@ RTT_TEST_START(skal_msg_should_create_from_json)
     RTT_EXPECT(SkalAlarmTimestamp_us(alarm) == 987654321LL);
     s = SkalAlarmComment(alarm);
     RTT_EXPECT(s != NULL);
-    RTT_EXPECT(strcmp(s, "This is a fake alarm") == 0);
+    RTT_EXPECT(SkalStrcmp(s, "This is a fake alarm") == 0);
     SkalAlarmUnref(alarm);
 
     alarm = SkalMsgDetachAlarm(msg);
@@ -564,10 +611,12 @@ RTT_GROUP_END(TestSkalMsg,
         skal_msg_add_double,
         skal_msg_add_string,
         skal_msg_add_miniblob,
+        skal_msg_add_blob,
         skal_msg_should_have_correct_int,
         skal_msg_should_have_correct_double,
         skal_msg_should_have_correct_string,
         skal_msg_should_have_correct_miniblob,
+        skal_msg_should_have_correct_blob,
         skal_msg_should_attach_alarms,
         skal_msg_should_produce_correct_json,
         skal_msg_should_detach_alarm1,

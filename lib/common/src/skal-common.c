@@ -333,6 +333,16 @@ bool SkalIsAsciiString(const char* str)
 }
 
 
+int SkalStrlen(const char* str)
+{
+    int len = 0;
+    if (str != NULL) {
+        len = (int)strlen(str);
+    }
+    return len;
+}
+
+
 int SkalStrcmp(const char* lhs, const char* rhs)
 {
     if (NULL == lhs) {
@@ -345,21 +355,6 @@ int SkalStrcmp(const char* lhs, const char* rhs)
         return 1;
     }
     return strcmp(lhs, rhs);
-}
-
-
-int SkalStrncmp(const char* lhs, const char* rhs, size_t n)
-{
-    if (NULL == lhs) {
-        if (NULL == rhs) {
-            return 0;
-        }
-        return -1;
-    }
-    if (NULL == rhs) {
-        return 1;
-    }
-    return strncmp(lhs, rhs, n);
 }
 
 
@@ -378,7 +373,7 @@ bool SkalStartsWith(const char* str, const char* pattern)
 int SkalStringCompare(void* leftKey, void* rightKey, void* cookie)
 {
     (void)cookie;
-    return strcmp((const char*)leftKey, (const char*)rightKey);
+    return SkalStrcmp((const char*)leftKey, (const char*)rightKey);
 }
 
 

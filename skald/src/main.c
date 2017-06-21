@@ -90,6 +90,10 @@ static bool parseArgs(int argc, char** argv, SkaldParams* params)
             fprintf(stderr, "TODO: Fork not implemented yet\n");
             ok = false;
             break;
+        case'?':
+            fprintf(stderr, "Unknown argument -%c\n", (char)optopt);
+            ok = false;
+            break;
         default :
             fprintf(stderr, "Unknown argument -%c\n", (char)opt);
             ok = false;

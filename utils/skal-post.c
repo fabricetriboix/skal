@@ -326,7 +326,7 @@ static bool doPost(Args* args)
 
 static bool processMsg(void* cookie, SkalMsg* msg)
 {
-    if (strcmp(SkalMsgName(msg), "skal-post-kick") == 0) {
+    if (SkalStrcmp(SkalMsgName(msg), "skal-post-kick") == 0) {
         return doPost((Args*)cookie);
     }
 
@@ -366,6 +366,10 @@ int main(int argc, char** argv)
             } else {
                 url = SkalStrdup(optarg);
             }
+            break;
+        case '?' :
+            fprintf(stderr, "Unknown argument -%c\n", (char)optopt);
+            exit(1);
             break;
         default :
             break;

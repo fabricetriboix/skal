@@ -195,6 +195,8 @@ typedef enum
 
     /** You tried to send too much data and it has been truncated
      *
+     * The truncated data is lost.
+     *
      * This can happen only on packet-based sockets.
      */
     SKAL_NET_SEND_TRUNC,

@@ -232,6 +232,15 @@ char* SkalStringBuilderFinish(SkalStringBuilder* sb);
 bool SkalIsAsciiString(const char* str);
 
 
+/** Somewhat safer replacement for `strlen(3)`
+ *
+ * @param str [in] String to query; may be NULL or a null-terminated string
+ *
+ * @return The number of bytes in `str`, excluding the null-terminated character
+ */
+int SkalStrlen(const char* str);
+
+
 /** Safer replacement for `strcmp(3)`
  *
  * @param lhs [in] Left-hand side string to compare; must be NULL or a UTF-8
@@ -243,20 +252,6 @@ bool SkalIsAsciiString(const char* str);
  *         positive number if lhs > rhs
  */
 int SkalStrcmp(const char* lhs, const char* rhs);
-
-
-/** Safer replacement for `strncmp(3)`
- *
- * @param lhs [in] Left-hand side string to compare; must be NULL or a UTF-8
- *                 string; may be NULL
- * @param rhs [in] Right-hand side string to compare; must be NULL or a UTF-8
- *                 string; may be NULL
- * @param n   [in] Maximum number of bytes to compare
- *
- * @return A strictly negative number if lhs < rhs, 0 if lhs == rhs, a strictly
- *         positive number if lhs > rhs
- */
-int SkalStrncmp(const char* lhs, const char* rhs, size_t n);
 
 
 /** Check if the given string starts with a certain string

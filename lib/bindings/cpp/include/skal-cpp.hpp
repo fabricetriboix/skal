@@ -44,7 +44,6 @@ class Msg; // Forward declaration
 class Allocator {
 public :
     enum class Scope {
-        THREAD,   /**< Suitable for current thread only */
         PROCESS,  /**< Suitable for current process; eg: "malloc" allocator */
         COMPUTER, /**< Suitable for current computer; eg: "shm" allocator */
         SYSTEM    /**< Suitable for current system; eg: NAS-backed object */
@@ -61,30 +60,78 @@ public :
     virtual ~Allocator();
 
 private :
-    /** Allocate a block of memory
+    /** Create a new blob (and a proxy to it)
+     *
+     * The newly created blob must have its reference counter set to 1.
      *
      * @param id     [in] Optional identifier (eg: buffer slot on a video card)
      * @param size_B [in] Optional minimum size to allocate, in bytes
-     */
-    virtual void* allocate(const std::string& id, int64_t size_B) = 0;
-
-    /** Deallocate a block of memory
      *
-     * @param obj [in] A block allocated with the previous `allocate()` method
+     * @return A proxy to the newly created blob, or `nullptr` if error
      */
-    virtual void deallocate(void* obj) = 0;
+    virtual SkalBlobProxy* create(const std::string& id, int64_t size_B) = 0;
 
-    /** Map a block of memory in the address space of the caller
+    /** Open an existing blob (and create a proxy to it)
      *
-     * @param obj [in] Block to map
+     * The blob's reference counter must be incremented.
+     *
+     * @param id [in] Optional identifier
+     *
+     * @return A proxy to the opened blob, or `nullptr` if error
      */
-    virtual void* map(void* obj) = 0;
+    virtual SkalBlobProxy* open(const std::string& id) = 0;
 
-    /** Unmap a block of memory
+    /** Close a blob proxy
      *
-     * @param obj [in] Block to unmap
+     * You must free up any resources used by the blob proxy. The blob's
+     * reference counter must be decremented. The blob must be de-allocated if
+     * its reference counter reaches 0.
+     *
+     * @param blob [in,out] Proxy to close
      */
-    virtual void unmap(void* obj) = 0;
+    virtual void close(SkalBlobProxy& blob) = 0;
+
+    /** Add a reference to a blob
+     *
+     * @param blob [in,out] Blob to reference
+     */
+    virtual void ref(SkalBlobProxy& blob) = 0;
+
+    /** Remove a reference to a blob
+     *
+     * @param blob [in,out] Blob to unreference
+     */
+    virtual void unref(SkalBlobProxy& blob) = 0;
+
+    /** Map a blob into the address space of the caller
+     *
+     * @param blob [in,out] Blob to map
+     *
+     * @return A pointer to the start of the blob
+     */
+    virtual uint8_t* map(SkalBlobProxy& blob) = 0;
+
+    /** Unmap a blob
+     *
+     * @param blob [in,out] Blob to unmap
+     */
+    virtual void unmap(SkalBlobProxy& blob) = 0;
+
+    /** Get a blob id
+     *
+     * @param blob [in] Blob to query
+     *
+     * @return Blob id
+     */
+    virtual const char* blobid(const SkalBlobProxy& blob) = 0;
+
+    /** Get a blob size, in bytes
+     *
+     * @param blob [in] Blob to query
+     *
+     * @return Blob size, in bytes
+     */
+    virtual int64_t blobsize(const SkalBlobProxy& blob) = 0;
 
     Allocator(const Allocator&) = delete;
     Allocator& operator=(const Allocator&) = delete;
@@ -93,10 +140,15 @@ private :
     SkalAllocator mAllocator;
 
     friend bool Init(const char*, std::vector<std::shared_ptr<Allocator>>);
-    friend void* skalCppAllocatorAllocate(void*, const char*, int64_t);
-    friend void skalCppAllocatorDeallocate(void*, void*);
-    friend void* skalCppAllocatorMap(void*, void*);
-    friend void skalCppAllocatorUnmap(void*, void*);
+    friend SkalBlobProxy* skalCppAllocatorCreate(void*, const char*, int64_t);
+    friend SkalBlobProxy* skalCppAllocatorOpen(void*, const char*);
+    friend void skalCppAllocatorClose(void*, SkalBlobProxy*);
+    friend void skalCppAllocatorRef(void*, SkalBlobProxy*);
+    friend void skalCppAllocatorUnref(void*, SkalBlobProxy*);
+    friend uint8_t* skalCppAllocatorMap(void*, SkalBlobProxy*);
+    friend void skalCppAllocatorUnmap(void*, SkalBlobProxy*);
+    friend const char* skalCppAllocatorBlobId(void*, const SkalBlobProxy*);
+    friend int64_t skalCppAllocatorBlobSize(void*, const SkalBlobProxy*);
 };
 
 
@@ -163,10 +215,10 @@ private :
 };
 
 
-/** This class represents a block of memory allocated through an `Allocator` */
-class Blob final {
+/** This class represents a proxy to a blob */
+class BlobProxy final {
 public :
-    ~Blob();
+    ~BlobProxy();
 
     std::string Id() const;
     std::string Name() const;
@@ -180,45 +232,64 @@ public :
      */
     class ScopedMap final {
     public :
-        ScopedMap(Blob& blob);
+        ScopedMap(BlobProxy& blob);
         ~ScopedMap();
-        void* Get() const;
+        uint8_t* Get() const;
     private :
-        Blob* mBlob;
-        void* mPtr;
+        BlobProxy* mBlob;
+        uint8_t* mPtr;
     };
 
 private :
-    Blob() = delete;
-    Blob(const Blob&) = delete;
-    Blob* operator=(const Blob&) = delete;
-    Blob* operator=(Blob&&) = delete;
+    BlobProxy() = delete;
+    BlobProxy(const BlobProxy&) = delete;
+    BlobProxy* operator=(const BlobProxy&) = delete;
+    BlobProxy* operator=(BlobProxy&&) = delete;
 
     /** Private constructor */
-    Blob(SkalBlob* blob);
+    BlobProxy(SkalBlobProxy* BlobProxy);
 
-    SkalBlob* mBlob;
+    SkalBlobProxy* mBlob;
 
-    friend std::shared_ptr<Blob> CreateBlob(const std::string& allocator,
-            const std::string& id, const std::string& name, int64_t size_B);
-
+    friend std::shared_ptr<BlobProxy> CreateBlob(const std::string& allocator,
+            const std::string& id, int64_t size_B);
+    friend std::shared_ptr<BlobProxy> OpenBlob(const std::string& allocator,
+            const std::string& id);
     friend class Msg;
 };
 
-/** Allocate a new blob
+/** Create a new blob
  *
- * @param allocator [in] Name of the allocator to use; may be the empty string,
- *                       in which case the "malloc" allocator is used
- * @param id        [in] Identifier for the allocator; may or may not be an
- *                       empty string depending on the chosen allocator
- * @param name      [in] A name for this blob; may be an empty string
- * @param size_B    [in] Minimum number of bytes to allocate; may or may not
- *                       be <=0 depending on the chosen allocator
+ * The blob will have its reference counter set to 1.
  *
- * @return A pointer to the blob, or `nullptr` in case of error
+ * @param allocatorName [in] Name of the allocator to use; may be the empty
+ *                           string, in which case the "malloc" allocator is
+ *                           used
+ * @param id            [in] Identifier for the allocator; may or may not be an
+ *                           empty string depending on the chosen allocator
+ * @param size_B        [in] Minimum number of bytes to allocate; may or may not
+ *                           be <=0 depending on the chosen allocator
+ *
+ * @return A pointer to a proxy to the blob, or `nullptr` in case of error
  */
-std::shared_ptr<Blob> CreateBlob(const std::string& allocator,
-        const std::string& id, const std::string& name, int64_t size_B);
+std::shared_ptr<BlobProxy> CreateBlob(const std::string& allocator,
+        const std::string& id, int64_t size_B);
+
+/** Open an existing blob
+ *
+ * The blob's reference counter will be incremented.
+ *
+ * @param allocatorName [in] Name of the allocator to use; may be the empty
+ *                           string, in which case the "malloc" allocator is
+ *                           used
+ * @param id            [in] Identifier for the allocator; may or may not be an
+ *                           empty string depending on the chosen allocator
+ *
+ * @return A pointer to a proxy to the blob, or `nullptr` in case of error
+ */
+std::shared_ptr<BlobProxy> OpenBlob(const std::string& allocator,
+        const std::string& id);
+
 
 
 /** Message flag: it's OK to receive this message out of order */
@@ -280,13 +351,13 @@ public :
      */
     void AddField(const std::string& name, const uint8_t* miniblob, int size_B);
 
-    /** Attach a blob to the message
+    /** Add an extra blob field to the message
      *
      * @param name [in] Name for this field; please note this is unrelated to
-     *                  the blob's name
-     * @param blob [in] Blob to attach; must not be `nullptr`
+     *                  the blob's id
+     * @param blob [in] Proxy to blob to add; must not be `nullptr`
      */
-    void AttachBlob(const std::string& name, std::shared_ptr<Blob> blob);
+    void AddField(const std::string& name, std::shared_ptr<BlobProxy> blob);
 
     /** Check if the message has a field with the given name */
     bool HasField(const std::string& name);
@@ -320,7 +391,7 @@ public :
     const uint8_t* GetMiniblobField(const std::string& name, int& size_B) const;
 
     /** Get access to a blob attached to this message */
-    std::shared_ptr<Blob> GetBlob(const std::string& name) const;
+    std::shared_ptr<BlobProxy> GetBlob(const std::string& name) const;
 
     /** Attach an alarm to the message
      *
