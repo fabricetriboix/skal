@@ -84,16 +84,6 @@ extern "C" {
 #define SKAL_MSG_FLAG_NTF_DROP 0x04
 
 
-/** Message flag: this message is urgent
- *
- * This message will jump in front of non-urgent messages in most queues.
- *
- * **WARNING**: Use this flag sparringly; it should normally never be used on
- * regular data (especially high throughput data).
- */
-#define SKAL_MSG_FLAG_URGENT 0x08
-
-
 /** Message flag: this is a multicast message */
 #define SKAL_MSG_FLAG_MULTICAST 0x10
 
@@ -111,7 +101,8 @@ struct SkalAllocator;
  * underlying blob through the map/unmap functions.
  *
  * The lifetime of an object of type `SkalBlobProxy` is usually different (and
- * shorter) than the underlying blob.
+ * shorter) than the underlying blob. The blob proxy is only meant to access the
+ * blob itself.
  */
 typedef struct {
     struct SkalAllocator* allocator; /**< Allocator that allocated the blob */
@@ -296,7 +287,7 @@ typedef enum {
  *
  * Doing so might help avoiding memory copies.
  *
- * Please note that SKAL already provides the following allocators:
+ * Please note that skal already provides the following allocators:
  *  - "malloc": Allocates memory accessible within the process (this uses
  *    `malloc` to do so)
  *  - "shm": Allocates memory accessible within the computer (this uses the
@@ -308,9 +299,9 @@ typedef struct SkalAllocator {
     /** Allocator name
      *
      * This must be unique within the allocator's scope. It must not contain the
-     * character ':'.
+     * character ':'. TODO: this last requirement could be dropped, isn't it?
      */
-    char* name;
+    const char* name;
 
     /** Allocator scope
      *
@@ -321,7 +312,7 @@ typedef struct SkalAllocator {
     /** Create a new blob and its proxy; must not be NULL */
     SkalCreateBlobF create;
 
-    /** Open an existing blob proxy; must not be NULL */
+    /** Open an existing blob and create a proxy to it; must not be NULL */
     SkalOpenBlobF open;
 
     /** Close a blob proxy; must not be NULL */
@@ -356,10 +347,10 @@ typedef struct SkalAllocator {
 /** Opaque type to an alarm
  *
  * An alarm is information destined for the operator about an important
- * condition within the SKAL application.
+ * condition within the skal application.
  *
- * An alarm can either be on or off. It is normally turned on by SKAL when the
- * condition is detected. It can be turned off either by SKAL if it can
+ * An alarm can either be on or off. It is normally turned on by skal when the
+ * condition is detected. It can be turned off either by skal if it can
  * automatically detect that the condition is over, or it can be turned off by
  * the operator.
  *
@@ -376,9 +367,9 @@ typedef enum {
 } SkalAlarmSeverityE;
 
 
-/** Opaque type to a SKAL message
+/** Opaque type to a skal message
  *
- * Messages are the basic building block of SKAL. Messages carry information and
+ * Messages are the basic building block of skal. Messages carry information and
  * data, and trigger actions executed by threads.
  */
 typedef struct SkalMsg SkalMsg;
@@ -407,7 +398,7 @@ typedef struct {
      * This must be unique within this process. This must not be an empty
      * string. It must not contain the character '@'.
      */
-    char* name;
+    const char* name;
 
     /** Message processing function; must not be NULL */
     SkalProcessMsgF processMsg;
@@ -419,14 +410,19 @@ typedef struct {
      *
      * Messages will be processed as fast as possible, but if some backing up
      * occurs, they will be queued there. If the number of queued messages
-     * reached this threshold, throttling or message drops will occur.
+     * reached this threshold, throttling will occur.
      */
     int64_t queueThreshold;
 
     /** Size of the stack for this thread; if <= 0, use OS default */
     int32_t stackSize_B;
 
-    /** How long to wait before retrying to send; <=0 for default value */
+    /** How long to wait before retrying to send; <=0 for default value
+     *
+     * If blocked by another thread for `xoffTimeout_us`, we will send that
+     * thread a `skal-ntf-xon` to tell it to inform us whether we can send
+     * again.
+     */
     int64_t xoffTimeout_us;
 
     /** TODO */
@@ -440,7 +436,7 @@ typedef struct {
  +------------------------------*/
 
 
-/** Initialise SKAL for this process
+/** Initialise skal for this process
  *
  * A skald daemon should be running on the same computer before this call is
  * made. You must call this function before any other function in this module.
@@ -461,8 +457,9 @@ typedef struct {
  * Please note that if an allocator has a scope of
  * `SKAL_ALLOCATOR_SCOPE_COMPUTER` or `SKAL_ALLOCATOR_SCOPE_SYSTEM`, you will
  * have to ensure that this allocator is also registered by any process that
- * might unreference blobs created by this allocator. Failure to do so will
- * result in asserts.
+ * might unreference blobs created by this allocator (because by definition this
+ * blob may be de-allocated from another process). Failure to do so will result
+ * in asserts.
  *
  * @return `true` if OK, `false` if can't connect to skald
  */
@@ -470,10 +467,10 @@ bool SkalInit(const char* skaldUrl,
         const SkalAllocator* allocators, int nallocators);
 
 
-/** Terminate SKAL for this process
+/** Terminate skal for this process
  *
- * This function terminates all threads managed by SKAL in this process and
- * de-allocates all resources used by SKAL.
+ * This function terminates all threads managed by skal in this process and
+ * de-allocates all resources used by skal.
  *
  * This function is blocking.
  */
@@ -492,7 +489,7 @@ void SkalExit(void);
 void SkalThreadCreate(const SkalThreadCfg* cfg);
 
 
-/** Pause the calling thread until all SKAL threads have finished
+/** Pause the calling thread until all skal threads have finished
  *
  * This function will not return until all the threads have finished. Use this
  * function to write an application that performs a certain tasks and terminates
@@ -527,12 +524,12 @@ void SkalCancel(void);
  * The current time will be assigned to the alarm object as its timestamp.
  *
  * The current thread will be used as the origin, provided the thread is managed
- * by SKAL. If not, no origin will be set.
+ * by skal. If not, no origin will be set.
  *
  * The alarm comment can be a UTF-8 string.
  *
  * @param name     [in] Alarm name; must not be NULL; alarm names starting with
- *                      "skal-" are reserved for SKAL
+ *                      "skal" are reserved for skal
  * @param severity [in] Alarm severity
  * @param isOn     [in] Whether the condition related to the alarm started or
  *                      finished
@@ -596,7 +593,7 @@ SkalAlarmSeverityE SkalAlarmSeverity(const SkalAlarm* alarm);
  * @param alarm [in] Alarm to query; must not be NULL
  *
  * @return Name of thread that sent the alarm; will be NULL if alarm is created
- *         from a non-SKAL thread
+ *         from a non-skal thread
  */
 const char* SkalAlarmOrigin(const SkalAlarm* alarm);
 
@@ -656,15 +653,15 @@ SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm);
  * @param allocatorName [in] Allocator to use to create the blob. This may be
  *                           NULL, or the empty string, in which case the
  *                           "malloc" allocator will be used.
- * @param id            [in] Blob identifier. NULL may or may not be a valid
+ * @param id            [in] Blob identifier; NULL may or may not be a valid
  *                           value depending on the allocator.
- * @param size_B        [in] Minimum number of bytes to allocate. <= 0 may or
+ * @param size_B        [in] Minimum number of bytes to allocate; <= 0 may or
  *                           may not be allowed, depending on the allocator.
  *
  * The following allocators are always available:
  *  - "malloc" (which is used when the `allocator` argument is NULL): This
  *    allocates memory using `malloc()`. The `id` argument is ignored; `size_B`
- *    must be > 0.
+ *    must be > 0. If in doubt, use this allocator.
  *  - "shm": This allocates shared memory using `shm_open()`, etc. This type of
  *    memory can be accessed by various processes within the same computer. If
  *    you know you are creating a blob that will be sent to another process,
@@ -699,39 +696,40 @@ SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm);
  *    `SkalMsgGetBlob()` and `SkalBlobMap()` multiple times; obviously, you will
  *    need to close the blob as many times it has been mapped and opened
  *
- * **VERY IMPORTANT** SKAL does not provide any mechanism to allow exclusive
+ * **VERY IMPORTANT** Skal does not provide any mechanism to allow exclusive
  * access to the memory area pointed to by a blob (no mutex, no semaphore, etc.)
- * as this would go against SKAL philosophy because message processors are not
+ * as this would go against skal philosophy because message processors are not
  * allowed to block. It is expected that the application designer will be
  * sensible in how the application is designed.
  *
  * Let's expand a bit on the previous remark. Simultaneous access to a blob
- * could happen if the blob is sent to 2 or more threads simultaneously. There
- * are 2 ways a blob can be sent to more than one thread:
+ * could happen if the same blob is sent to 2 or more threads simultaneously.
+ * There are 2 ways a blob can be sent to more than one thread:
  *  - A blob is referenced by different messages, and the messages are sent to
- *    their respective threads
+ *    their respective threads (that also include the case where a message is
+ *    referenced many times and sent to different recipients)
  *  - A blob is referenced by only one message, and the message is sent to a
  *    group which has 2 or more subscribers
  *
  * The following use cases will not require any special attention:
  *  - The blob is sent to only one thread
- *  - The blob is sent to 2 or more threads which will not modify the memory
- *    area pointed to by the blob
+ *  - The blob is sent to 2 or more threads which will not modify it
  *
  * The following use case will require special attention: the blob is sent to
  * more than one thread, one of them will write to the memory area pointed to by
  * the blob. You would then have a race condition between the writing thread and
  * the reading thread(s). This situation would essentially show an application
- * design that would run against SKAL philosophy. Either:
+ * design that would run against skal philosophy. Either:
  *  - the data needs to be modified before it is read; in which case the writing
  *    thread should by the only recipient and forward the blob after
  *    modification
  *  - it does not matter whether the data is modified before or after it is
  *    read; the same as above applies here
  *  - the data needs to be modified after it is read; in this case, a more
- *    complex mechanism for "joining" the paths the blob takes would be required
+ *    complex mechanism for "joining" the paths the blob takes would be
+ *    required; this would be a very uncommon scenario, though
  *
- * Once created, you must call `SkalBlobClose()` on it.
+ * Once created, you must call `SkalBlobClose()` to close the blob proxy.
  *
  * @return The blob proxy, or NULL in case of error (the allocator does not
  *         exist, invalid `id` or `size_B` for the chosen allocator, or failed
@@ -743,8 +741,7 @@ SkalBlobProxy* SkalBlobCreate(const char* allocatorName,
 
 /** Open an existing blob
  *
- * Once opened, you must call `SkalBlobClose()` on it. The blob's reference
- * counter will be incremented.
+ * Once opened, you must call `SkalBlobClose()` on the blob proxy.
  *
  * @param allocatorName [in] Allocator to use to open the blob. This may be
  *                           NULL, or the empty string, in which case the
@@ -761,8 +758,8 @@ SkalBlobProxy* SkalBlobOpen(const char* allocatorName, const char* id);
 
 /** Close a blob proxy
  *
- * The blob's reference counter will be decremented. The underlying blob might
- * be de-allocated as a result.
+ * The blob's reference counter will be decremented, so it might be de-allocated
+ * as a result.
  *
  * @param blob [in,out] Blob proxy to close; must not be NULL
  */
@@ -786,8 +783,8 @@ void SkalBlobRef(SkalBlobProxy* blob);
  * always assume you are the last to call `SkalBlobUnref()` on that blob and
  * that it does not exist anymore when this function returns.
  *
- * `blob` is never de-allocated by this function! Please ensure you call
- * `SkalBlobClose()` on it later. Also, since the blob could have been
+ * The blob proxy itself is not de-allocated by this function! Please ensure you
+ * call `SkalBlobClose()` on it later. Also, since the blob could have been
  * de-allocated, you must not call any other `SkalBlob*()` function on that blob
  * proxy except `SkalBlobClose()`.
  *
@@ -851,14 +848,16 @@ int64_t SkalBlobSize_B(const SkalBlobProxy* blob);
  *
  * @param name      [in] Message name. This argument may not be NULL and may
  *                       not be an empty string. Please note that message names
- *                       starting with "skal-" are reserved for SKAL's own use,
+ *                       starting with "skal" are reserved for skal's own use,
  *                       so please avoid prefixing your message names with
- *                       "skal-".
- * @param recipient [in] Whom to send this message to
+ *                       "skal".
+ * @param recipient [in] Whom to send this message to; must not be NULL; may be
+ *                       a thread or a multicast group (for the latter, you must
+ *                       also set the `SKAL_MSG_FLAG_MULTICAST` flag)
  * @param flags     [in] Message flags; please refer to `SKAL_MSG_FLAG_*`
- * @param ttl       [in] Time-to-live counter; <=0 for default value
+ * @param ttl       [in] Time-to-live counter initial value; <=0 for default
  *
- * @return The newly created SKAL message; this function never returns NULL
+ * @return The newly created skal message; this function never returns NULL
  */
 SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
         uint8_t flags, int8_t ttl);
@@ -873,7 +872,7 @@ SkalMsg* SkalMsgCreateEx(const char* name, const char* recipient,
  * @param name      [in] Message name; same as `SkalMsgCreateEx()`
  * @param recipient [in] Message recipient; same as `SkalMsgCreateEx()`
  *
- * @return Created SKAL message; this function never returns NULL
+ * @return Created skal message; this function never returns NULL
  */
 SkalMsg* SkalMsgCreate(const char* name, const char* recipient);
 
@@ -882,12 +881,12 @@ SkalMsg* SkalMsgCreate(const char* name, const char* recipient);
  *
  * This is a simplified version of `SkalMsgCreateEx()`, which takes out
  * often-unused arguments. The created message will have the
- * `SKAL_MSG_FLAG_GROUP1 flag set and a TTL set to the default value.
+ * `SKAL_MSG_FLAG_MULTICAST` flag set and a TTL set to the default value.
  *
  * @param name      [in] Message name; same as `SkalMsgCreateEx()`
  * @param recipient [in] Message recipient; same as `SkalMsgCreateEx()`
  *
- * @return Created SKAL message; this function never returns NULL
+ * @return Created skal message; this function never returns NULL
  */
 SkalMsg* SkalMsgCreateMulticast(const char* name, const char* recipient);
 
@@ -1040,13 +1039,9 @@ void SkalMsgAddMiniblob(SkalMsg* msg, const char* name,
  * it, do not touch the blob any more.
  *
  * @param msg  [in,out] Message to modify; must not be NULL
- * @param name [in]     Name of the blob; must not be NULL
  * @param blob [in,out] Blob to attach; must not be NULL
- *
- * Please note the `name` here is different from the blob id (although you can
- * use the blob id if you fancy, that would be harmless).
  */
-void SkalMsgAddBlob(SkalMsg* msg, const char* name, SkalBlobProxy* blob);
+void SkalMsgAttachBlob(SkalMsg* msg, SkalBlobProxy* blob);
 
 
 /** Attach an alarm to a message
@@ -1112,14 +1107,6 @@ bool SkalMsgHasAsciiString(const SkalMsg* msg, const char* name);
 bool SkalMsgHasMiniblob(const SkalMsg* msg, const char* name);
 
 
-/** Check if a message has a blob field with the given name
- *
- * @param msg  [in] Message to check; must not be NULL
- * @param name [in] Name of the field to check; must not be NULL
- */
-bool SkalMsgHasBlob(const SkalMsg* msg, const char* name);
-
-
 /** Get the value of an integer previously added to a message
  *
  * @param msg  [in] Message to query; must not be NULL
@@ -1166,11 +1153,14 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
         int* size_B);
 
 
-/** Access a blob from a message
+/** Detach a blob from a message
  *
  * This function creates a blob proxy, in the same way as `SkalBlobOpen()` (and
  * the blob's reference counter will be incremented). You must call
  * `SkalBlobClose()` on the blob proxy when finished.
+ *
+ * You can call this function multiple times to extract all the blobs from the
+ * message. The order in which the blobs are detached is random.
  *
  * @param msg  [in] Message to query; must not be NULL
  * @param name [in] Name of the blob in this msg; must exists in this `msg`;
@@ -1179,12 +1169,12 @@ const uint8_t* SkalMsgGetMiniblob(const SkalMsg* msg, const char* name,
  *
  * @return The blob proxy; this function never returns NULL
  */
-SkalBlobProxy* SkalMsgGetBlob(const SkalMsg* msg, const char* name);
+SkalBlobProxy* SkalMsgDetachBlob(const SkalMsg* msg);
 
 
 /** Detach an alarm from a message
  *
- * You can call this function multiple times to extract all the alarms of the
+ * You can call this function multiple times to extract all the alarms from the
  * message. The ownership of the alarm is transferred to you, please call
  * `SkalAlarmUnref()` when you're finished with it.
  *
@@ -1203,8 +1193,8 @@ SkalAlarm* SkalMsgDetachAlarm(SkalMsg* msg);
  *
  * @param msg        [in] Message to copy; must not be NULL
  * @param copyBlobs  [in] If set to `false`, the new message will not have any
- *                        blob. If set to `true`, the new message will reference
- *                        all the blobs attached to `msg`
+ *                        blob. If set to `true`, all the blobs in `msg` will be
+ *                        referenced and attached to the message copy.
  * @param copyAlarms [in] Whether to also copy the alarms
  * @param recipient  [in] Recipient for this new message; may be NULL to keep
  *                        the same recipient as `msg`
@@ -1241,8 +1231,8 @@ void SkalMsgSend(SkalMsg* msg);
 
 /** Get the current domain name
  *
- * The domain name is sent by skald just after we connect to it. Shortly after
- * `SkalInit()` returns, the domain will have its definitive value.
+ * The domain name is sent by skald just after we connect to it. As soon as
+ * `SkalInit()` returns, the domain name is set.
  *
  * @return The current domain name, or NULL if not known yet
  */
