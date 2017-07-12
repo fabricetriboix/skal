@@ -41,6 +41,7 @@ typedef struct {
 /** Proxy to access a "malloc" blob */
 typedef struct {
     SkalBlobProxy         parent;
+    int                   ref;
     char                  id[(sizeof(void*)*2) + 3];
     skalMallocBlobHeader* hdr; /**< Pointer to actual blob */
 } skalMallocBlobProxy;
@@ -71,8 +72,6 @@ static void skalRegisterAllocator(const SkalAllocator* allocator);
 
 /** "malloc" allocator: Create a new blob
  *
- * The new blob will have its reference counter initialised to 1.
- *
  * @param cookie [in] Unused
  * @param id     [in] Unused
  * @param size_B [in] Number of bytes to allocate, must be >0
@@ -85,8 +84,6 @@ static SkalBlobProxy* skalMallocCreate(void* cookie,
 
 /** "malloc" allocator: Open an existing blob
  *
- * The blob's reference counter will be incremented.
- *
  * @param cookie [in] Unused
  * @param id     [in] Hex representation of the address of the first byte of the
  *                    blob; must not be NULL
@@ -96,76 +93,77 @@ static SkalBlobProxy* skalMallocCreate(void* cookie,
 static SkalBlobProxy* skalMallocOpen(void* cookie, const char* id);
 
 
-/** "malloc" allocator: Close a blob proxy
- *
- * The blob's reference counter will be decremented. The blob will be
- * de-allocated if it was the last reference.
+/** "malloc" allocator: Add a reference to a blob proxy
  *
  * @param cookie [in]     Unused
- * @param blob   [in,out] Blob proxy to close; must not be NULL
+ * @param proxy  [in,out] Proxy to reference; must not be NULL
  */
-static void skalMallocClose(void* cookie, SkalBlobProxy* blob);
+static void skalMallocRefProxy(void* cookie, SkalBlobProxy* proxy);
+
+
+/** "malloc" allocator: Remove a reference to a blob proxy
+ *
+ * @param cookie [in]     Unused
+ * @param proxy  [in,out] Proxy to unreference; must not be NULL
+ */
+static void skalMallocUnrefProxy(void* cookie, SkalBlobProxy* proxy);
 
 
 /** "malloc" allocator: Add a reference to a blob
  *
  * @param cookie [in]     Unused
- * @param blob   [in,out] Blob to reference; must not be NULL
+ * @param proxy  [in,out] Proxy to blob to reference; must not be NULL
  */
-static void skalMallocRef(void* cookie, SkalBlobProxy* blob);
+static void skalMallocRef(void* cookie, SkalBlobProxy* proxy);
 
 
 /** "malloc" allocator: Remove a reference to a blob
  *
- * The blob will be de-allocated when the last reference to it is removed.
- *
  * @param cookie [in]     Unused
- * @param blob   [in,out] Blob to unreference; must not be NULL
+ * @param proxy  [in,out] Proxy to blob to unreference; must not be NULL
  */
-static void skalMallocUnref(void* cookie, SkalBlobProxy* blob);
+static void skalMallocUnref(void* cookie, SkalBlobProxy* proxy);
 
 
 /** "malloc" allocator: Map a blob into process memory space
  *
  * @param cookie [in]     Unused
- * @param blob   [in,out] Blob to map; must not be NULL
+ * @param proxy  [in,out] Proxy to blob to map; must not be NULL
  *
  * @return Mapped memory area
  */
-static uint8_t* skalMallocMap(void* cookie, SkalBlobProxy* blob);
+static uint8_t* skalMallocMap(void* cookie, SkalBlobProxy* proxy);
 
 
 /** "malloc" allocator: Unmap from process memory space
  *
  * @param cookie [in]     Unused
- * @param blob   [in,out] Blob to unmap; must not be NULL
+ * @param proxy  [in,out] Proxy to blob to unmap; must not be NULL
  */
-static void skalMallocUnmap(void* cookie, SkalBlobProxy* blob);
+static void skalMallocUnmap(void* cookie, SkalBlobProxy* proxy);
 
 
 /** "malloc" allocator: Get the blob's id
  *
  * @param cookie [in] Unused
- * @param blob   [in] Blob to query; must not be NULL
+ * @param proxy  [in] Proxy to blob to query; must not be NULL
  *
  * @return The blob's id, which is a hex representation of its address
  */
-static const char* skalMallocBlobId(void* cookie, const SkalBlobProxy* blob);
+static const char* skalMallocBlobId(void* cookie, const SkalBlobProxy* proxy);
 
 
 /** "malloc" allocator: Get the blob's size, in bytes
  *
  * @param cookie [in] Unused
- * @param blob   [in] Blob to query; must not be NULL
+ * @param proxy  [in] Proxy to blob to query; must not be NULL
  *
  * @return The blob's size, in bytes
  */
-static int64_t skalMallocBlobSize(void* cookie, const SkalBlobProxy* blob);
+static int64_t skalMallocBlobSize(void* cookie, const SkalBlobProxy* proxy);
 
 
 /** "shm" allocator: Create a new blob
- *
- * The new blob will have its reference counter initialised to 1.
  *
  * @param cookie [in] Unused
  * @param id     [in] Name of shared memory area to create
@@ -181,8 +179,6 @@ static SkalBlobProxy* skalShmCreate(void* cookie,
 
 /** "shm" allocator: Open an existing blob
  *
- * The blob's reference counter will be incremented.
- *
  * @param cookie [in] Unused
  * @param id     [in] Name of shared memory area to open
  *
@@ -191,33 +187,36 @@ static SkalBlobProxy* skalShmCreate(void* cookie,
 static SkalBlobProxy* skalShmOpen(void* cookie, const char* id);
 
 
-/** "shm" allocator: Close a blob proxy
- *
- * The blob's reference counter will be decremented. The blob will be
- * de-allocated if it was the last reference.
+/** "shm" allocator: Add a reference to a blob proxy
  *
  * @param cookie [in]     Unused
- * @param blob   [in,out] Blob proxy to close; must not be NULL
+ * @param proxy  [in,out] Proxy to reference; must not be NULL
  */
-static void skalShmClose(void* cookie, SkalBlobProxy* proxy);
+static void skalShmRefProxy(void* cookie, SkalBlobProxy* proxy);
+
+
+/** "shm" allocator: Remove a reference to a blob proxy
+ *
+ * @param cookie [in]     Unused
+ * @param proxy  [in,out] Proxy to unreference; must not be NULL
+ */
+static void skalShmUnrefProxy(void* cookie, SkalBlobProxy* proxy);
 
 
 /** "shm" allocator: Add a reference to a blob
  *
  * @param cookie [in]     Unused
- * @param blob   [in,out] Blob to reference; must not be NULL
+ * @param proxy  [in,out] Proxy to blob to reference; must not be NULL
  */
-static void skalShmRef(void* cookie, SkalBlobProxy* blob);
+static void skalShmRef(void* cookie, SkalBlobProxy* proxy);
 
 
 /** "shm" allocator: Remove a reference to a blob
  *
- * The blob will be de-allocated when the last reference to it is removed.
- *
  * @param cookie [in]     Unused
- * @param blob   [in,out] Blob to unreference; must not be NULL
+ * @param proxy  [in,out] Proxy to blob to unreference; must not be NULL
  */
-static void skalShmUnref(void* cookie, SkalBlobProxy* blob);
+static void skalShmUnref(void* cookie, SkalBlobProxy* proxy);
 
 
 /** "shm" allocator: Map a blob into process memory space
@@ -298,7 +297,8 @@ void SkalBlobInit(const SkalAllocator* allocators, int size)
     mallocAllocator.scope = SKAL_ALLOCATOR_SCOPE_PROCESS;
     mallocAllocator.create = skalMallocCreate;
     mallocAllocator.open = skalMallocOpen;
-    mallocAllocator.close = skalMallocClose;
+    mallocAllocator.refProxy = skalMallocRefProxy;
+    mallocAllocator.unrefProxy = skalMallocUnrefProxy;
     mallocAllocator.ref = skalMallocRef;
     mallocAllocator.unref = skalMallocUnref;
     mallocAllocator.map = skalMallocMap;
@@ -313,7 +313,8 @@ void SkalBlobInit(const SkalAllocator* allocators, int size)
     shmAllocator.scope = SKAL_ALLOCATOR_SCOPE_COMPUTER;
     shmAllocator.create = skalShmCreate;
     shmAllocator.open = skalShmOpen;
-    shmAllocator.close = skalShmClose;
+    shmAllocator.refProxy = skalShmRefProxy;
+    shmAllocator.unrefProxy = skalShmUnrefProxy;
     shmAllocator.ref = skalShmRef;
     shmAllocator.unref = skalShmUnref;
     shmAllocator.map = skalShmMap;
@@ -344,18 +345,18 @@ SkalBlobProxy* SkalBlobCreate(const char* allocatorName,
         allocatorName = "malloc";
     }
 
-    SkalBlobProxy* blob = NULL;
+    SkalBlobProxy* proxy = NULL;
     SkalAllocator* allocator = (SkalAllocator*)CdsMapSearch(
             gAllocatorMap, (void*)allocatorName);
     if (allocator != NULL) {
         SKALASSERT(allocator->create != NULL);
-        blob = allocator->create(allocator->cookie, id, size_B);
-        if (blob != NULL) {
-            blob->allocator = allocator;
+        proxy = allocator->create(allocator->cookie, id, size_B);
+        if (proxy != NULL) {
+            proxy->allocator = allocator;
             gBlobRefCount_DEBUG++;
         }
     }
-    return blob;
+    return proxy;
 }
 
 
@@ -366,86 +367,106 @@ SkalBlobProxy* SkalBlobOpen(const char* allocatorName, const char* id)
         allocatorName = "malloc";
     }
 
-    SkalBlobProxy* blob = NULL;
+    SkalBlobProxy* proxy = NULL;
     SkalAllocator* allocator = (SkalAllocator*)CdsMapSearch(
             gAllocatorMap, (void*)allocatorName);
     if (allocator != NULL) {
         SKALASSERT(allocator->open != NULL);
-        blob = allocator->open(allocator->cookie, id);
-        if (blob != NULL) {
-            blob->allocator = allocator;
+        proxy = allocator->open(allocator->cookie, id);
+        if (proxy != NULL) {
+            proxy->allocator = allocator;
             gBlobRefCount_DEBUG++;
         }
     }
-    return blob;
+    return proxy;
 }
 
 
-void SkalBlobClose(SkalBlobProxy* blob)
+void SkalBlobProxyRef(SkalBlobProxy* proxy)
 {
-    SkalAllocator* allocator = SkalBlobAllocator(blob);
-    SKALASSERT(allocator->close != NULL);
-    allocator->close(allocator->cookie, blob);
-    gBlobRefCount_DEBUG--;
+    SkalAllocator* allocator = SkalBlobAllocator(proxy);
+    SKALASSERT(allocator->refProxy != NULL);
+    allocator->refProxy(allocator->cookie, proxy);
+    gBlobRefCount_DEBUG++; // Not stricly accurate, but OK for testing
 }
 
 
-void SkalBlobRef(SkalBlobProxy* blob)
+void SkalBlobProxyUnref(SkalBlobProxy* proxy)
 {
-    SkalAllocator* allocator = SkalBlobAllocator(blob);
+    SkalAllocator* allocator = SkalBlobAllocator(proxy);
+    SKALASSERT(allocator->unrefProxy != NULL);
+    allocator->unrefProxy(allocator->cookie, proxy);
+    gBlobRefCount_DEBUG--; // Not stricly accurate, but OK for testing
+}
+
+
+void SkalBlobRef(SkalBlobProxy* proxy)
+{
+    SkalAllocator* allocator = SkalBlobAllocator(proxy);
     SKALASSERT(allocator->ref != NULL);
-    allocator->ref(allocator->cookie, blob);
+    allocator->ref(allocator->cookie, proxy);
     gBlobRefCount_DEBUG++;
 }
 
 
-void SkalBlobUnref(SkalBlobProxy* blob)
+void SkalBlobUnref(SkalBlobProxy* proxy)
 {
-    SkalAllocator* allocator = SkalBlobAllocator(blob);
+    SkalAllocator* allocator = SkalBlobAllocator(proxy);
     SKALASSERT(allocator->unref != NULL);
-    allocator->unref(allocator->cookie, blob);
+    allocator->unref(allocator->cookie, proxy);
     gBlobRefCount_DEBUG--;
 }
 
 
-uint8_t* SkalBlobMap(SkalBlobProxy* blob)
+uint8_t* SkalBlobMap(SkalBlobProxy* proxy)
 {
-    SkalAllocator* allocator = SkalBlobAllocator(blob);
+    SkalAllocator* allocator = SkalBlobAllocator(proxy);
     SKALASSERT(allocator->map != NULL);
-    return allocator->map(allocator->cookie, blob);
+    return allocator->map(allocator->cookie, proxy);
 }
 
 
-void SkalBlobUnmap(SkalBlobProxy* blob)
+void SkalBlobUnmap(SkalBlobProxy* proxy)
 {
-    SkalAllocator* allocator = SkalBlobAllocator(blob);
+    SkalAllocator* allocator = SkalBlobAllocator(proxy);
     SKALASSERT(allocator->unmap != NULL);
-    allocator->unmap(allocator->cookie, blob);
+    allocator->unmap(allocator->cookie, proxy);
 }
 
 
-const char* SkalBlobId(const SkalBlobProxy* blob)
+const char* SkalBlobId(const SkalBlobProxy* proxy)
 {
-    SkalAllocator* allocator = SkalBlobAllocator(blob);
+    SkalAllocator* allocator = SkalBlobAllocator(proxy);
     SKALASSERT(allocator->blobid != NULL);
-    return allocator->blobid(allocator->cookie, blob);
+    return allocator->blobid(allocator->cookie, proxy);
 }
 
 
-int64_t SkalBlobSize_B(const SkalBlobProxy* blob)
+int64_t SkalBlobSize_B(const SkalBlobProxy* proxy)
 {
-    SkalAllocator* allocator = SkalBlobAllocator(blob);
+    SkalAllocator* allocator = SkalBlobAllocator(proxy);
     SKALASSERT(allocator->blobsize != NULL);
-    return allocator->blobsize(allocator->cookie, blob);
+    return allocator->blobsize(allocator->cookie, proxy);
 }
 
 
-SkalAllocator* SkalBlobAllocator(const SkalBlobProxy* blob)
+SkalAllocator* SkalBlobAllocator(const SkalBlobProxy* proxy)
 {
-    SKALASSERT(blob != NULL);
-    SkalAllocator* allocator = blob->allocator;
+    SKALASSERT(proxy != NULL);
+    SkalAllocator* allocator = proxy->allocator;
     SKALASSERT(allocator != NULL);
     return allocator;
+}
+
+
+SkalBlobProxy* SkalBlobDupProxy(const SkalBlobProxy* proxy)
+{
+    SkalAllocator* allocator = SkalBlobAllocator(proxy);
+    SkalBlobProxy* copy = SkalBlobOpen(allocator->name, SkalBlobId(proxy));
+
+    // This blob is already opened and referenced, so `copy` can't be NULL
+    SKALASSERT(copy != NULL);
+    return copy;
 }
 
 
@@ -464,7 +485,7 @@ int64_t SkalBlobRefCount_DEBUG(void)
 static void skalAllocatorMapUnref(CdsMapItem* item)
 {
     SkalAllocator* allocator = (SkalAllocator*)item;
-    free(allocator->name);
+    free((char*)(allocator->name));
     free(allocator);
 }
 
@@ -477,7 +498,8 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
     SKALASSERT(strchr(allocator->name, ':') == NULL);
     SKALASSERT(allocator->create != NULL);
     SKALASSERT(allocator->open != NULL);
-    SKALASSERT(allocator->close != NULL);
+    SKALASSERT(allocator->refProxy != NULL);
+    SKALASSERT(allocator->unrefProxy != NULL);
     SKALASSERT(allocator->ref != NULL);
     SKALASSERT(allocator->unref != NULL);
     SKALASSERT(allocator->map != NULL);
@@ -492,7 +514,8 @@ static void skalRegisterAllocator(const SkalAllocator* allocator)
 
     // NB: If 2 allocators with the same names are inserted, the last one will
     // "overwrite" the previous one. This is intended.
-    bool inserted = CdsMapInsert(gAllocatorMap, copy->name, (CdsMapItem*)copy);
+    bool inserted = CdsMapInsert(gAllocatorMap,
+            (void*)copy->name, (CdsMapItem*)copy);
     SKALASSERT(inserted);
 }
 
@@ -511,11 +534,12 @@ static SkalBlobProxy* skalMallocCreate(void* cookie,
     hdr->size_B = size_B;
     hdr->totalSize_B = totalSize_B;
 
-    skalMallocBlobProxy* blob = SkalMallocZ(sizeof(*blob));
-    n = snprintf(blob->id, sizeof(blob->id), "%p", hdr);
-    SKALASSERT(n < (int)sizeof(blob->id));
-    blob->hdr = hdr;
-    return (SkalBlobProxy*)blob;
+    skalMallocBlobProxy* proxy = SkalMallocZ(sizeof(*proxy));
+    proxy->ref = 1;
+    n = snprintf(proxy->id, sizeof(proxy->id), "%p", hdr);
+    SKALASSERT(n < (int)sizeof(proxy->id));
+    proxy->hdr = hdr;
+    return (SkalBlobProxy*)proxy;
 }
 
 
@@ -532,74 +556,88 @@ static SkalBlobProxy* skalMallocOpen(void* cookie, const char* id)
         return NULL;
     }
 
-    skalMallocBlobProxy* blob = SkalMallocZ(sizeof(*blob));
-    int n = snprintf(blob->id, sizeof(blob->id), "%p", hdr);
-    SKALASSERT(n < (int)sizeof(blob->id));
-    blob->hdr = hdr;
+    skalMallocBlobProxy* proxy = SkalMallocZ(sizeof(*proxy));
+    proxy->ref = 1;
+    int n = snprintf(proxy->id, sizeof(proxy->id), "%p", hdr);
+    SKALASSERT(n < (int)sizeof(proxy->id));
+    proxy->hdr = hdr;
     (hdr->ref)++;
-    return (SkalBlobProxy*)blob;
+    return (SkalBlobProxy*)proxy;
 }
 
 
-static void skalMallocClose(void* cookie, SkalBlobProxy* blob)
+static void skalMallocRefProxy(void* cookie, SkalBlobProxy* sproxy)
 {
-    skalMallocUnref(cookie, blob);
-    free(blob);
+    SKALASSERT(sproxy != NULL);
+    skalMallocBlobProxy* proxy = (skalMallocBlobProxy*)sproxy;
+    (proxy->ref)++;
 }
 
 
-static void skalMallocRef(void* cookie, SkalBlobProxy* sblob)
+static void skalMallocUnrefProxy(void* cookie, SkalBlobProxy* sproxy)
 {
-    SKALASSERT(sblob != NULL);
-    skalMallocBlobProxy* blob = (skalMallocBlobProxy*)sblob;
-    SKALASSERT(blob->hdr != NULL);
-    (blob->hdr->ref)++;
-}
-
-
-static void skalMallocUnref(void* cookie, SkalBlobProxy* sblob)
-{
-    SKALASSERT(sblob != NULL);
-    skalMallocBlobProxy* blob = (skalMallocBlobProxy*)sblob;
-    SKALASSERT(blob->hdr != NULL);
-    (blob->hdr->ref)--;
-    if (blob->hdr->ref <= 0) {
-        free(blob->hdr);
-        blob->hdr = NULL;
+    SKALASSERT(sproxy != NULL);
+    skalMallocBlobProxy* proxy = (skalMallocBlobProxy*)sproxy;
+    (proxy->ref)--;
+    if (proxy->ref <= 0) {
+        skalMallocUnref(cookie, sproxy);
+        free(proxy);
     }
 }
 
 
-static uint8_t* skalMallocMap(void* cookie, SkalBlobProxy* sblob)
+static void skalMallocRef(void* cookie, SkalBlobProxy* sproxy)
 {
-    SKALASSERT(sblob != NULL);
-    skalMallocBlobProxy* blob = (skalMallocBlobProxy*)sblob;
-    SKALASSERT(blob->hdr != NULL);
-    uint8_t* ptr = (uint8_t*)blob->hdr;
+    SKALASSERT(sproxy != NULL);
+    skalMallocBlobProxy* proxy = (skalMallocBlobProxy*)sproxy;
+    SKALASSERT(proxy->hdr != NULL);
+    (proxy->hdr->ref)++;
+}
+
+
+static void skalMallocUnref(void* cookie, SkalBlobProxy* sproxy)
+{
+    SKALASSERT(sproxy != NULL);
+    skalMallocBlobProxy* proxy = (skalMallocBlobProxy*)sproxy;
+    SKALASSERT(proxy->hdr != NULL);
+    (proxy->hdr->ref)--;
+    if (proxy->hdr->ref <= 0) {
+        free(proxy->hdr);
+        proxy->hdr = NULL;
+    }
+}
+
+
+static uint8_t* skalMallocMap(void* cookie, SkalBlobProxy* sproxy)
+{
+    SKALASSERT(sproxy != NULL);
+    skalMallocBlobProxy* proxy = (skalMallocBlobProxy*)sproxy;
+    SKALASSERT(proxy->hdr != NULL);
+    uint8_t* ptr = (uint8_t*)proxy->hdr;
     return ptr + sizeof(skalMallocBlobHeader);
 }
 
 
-static void skalMallocUnmap(void* cookie, SkalBlobProxy* sblob)
+static void skalMallocUnmap(void* cookie, SkalBlobProxy* sproxy)
 {
-    SKALASSERT(sblob != NULL);
+    SKALASSERT(sproxy != NULL);
 }
 
 
-static const char* skalMallocBlobId(void* cookie, const SkalBlobProxy* sblob)
+static const char* skalMallocBlobId(void* cookie, const SkalBlobProxy* sproxy)
 {
-    SKALASSERT(sblob != NULL);
-    skalMallocBlobProxy* blob = (skalMallocBlobProxy*)sblob;
-    return blob->id;
+    SKALASSERT(sproxy != NULL);
+    skalMallocBlobProxy* proxy = (skalMallocBlobProxy*)sproxy;
+    return proxy->id;
 }
 
 
-static int64_t skalMallocBlobSize(void* cookie, const SkalBlobProxy* sblob)
+static int64_t skalMallocBlobSize(void* cookie, const SkalBlobProxy* sproxy)
 {
-    SKALASSERT(sblob != NULL);
-    skalMallocBlobProxy* blob = (skalMallocBlobProxy*)sblob;
-    SKALASSERT(blob->hdr != NULL);
-    return blob->hdr->size_B;
+    SKALASSERT(sproxy != NULL);
+    skalMallocBlobProxy* proxy = (skalMallocBlobProxy*)sproxy;
+    SKALASSERT(proxy->hdr != NULL);
+    return proxy->hdr->size_B;
 }
 
 
@@ -616,43 +654,49 @@ static SkalBlobProxy* skalShmOpen(void* cookie, const char* id)
 }
 
 
-static void skalShmClose(void* cookie, SkalBlobProxy* blob)
+static void skalShmRefProxy(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALPANIC_MSG("Not yet implemented");
 }
 
 
-static void skalShmRef(void* cookie, SkalBlobProxy* blob)
+static void skalShmUnrefProxy(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALPANIC_MSG("Not yet implemented");
 }
 
 
-static void skalShmUnref(void* cookie, SkalBlobProxy* blob)
+static void skalShmRef(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALPANIC_MSG("Not yet implemented");
 }
 
 
-static uint8_t* skalShmMap(void* cookie, SkalBlobProxy* blob)
+static void skalShmUnref(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALPANIC_MSG("Not yet implemented");
 }
 
 
-static void skalShmUnmap(void* cookie, SkalBlobProxy* blob)
+static uint8_t* skalShmMap(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALPANIC_MSG("Not yet implemented");
 }
 
 
-static const char* skalShmBlobId(void* cookie, const SkalBlobProxy* blob)
+static void skalShmUnmap(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALPANIC_MSG("Not yet implemented");
 }
 
 
-static int64_t skalShmBlobSize(void* cookie, const SkalBlobProxy* blob)
+static const char* skalShmBlobId(void* cookie, const SkalBlobProxy* sproxy)
+{
+    SKALPANIC_MSG("Not yet implemented");
+}
+
+
+static int64_t skalShmBlobSize(void* cookie, const SkalBlobProxy* sproxy)
 {
     SKALPANIC_MSG("Not yet implemented");
 }

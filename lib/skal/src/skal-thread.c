@@ -516,9 +516,10 @@ void SkalThreadCreate(const SkalThreadCfg* cfg)
         // NB: The domain name will be appended to the thread name
         SkalThread* thread = skalDoCreateThread(cfg);
         SkalPlfMutexLock(gMutex);
-        CdsMapItem* item = CdsMapSearch(gThreads, thread->cfg.name);
+        CdsMapItem* item = CdsMapSearch(gThreads, (void*)(thread->cfg.name));
         SKALASSERT(NULL == item);
-        bool inserted = CdsMapInsert(gThreads, thread->cfg.name, &thread->item);
+        bool inserted = CdsMapInsert(gThreads,
+                (void*)(thread->cfg.name), &thread->item);
         SKALASSERT(inserted);
         SkalPlfMutexUnlock(gMutex);
     }
@@ -671,7 +672,7 @@ static void skalThreadUnref(SkalThread* thread)
     if (thread->ref <= 0) {
         SkalPlfThreadJoin(thread->thread);
         SkalQueueDestroy(thread->queue);
-        free(thread->cfg.name);
+        free((void*)(thread->cfg.name));
         free(thread);
     }
 }

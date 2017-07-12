@@ -48,11 +48,11 @@ void SkalBlobExit(void);
 
 /** Get the allocator that created/opened the blob
  *
- * @param blob [in] Blob to query; must not be NULL
+ * @param proxy [in] Proxy to blob to query; must not be NULL
  *
  * @return A pointer to the allocator that created/opened this blob, never NULL
  */
-SkalAllocator* SkalBlobAllocator(const SkalBlobProxy* blob);
+SkalAllocator* SkalBlobAllocator(const SkalBlobProxy* proxy);
 
 
 /** DEBUG: Get the number of blob references in this process

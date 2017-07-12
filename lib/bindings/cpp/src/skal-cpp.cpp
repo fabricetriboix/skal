@@ -59,7 +59,8 @@ SkalBlobProxy* skalCppAllocatorOpen(void* cookie, const char* id)
     return allocator->open(tmp);
 }
 
-void skalCppAllocatorClose(void* cookie, SkalBlobProxy* blob)
+// TODO: from here
+void skalCppAllocatorUnrefProxy(void* cookie, SkalBlobProxy* proxy)
 {
     Allocator* allocator = (Allocator*)cookie;
     SKALASSERT(allocator != nullptr);

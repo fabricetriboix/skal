@@ -81,57 +81,65 @@ private :
      */
     virtual SkalBlobProxy* open(const std::string& id) = 0;
 
-    /** Close a blob proxy
+    /** Add a reference to a blob proxy
      *
-     * You must free up any resources used by the blob proxy. The blob's
-     * reference counter must be decremented. The blob must be de-allocated if
-     * its reference counter reaches 0.
+     * NB: Do not touch the reference counter of the underlying blob!
      *
-     * @param blob [in,out] Proxy to close
+     * @param proxy [in,out] Proxy to reference
      */
-    virtual void close(SkalBlobProxy& blob) = 0;
+    virtual void refProxy(SkalBlobProxy& proxy) = 0;
+
+    /** Remove a reference to a blob proxy
+     *
+     * If the reference counter of the blob proxy reaches 0, this method must
+     * de-allocate the blob proxy and remove a reference from the underlying
+     * blob itself (which may thus be de-allocated in turn).
+     *
+     * @param proxy [in,out] Proxy to unreference
+     */
+    virtual void unrefProxy(SkalBlobProxy& proxy) = 0;
 
     /** Add a reference to a blob
      *
-     * @param blob [in,out] Blob to reference
+     * @param proxy [in,out] Proxy to blob to reference
      */
-    virtual void ref(SkalBlobProxy& blob) = 0;
+    virtual void ref(SkalBlobProxy& proxy) = 0;
 
     /** Remove a reference to a blob
      *
-     * @param blob [in,out] Blob to unreference
+     * @param proxy [in,out] Proxy to blob to unreference
      */
-    virtual void unref(SkalBlobProxy& blob) = 0;
+    virtual void unref(SkalBlobProxy& proxy) = 0;
 
     /** Map a blob into the address space of the caller
      *
-     * @param blob [in,out] Blob to map
+     * @param proxy [in,out] Proxy to blob to map
      *
      * @return A pointer to the start of the blob
      */
-    virtual uint8_t* map(SkalBlobProxy& blob) = 0;
+    virtual uint8_t* map(SkalBlobProxy& proxy) = 0;
 
     /** Unmap a blob
      *
-     * @param blob [in,out] Blob to unmap
+     * @param proxy [in,out] Proxy to blob to unmap
      */
-    virtual void unmap(SkalBlobProxy& blob) = 0;
+    virtual void unmap(SkalBlobProxy& proxy) = 0;
 
     /** Get a blob id
      *
-     * @param blob [in] Blob to query
+     * @param proxy [in] Proxy to blob to query
      *
      * @return Blob id
      */
-    virtual const char* blobid(const SkalBlobProxy& blob) = 0;
+    virtual const char* blobid(const SkalBlobProxy& proxy) = 0;
 
     /** Get a blob size, in bytes
      *
-     * @param blob [in] Blob to query
+     * @param proxy [in] Proxy to blob to query
      *
      * @return Blob size, in bytes
      */
-    virtual int64_t blobsize(const SkalBlobProxy& blob) = 0;
+    virtual int64_t blobsize(const SkalBlobProxy& proxy) = 0;
 
     Allocator(const Allocator&) = delete;
     Allocator& operator=(const Allocator&) = delete;
@@ -142,7 +150,8 @@ private :
     friend bool Init(const char*, std::vector<std::shared_ptr<Allocator>>);
     friend SkalBlobProxy* skalCppAllocatorCreate(void*, const char*, int64_t);
     friend SkalBlobProxy* skalCppAllocatorOpen(void*, const char*);
-    friend void skalCppAllocatorClose(void*, SkalBlobProxy*);
+    friend void skalCppAllocatorRefProxy(void*, SkalBlobProxy*);
+    friend void skalCppAllocatorUnrefProxy(void*, SkalBlobProxy*);
     friend void skalCppAllocatorRef(void*, SkalBlobProxy*);
     friend void skalCppAllocatorUnref(void*, SkalBlobProxy*);
     friend uint8_t* skalCppAllocatorMap(void*, SkalBlobProxy*);

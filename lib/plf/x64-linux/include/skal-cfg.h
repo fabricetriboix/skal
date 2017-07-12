@@ -88,6 +88,26 @@ extern "C" {
 #define SKAL_SHM_PERM (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
 
 
+/** Default MTU: standard ethernet frame, less a few bytes for VLAN id, etc. */
+#define SKAL_PROTO_DEFAULT_MTU_B 1472
+
+
+/** Default retransmit timeout */
+#define SKAL_PROTO_DEFAULT_RETRANSMIT_TIMEOUT_ms 5
+
+
+/** Default send queue size */
+#define SKAL_PROTO_DEFAULT_SEND_QUEUE_SIZE 5
+
+
+/** Default output bitrate (50Mbps) */
+#define SKAL_PROTO_DEFAULT_BITRATE_bps 50000000
+
+
+/** Default output burst rate (10 packets at default MTU size) */
+#define SKAL_PROTO_DEFAULT_BURST_RATE_bsp (10 * SKAL_PROTO_DEFAULT_MTU_B * 8)
+
+
 
 /* @} */
 

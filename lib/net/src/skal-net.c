@@ -33,6 +33,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <sys/un.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -880,6 +881,66 @@ SkalNetSendResult SkalNetSend_BLOCKING(SkalNet* net, int sockid,
         }
     }
     return result;
+}
+
+
+int SkalNetSendCapacity_B(const SkalNet* net, int sockid)
+{
+    SKALASSERT(net != NULL);
+
+    int capacity_B = -1;
+    if ((sockid >= 0) && (sockid < net->nsockets)) {
+        const skalNetSocket* c = &(net->sockets[sockid]);
+        if ((c->fd >= 0) && !(c->isServer)) {
+            int tmp;
+            socklen_t len = sizeof(tmp);
+            int ret = getsockopt(c->fd, SOL_SOCKET, SO_SNDBUF, &tmp, &len);
+            if (ret < 0) {
+                SkalLog("skal-net: getsockopt(SO_SNDBUF) failed: %d [%s]",
+                        errno, strerror(errno));
+            } else {
+                SKALASSERT(len == sizeof(tmp));
+                capacity_B = tmp;
+            }
+        }
+    }
+    return capacity_B;
+}
+
+
+int SkalNetSendSize_B(const SkalNet* net, int sockid)
+{
+    SKALASSERT(net != NULL);
+
+    int size_B = -1;
+    if ((sockid >= 0) && (sockid < net->nsockets)) {
+        const skalNetSocket* c = &(net->sockets[sockid]);
+        if ((c->fd >= 0) && !(c->isServer)) {
+            int tmp;
+            int ret = ioctl(c->fd, TIOCOUTQ, &tmp);
+            if (ret < 0) {
+                SkalLog("skal-net: ioctl(TIOCOUTQ) failed: %d [%s]",
+                        errno, strerror(errno));
+            } else {
+                size_B = tmp;
+            }
+        }
+    }
+    return size_B;
+}
+
+
+int SkalNetSendFree_B(const SkalNet* net, int sockid)
+{
+    int free_B = -1;
+    int capacity_B = SkalNetSendCapacity_B(net, sockid);
+    if (capacity_B > 0) {
+        int size_B = SkalNetSendSize_B(net, sockid);
+        if (size_B > 0) {
+            free_B = capacity_B - size_B;
+        }
+    }
+    return free_B;
 }
 
 

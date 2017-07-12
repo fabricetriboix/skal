@@ -20,11 +20,12 @@
 #include <string.h>
 
 
-static SkalBlobProxy* gBlob = NULL;
-static SkalBlobProxy* gBlob2 = NULL;
+static SkalBlobProxy* gProxy1 = NULL;
+static SkalBlobProxy* gProxy2 = NULL;
 
 typedef struct {
     SkalBlobProxy parent;
+    int ref;
     int* ptr;
 } blobProxy;
 
@@ -32,11 +33,12 @@ static SkalBlobProxy* skalTestBlobCreate(void* cookie,
         const char* id, int64_t size_B)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
-    blobProxy* blob = SkalMallocZ(sizeof(*blob));
+    blobProxy* proxy = SkalMallocZ(sizeof(*proxy));
+    proxy->ref = 1;
     int* ptr = SkalMalloc(size_B + sizeof(int));
     *ptr = 1;
-    blob->ptr = ptr;
-    return (SkalBlobProxy*)blob;
+    proxy->ptr = ptr;
+    return (SkalBlobProxy*)proxy;
 }
 
 static SkalBlobProxy* skalTestBlobOpen(void* cookie, const char* id)
@@ -45,78 +47,89 @@ static SkalBlobProxy* skalTestBlobOpen(void* cookie, const char* id)
     int* ptr;
     int ret = sscanf(id, "%p", &ptr);
     SKALASSERT(1 == ret);
-    blobProxy* blob = SkalMallocZ(sizeof(*blob));
-    blob->ptr = ptr;
+    blobProxy* proxy = SkalMallocZ(sizeof(*proxy));
+    proxy->ref = 1;
+    proxy->ptr = ptr;
     (*ptr)++;
-    return (SkalBlobProxy*)blob;
+    return (SkalBlobProxy*)proxy;
 }
 
-static void skalTestBlobClose(void* cookie, SkalBlobProxy* sblob)
+static void skalTestBlobRefProxy(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
-    SKALASSERT(sblob != NULL);
-    blobProxy* blob = (blobProxy*)sblob;
-    int* ptr = blob->ptr;
+    SKALASSERT(sproxy != NULL);
+    blobProxy* proxy = (blobProxy*)sproxy;
+    (proxy->ref)++;
+}
+
+static void skalTestBlobUnrefProxy(void* cookie, SkalBlobProxy* sproxy)
+{
+    SKALASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(sproxy != NULL);
+    blobProxy* proxy = (blobProxy*)sproxy;
+    int* ptr = proxy->ptr;
     SKALASSERT(ptr != NULL);
     (*ptr)--;
     if (*ptr <= 0) {
         free(ptr);
     }
-    free(blob);
+    free(proxy);
 }
 
-static void skalTestBlobRef(void* cookie, SkalBlobProxy* sblob)
+static void skalTestBlobRef(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
-    SKALASSERT(sblob != NULL);
-    blobProxy* blob = (blobProxy*)sblob;
-    int* ptr = blob->ptr;
+    SKALASSERT(sproxy != NULL);
+    blobProxy* proxy = (blobProxy*)sproxy;
+    int* ptr = proxy->ptr;
     SKALASSERT(ptr != NULL);
     (*ptr)--;
 }
 
-static void skalTestBlobUnref(void* cookie, SkalBlobProxy* sblob)
+static void skalTestBlobUnref(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
-    SKALASSERT(sblob != NULL);
-    blobProxy* blob = (blobProxy*)sblob;
-    int* ptr = blob->ptr;
+    SKALASSERT(sproxy != NULL);
+    blobProxy* proxy = (blobProxy*)sproxy;
+    int* ptr = proxy->ptr;
     SKALASSERT(ptr != NULL);
     (*ptr)--;
     if (*ptr <= 0) {
         free(ptr);
-        blob->ptr = NULL;
+        proxy->ptr = NULL;
     }
 }
 
-static uint8_t* skalTestBlobMap(void* cookie, SkalBlobProxy* sblob)
+static uint8_t* skalTestBlobMap(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
-    SKALASSERT(sblob != NULL);
-    blobProxy* blob = (blobProxy*)sblob;
-    uint8_t* ptr = (uint8_t*)(blob->ptr);
+    SKALASSERT(sproxy != NULL);
+    blobProxy* proxy = (blobProxy*)sproxy;
+    uint8_t* ptr = (uint8_t*)(proxy->ptr);
     SKALASSERT(ptr != NULL);
     return ptr + sizeof(int);
 }
 
-static void skalTestBlobUnmap(void* cookie, SkalBlobProxy* blob)
+static void skalTestBlobUnmap(void* cookie, SkalBlobProxy* sproxy)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(sproxy != NULL);
 }
 
-static const char* skalTestBlobId(void* cookie, const SkalBlobProxy* sblob)
+static const char* skalTestBlobId(void* cookie, const SkalBlobProxy* sproxy)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
-    SKALASSERT(sblob != NULL);
-    blobProxy* blob = (blobProxy*)sblob;
+    SKALASSERT(sproxy != NULL);
+    blobProxy* proxy = (blobProxy*)sproxy;
     static char id[64];
-    snprintf(id, sizeof(id), "%p", blob->ptr);
+    snprintf(id, sizeof(id), "%p", proxy->ptr);
     return id;
 }
 
-static int64_t skalTestBlobSize(void* cookie, const SkalBlobProxy* blob)
+static int64_t skalTestBlobSize(void* cookie, const SkalBlobProxy* sproxy)
 {
     SKALASSERT(cookie == (void*)0xdeadbeef);
+    SKALASSERT(sproxy != NULL);
     return 100;
 }
 
@@ -129,7 +142,8 @@ static RTBool skalBlobTestGroupEntry(void)
     test.scope = SKAL_ALLOCATOR_SCOPE_PROCESS;
     test.create = skalTestBlobCreate;
     test.open = skalTestBlobOpen;
-    test.close = skalTestBlobClose;
+    test.refProxy = skalTestBlobRefProxy;
+    test.unrefProxy = skalTestBlobUnrefProxy;
     test.ref = skalTestBlobRef;
     test.unref = skalTestBlobUnref;
     test.map = skalTestBlobMap;
@@ -153,8 +167,8 @@ RTT_GROUP_START(TestSkalBlob, 0x00030001u,
 
 RTT_TEST_START(skal_should_create_a_blob)
 {
-    gBlob = SkalBlobCreate("test", NULL, 1000);
-    RTT_ASSERT(gBlob != NULL);
+    gProxy1 = SkalBlobCreate("test", NULL, 1000);
+    RTT_ASSERT(gProxy1 != NULL);
 }
 RTT_TEST_END
 
@@ -162,7 +176,7 @@ static char gId[128];
 
 RTT_TEST_START(skal_blob_id_should_be_correct)
 {
-    const char* id = SkalBlobId(gBlob);
+    const char* id = SkalBlobId(gProxy1);
     RTT_ASSERT(id != NULL);
     snprintf(gId, sizeof(gId), "%s", id);
 }
@@ -176,8 +190,8 @@ RTT_TEST_END
 
 RTT_TEST_START(skal_should_open_blob)
 {
-    gBlob2 = SkalBlobOpen("test", gId);
-    RTT_EXPECT(gBlob2 != NULL);
+    gProxy2 = SkalBlobOpen("test", gId);
+    RTT_EXPECT(gProxy2 != NULL);
 }
 RTT_TEST_END
 
@@ -187,26 +201,26 @@ RTT_TEST_START(skal_blob_ref_count_should_be_two)
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_blob_should_close_opened_blob)
+RTT_TEST_START(skal_blob_should_unref_proxy1)
 {
-    SkalBlobClose(gBlob2);
-    gBlob2 = NULL;
+    SkalBlobProxyUnref(gProxy1);
+    gProxy1 = NULL;
     RTT_EXPECT(SkalBlobRefCount_DEBUG() == 1);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_blob_should_have_correct_allocator)
 {
-    SkalAllocator* allocator = SkalBlobAllocator(gBlob);
+    SkalAllocator* allocator = SkalBlobAllocator(gProxy2);
     RTT_EXPECT(allocator != NULL);
     RTT_EXPECT(SkalStrcmp(allocator->name, "test") == 0);
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_should_close_blob)
+RTT_TEST_START(skal_blob_should_unref_proxy2)
 {
-    SkalBlobClose(gBlob);
-    gBlob = NULL;
+    SkalBlobProxyUnref(gProxy2);
+    gProxy2 = NULL;
 }
 RTT_TEST_END
 
@@ -222,9 +236,9 @@ RTT_GROUP_END(TestSkalBlob,
         skal_blob_ref_count_should_be_one,
         skal_should_open_blob,
         skal_blob_ref_count_should_be_two,
-        skal_blob_should_close_opened_blob,
+        skal_blob_should_unref_proxy1,
         skal_blob_should_have_correct_allocator,
-        skal_should_close_blob,
+        skal_blob_should_unref_proxy2,
         skal_blob_ref_count_should_be_zero)
 
 
@@ -233,31 +247,31 @@ RTT_GROUP_START(TestMallocBlob, 0x00030002u,
 
 RTT_TEST_START(skal_malloc_should_create_blob)
 {
-    gBlob = SkalBlobCreate(NULL, NULL, 500);
-    RTT_ASSERT(gBlob != NULL);
+    gProxy1 = SkalBlobCreate(NULL, NULL, 500);
+    RTT_ASSERT(gProxy1 != NULL);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_malloc_should_map_blob)
 {
-    uint8_t* ptr = SkalBlobMap(gBlob);
+    uint8_t* ptr = SkalBlobMap(gProxy1);
     RTT_EXPECT(ptr != NULL);
     strcpy((char*)ptr, "Hello, World!");
-    SkalBlobUnmap(gBlob);
+    SkalBlobUnmap(gProxy1);
 }
 RTT_TEST_END
 
 RTT_TEST_START(skal_malloc_blob_should_have_correct_content)
 {
-    uint8_t* ptr = SkalBlobMap(gBlob);
+    uint8_t* ptr = SkalBlobMap(gProxy1);
     RTT_EXPECT(SkalStrcmp((char*)ptr, "Hello, World!") == 0);
-    SkalBlobUnmap(gBlob);
+    SkalBlobUnmap(gProxy1);
 }
 RTT_TEST_END
 
-RTT_TEST_START(skal_malloc_should_close_blob)
+RTT_TEST_START(skal_malloc_should_unref_proxy)
 {
-    SkalBlobClose(gBlob);
+    SkalBlobProxyUnref(gProxy1);
 }
 RTT_TEST_END
 
@@ -265,4 +279,4 @@ RTT_GROUP_END(TestMallocBlob,
         skal_malloc_should_create_blob,
         skal_malloc_should_map_blob,
         skal_malloc_blob_should_have_correct_content,
-        skal_malloc_should_close_blob)
+        skal_malloc_should_unref_proxy)

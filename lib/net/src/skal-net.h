@@ -434,6 +434,39 @@ SkalNetSendResult SkalNetSend_BLOCKING(SkalNet* net, int sockid,
         const void* data, int size_B);
 
 
+/** Get the capacity of the socket's send buffer
+ *
+ * @param net    [in] Socket set to query; must not be NULL
+ * @param sockid [in] Id of comm socket to query; should point to a comm socket
+ *
+ * @return Capacity of the socket's send buffer, in bytes; or -1 if `sockid` is
+ *         invalid or a system error occurred
+ */
+int SkalNetSendCapacity_B(const SkalNet* net, int sockid);
+
+
+/** Get the number of bytes currently in the socket's send buffer
+ *
+ * @param net    [in] Socket set to query; must not be NULL
+ * @param sockid [in] Id of comm socket to query; should point to a comm socket
+ *
+ * @return The number of bytes currently in the socket's send buffer; or -1 if
+ *         `sockid` is invalid or a system error occurred
+ */
+int SkalNetSendSize_B(const SkalNet* net, int sockid);
+
+
+/** Get the number of bytes available in the socket's send buffer
+ *
+ * @param net    [in] Socket set to query; must not be NULL
+ * @param sockid [in] Id of comm socket to query; should point to a comm socket
+ *
+ * @return Number of bytes available in the socket's send buffer; or -1 if
+ *         `sockid` is invalid or other system error
+ */
+int SkalNetSendFree_B(const SkalNet* net, int sockid);
+
+
 /** Destroy a socket from a socket set
  *
  * @param net    [in,out] Socket set to destroy socket from; must not be NULL

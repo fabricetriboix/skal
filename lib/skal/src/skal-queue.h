@@ -53,9 +53,7 @@ typedef void (*SkalQueueHook)(void* cookie);
 /** Create a message queue
  *
  * @param name      [in] Queue name; must not be NULL
- * @param threshold [in] When enqueuing a new message, `SkalQueuePush()` will
- *                       return `false` if there are more than `threshold`
- *                       messages currently enqueued; must be > 0
+ * @param threshold [in] Queue threshold; must be >0
  *
  * @return The created message queue; this function never returns NULL
  */

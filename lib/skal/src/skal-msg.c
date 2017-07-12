@@ -193,15 +193,6 @@ static const char* skalMsgParseJsonString(const char* json,
 static skalMsgFieldProperty skalMsgFieldStrToProp(const char* str);
 
 
-/** Duplicate a blob proxy, a la `dup(2)`
- *
- * @param blob [in] Blob proxy to duplicate; must not be NULL
- *
- * @return Duplicated blob proxy; never NULL
- */
-static SkalBlobProxy* skalMsgDupBlob(SkalBlobProxy* blob);
-
-
 
 /*------------------+
  | Global variables |
@@ -588,7 +579,7 @@ SkalBlobProxy* SkalMsgGetBlob(const SkalMsg* msg, const char* name)
     skalMsgField* field = (skalMsgField*)CdsMapSearch(msg->fields, (void*)name);
     SKALASSERT(field != NULL);
     SKALASSERT(SKAL_MSG_FIELD_TYPE_BLOB == field->type);
-    return skalMsgDupBlob(field->blob);
+    return SkalBlobDupProxy(field->blob);
 }
 
 
@@ -648,7 +639,7 @@ SkalMsg* SkalMsgCopyEx(const SkalMsg* msg,
             break;
         case SKAL_MSG_FIELD_TYPE_BLOB :
             if (copyBlobs) {
-                copyField->blob = skalMsgDupBlob(field->blob);
+                copyField->blob = SkalBlobDupProxy(field->blob);
             }
             break;
         default :
@@ -849,7 +840,7 @@ static void skalFieldMapUnref(CdsMapItem* item)
         break;
     case SKAL_MSG_FIELD_TYPE_BLOB :
         if (field->blob != NULL) {
-            SkalBlobClose(field->blob);
+            SkalBlobProxyUnref(field->blob);
         }
         break;
     default :
@@ -1465,16 +1456,4 @@ static skalMsgFieldProperty skalMsgFieldStrToProp(const char* str)
         property = SKAL_MSG_FIELD_PROPERTY_VALUE;
     }
     return property;
-}
-
-
-static SkalBlobProxy* skalMsgDupBlob(SkalBlobProxy* blob)
-{
-    SKALASSERT(blob != NULL);
-    SkalAllocator* allocator = SkalBlobAllocator(blob);
-    SkalBlobProxy* copy = SkalBlobOpen(allocator->name, SkalBlobId(blob));
-
-    // This blob is already opened and referenced, so `copy` can't be NULL
-    SKALASSERT(copy != NULL);
-    return copy;
 }

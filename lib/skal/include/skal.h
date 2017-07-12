@@ -34,6 +34,7 @@ extern "C" {
 
 #include "skal-common.h"
 #include "cdsmap.h"
+#include "cdslist.h"
 
 
 
@@ -84,6 +85,13 @@ extern "C" {
 #define SKAL_MSG_FLAG_NTF_DROP 0x04
 
 
+/** Message flag: message is urgent
+ *
+ * This message will jump if front of regular messages in certain queues.
+ */
+#define SKAL_MSG_FLAG_URGENT 0x08
+
+
 /** Message flag: this is a multicast message */
 #define SKAL_MSG_FLAG_MULTICAST 0x10
 
@@ -103,31 +111,39 @@ struct SkalAllocator;
  * The lifetime of an object of type `SkalBlobProxy` is usually different (and
  * shorter) than the underlying blob. The blob proxy is only meant to access the
  * blob itself.
+ *
+ * Blob proxies can be items of `CdsList` lists.
  */
 typedef struct {
+    CdsListItem           item;      /**< Private! Do not touch! */
     struct SkalAllocator* allocator; /**< Allocator that allocated the blob */
 } SkalBlobProxy;
 
 
-/** Prototype of a function to create a blob (and a proxy to it)
+/** Prototype of a function to create a blob
  *
  * Such a function will be called to create a blob. Your blob must implement a
  * concept of reference counter, and the reference counter must be set to 1 when
  * this function returns.
+ *
+ * This function must also create a blob proxy with a reference counter set to
+ * 1. The reference counters to the blob and to the proxy are 2 different
+ * things.
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
  *  - `id`: Identifier (eg: buffer slot on a video card, shared memory id, etc.)
  *  - `size_B`: Minimum size of the memory area to allocate, in bytes
  *
- * Whether you use the arguments or not is up to your allocator. In the returned
- * object, you don't have to set the `SkalBlobProxy.allocator` pointer, this is
- * set automatically when this function returns.
+ * Whether you use the arguments or not is up to your allocator.
  *
- * This function must return a `SkalBlobProxy` object which is a proxy to access
- * the underlying blob. It will be used later to map and unmap the blob's memory
- * area into the process/thread memory space. This function must return NULL in
- * case of error.
+ * This function must return a `SkalBlobProxy` object (or a structure derived
+ * from it), which is a proxy to access the underlying blob. The blob proxy must
+ * implement a reference counter which must be set to 1. You must initialise all
+ * properties of the parent `SkalBlobProxy` structure to 0.
+ *
+ * This function must return NULL in case of error (in which case it should not
+ * create any blob).
  *
  * **This function is not allowed to block!**
  */
@@ -135,69 +151,87 @@ typedef SkalBlobProxy* (*SkalCreateBlobF)(void* cookie,
         const char* id, int64_t size_B);
 
 
-/** Prototype of a function to open an existing blob (and create a proxy to it)
+/** Prototype of a function to open an existing blob
  *
- * Such a function will be called to open an existing blob and create a
- * `SkalBlobProxy` proxy to it. The blob's reference counter must be
- * incremented by this function.
+ * Such a function will be called to open an existing blob. The blob's reference
+ * counter must be incremented by this function.
+ *
+ * This function must also create a blob proxy with a reference counter set to
+ * 1. The reference counters to the blob and to the proxy are 2 different
+ * things.
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
  *  - `id`: Identifier (eg: buffer slot on a video card, shared memory id, etc.)
  *
- * Whether you use the arguments or not is up to your allocator. In the returned
- * object, you don't have to set `SkalBlobProxy.allocator`, this is set
- * automatically when this function returns.
+ * Whether you use the arguments or not is up to your allocator.
  *
- * This function must return a `SkalBlobProxy` object which is a proxy to access
- * the underlying blob. It will be used later to map and unmap the blob's memory
- * area into the process/thread memory space. This function must return NULL in
- * case of error.
+ * This function must return a `SkalBlobProxy` object (or a structure derived
+ * from it), which is a proxy to access the underlying blob. The blob proxy must
+ * implement a reference counter which must be set to 1. You must initialise all
+ * properties of the parent `SkalBlobProxy` structure to 0.
+ *
+ * This function must return NULL in case of error (in which case it should not
+ * modify or reference any blob).
  *
  * **This function is not allowed to block!**
  */
 typedef SkalBlobProxy* (*SkalOpenBlobF)(void* cookie, const char* id);
 
 
-/** Prototype of a function to close a blob proxy
+/** Prototype of a function to increment the reference counter of a blob proxy
  *
- * Such a function will be called to close and de-allocate the blob proxy.
- *
- * The blob's reference counter must be decremented by this function, and the
- * blob must be de-allocated if it was the last reference.
+ * This should increment the reference counter of the proxy, not of the
+ * underlying blob.
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `blob`: Blob proxy to close
+ *  - `proxy`: Proxy to reference
  *
  * **This function is not allowed to block!**
  */
-typedef void (*SkalCloseBlobF)(void* cookie, SkalBlobProxy* blob);
+typedef void (*SkalRefBlobProxyF)(void* cookie, SkalBlobProxy* proxy);
+
+
+/** Prototype of a function to decrement the reference counter of a blob proxy
+ *
+ * This should decrement the reference counter of the proxy. If the reference
+ * counter reaches 0, this function should decrement the reference counter of
+ * the underlying proxy (which may be de-allocated as a result), and de-allocate
+ * the proxy itself.
+ *
+ * The arguments are:
+ *  - `cookie`: Same value as `SkalAllocator.cookie`
+ *  - `proxy`: Proxy to unreference
+ *
+ * **This function is not allowed to block!**
+ */
+typedef void (*SkalUnrefBlobProxyF)(void* cookie, SkalBlobProxy* proxy);
 
 
 /** Prototype of a function to increment the reference counter of a blob
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `blob`: Blob to reference
+ *  - `proxy`: Proxy to the blob to reference
  *
  * **This function is not allowed to block!**
  */
-typedef void (*SkalRefBlobF)(void* cookie, SkalBlobProxy* blob);
+typedef void (*SkalRefBlobF)(void* cookie, SkalBlobProxy* proxy);
 
 
 /** Prototype of a function to decrement the reference counter of a blob
  *
  * If the reference counter reaches 0, this function must de-allocate the
- * underlying blob. It must not de-allocate the `blob` proxy object, though!
+ * underlying blob. It must not de-allocate the `proxy` object, though!
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `blob`: Blob to unreference
+ *  - `proxy`: Proxy to the blob to unreference
  *
  * **This function is not allowed to block!**
  */
-typedef void (*SkalUnrefBlobF)(void* cookie, SkalBlobProxy* blob);
+typedef void (*SkalUnrefBlobF)(void* cookie, SkalBlobProxy* proxy);
 
 
 /** Prototype of a function to map a blob
@@ -207,7 +241,8 @@ typedef void (*SkalUnrefBlobF)(void* cookie, SkalBlobProxy* blob);
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `blob`: Blob which must be mapped into the caller's memory space
+ *  - `proxy`: Proxy to the blob which must be mapped into the caller's memory
+ *             space
  *
  * This function must return a pointer to the mapped memory area, accessible
  * from the current process, or NULL in case of error.
@@ -217,7 +252,7 @@ typedef void (*SkalUnrefBlobF)(void* cookie, SkalBlobProxy* blob);
  *
  * **This function is not allowed to block!**
  */
-typedef uint8_t* (*SkalMapBlobF)(void* cookie, SkalBlobProxy* blob);
+typedef uint8_t* (*SkalMapBlobF)(void* cookie, SkalBlobProxy* proxy);
 
 
 /** Prototype of a function to unmap a blob
@@ -227,35 +262,36 @@ typedef uint8_t* (*SkalMapBlobF)(void* cookie, SkalBlobProxy* blob);
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `blob`: Blob which must now be unmapped from the process memory space
+ *  - `proxy`: Proxy to the blob which must now be unmapped from the process
+ *             memory space
  *
  * **This function is not allowed to block!**
  */
-typedef void (*SkalUnmapBlobF)(void* cookie, SkalBlobProxy* blob);
+typedef void (*SkalUnmapBlobF)(void* cookie, SkalBlobProxy* proxy);
 
 
 /** Prototype of a function to get the blob's id
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `blob`: Blob to query
+ *  - `proxy`: Proxy to the blob to query
  *
  * This function may return NULL if the blob does not have any id.
  *
  * **This function is not allowed to block**
  */
-typedef const char* (*SkalBlobIdF)(void* cookie, const SkalBlobProxy* blob);
+typedef const char* (*SkalBlobIdF)(void* cookie, const SkalBlobProxy* proxy);
 
 
 /** Prototype of a function to get the blob's size in bytes
  *
  * The arguments are:
  *  - `cookie`: Same value as `SkalAllocator.cookie`
- *  - `blob`: Blob to query
+ *  - `proxy`: Proxy to the blob to query
  *
  * **This function is not allowed to block**
  */
-typedef int64_t (*SkalBlobSizeF)(void* cookie, const SkalBlobProxy* blob);
+typedef int64_t (*SkalBlobSizeF)(void* cookie, const SkalBlobProxy* proxy);
 
 
 /** The different scopes of a custom memory allocator
@@ -298,8 +334,7 @@ typedef struct SkalAllocator {
 
     /** Allocator name
      *
-     * This must be unique within the allocator's scope. It must not contain the
-     * character ':'. TODO: this last requirement could be dropped, isn't it?
+     * This must be unique within the allocator's scope.
      */
     const char* name;
 
@@ -309,35 +344,16 @@ typedef struct SkalAllocator {
      */
     SkalAllocatorScope scope;
 
-    /** Create a new blob and its proxy; must not be NULL */
-    SkalCreateBlobF create;
-
-    /** Open an existing blob and create a proxy to it; must not be NULL */
-    SkalOpenBlobF open;
-
-    /** Close a blob proxy; must not be NULL */
-    SkalCloseBlobF close;
-
-    /** Increment a blob's reference counter; must not be NULL */
-    SkalRefBlobF ref;
-
-    /** Decrement a blob's reference counter; must not be NULL
-     *
-     * The blob must be de-allocated if the reference counter reaches zero.
-     */
-    SkalUnrefBlobF unref;
-
-    /** Map a blob into the process memory space; must not be NULL */
-    SkalMapBlobF map;
-
-    /** Unmap a blob from the process memory space; must not be NULL */
-    SkalUnmapBlobF unmap;
-
-    /** Get the blob id */
-    SkalBlobIdF blobid;
-
-    /** Get the blob size in bytes */
-    SkalBlobSizeF blobsize;
+    SkalCreateBlobF     create;     /**< Must not be NULL */
+    SkalOpenBlobF       open;       /**< Must not be NULL */
+    SkalRefBlobProxyF   refProxy;   /**< Must not be NULL */
+    SkalUnrefBlobProxyF unrefProxy; /**< Must not be NULL */
+    SkalRefBlobF        ref;        /**< Must not be NULL */
+    SkalUnrefBlobF      unref;      /**< Must not be NULL */
+    SkalMapBlobF        map;        /**< Must not be NULL */
+    SkalUnmapBlobF      unmap;      /**< Must not be NULL */
+    SkalBlobIdF         blobid;     /**< Must not be NULL */
+    SkalBlobSizeF       blobsize;   /**< Must not be NULL */
 
     /** Cookie for the previous functions */
     void* cookie;
@@ -650,6 +666,10 @@ SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm);
  *
  * The blob's reference counter will be set to 1.
  *
+ * This function will also create a blob proxy, which will also have a reference
+ * counter set to 1. When you are finished with the blob proxy, please call
+ * `SkalBlobProxyUnref()` on it.
+ *
  * @param allocatorName [in] Allocator to use to create the blob. This may be
  *                           NULL, or the empty string, in which case the
  *                           "malloc" allocator will be used.
@@ -682,19 +702,18 @@ SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm);
  *  - It is mapped through `SkalBlobMap()`
  *  - It is populated with some data
  *  - It is unmapped using `SkalBlobUnmap()`
- *  - It is attached to a message with `SkalMsgAddBlob()` (at which point the
+ *  - It is attached to a message with `SkalMsgAttachBlob()` (at which point the
  *    ownership of the blob is transferred to the message)
  *  - The message is sent by the sender and received by the recipient
- *  - The recipient can get the blob proxy by calling `SkalMsgGetBlob()`
+ *  - The recipient can get a proxy to the blob by calling `SkalMsgDetachBlob()`
  *  - The blob is mapped in the recipient's memory space with `SkalBlobMap()`
  *  - The blob is read or worked on
  *  - It is unmapped with `SkalBlobUnmap()`
- *  - The blob proxy is de-allocated with a call to `SkalBlobClose()`; this will
- *    also decrement the blob's reference counter, and de-allocate the blob if
- *    it was the last reference
- *  - If you need multiple access to the blob for some reason, you need to call
- *    `SkalMsgGetBlob()` and `SkalBlobMap()` multiple times; obviously, you will
- *    need to close the blob as many times it has been mapped and opened
+ *  - The blob proxy is de-allocated with a call to `SkalBlobProxyUnref()`;
+ *    this will also decrement the blob's reference counter, and de-allocate the
+ *    blob if it was the last reference
+ *  - If you need multiple access to the blob for some reason, you can do it by
+ *    calling `SkalBlobDupProxy()` as many times as needed
  *
  * **VERY IMPORTANT** Skal does not provide any mechanism to allow exclusive
  * access to the memory area pointed to by a blob (no mutex, no semaphore, etc.)
@@ -729,8 +748,6 @@ SkalAlarm* SkalAlarmCopy(SkalAlarm* alarm);
  *    complex mechanism for "joining" the paths the blob takes would be
  *    required; this would be a very uncommon scenario, though
  *
- * Once created, you must call `SkalBlobClose()` to close the blob proxy.
- *
  * @return The blob proxy, or NULL in case of error (the allocator does not
  *         exist, invalid `id` or `size_B` for the chosen allocator, or failed
  *         to allocate)
@@ -741,7 +758,11 @@ SkalBlobProxy* SkalBlobCreate(const char* allocatorName,
 
 /** Open an existing blob
  *
- * Once opened, you must call `SkalBlobClose()` on the blob proxy.
+ * The blob's reference counter will be incremented.
+ *
+ * This function will also create a blob proxy, which will have a reference
+ * counter set to 1. When you are finished with the blob proxy, please call
+ * `SkalBlobProxyUnref()` on it.
  *
  * @param allocatorName [in] Allocator to use to open the blob. This may be
  *                           NULL, or the empty string, in which case the
@@ -756,41 +777,43 @@ SkalBlobProxy* SkalBlobCreate(const char* allocatorName,
 SkalBlobProxy* SkalBlobOpen(const char* allocatorName, const char* id);
 
 
-/** Close a blob proxy
+/** Add a reference to a blob proxy
+ *
+ * @param proxy [in,out] Blob proxy to reference
+ */
+void SkalBlobProxyRef(SkalBlobProxy* proxy);
+
+
+/** Remove a reference to a blob proxy
  *
  * The blob's reference counter will be decremented, so it might be de-allocated
- * as a result.
+ * as a result. If the blob proxy is de-allocated, the reference counter of the
+ * underlying blob will be decremented (potentially triggering the de-allocation
+ * of the blob itself).
  *
- * @param blob [in,out] Blob proxy to close; must not be NULL
+ * @param proxy [in,out] Blob proxy to unreference; must not be NULL
  */
-void SkalBlobClose(SkalBlobProxy* blob);
+void SkalBlobProxyUnref(SkalBlobProxy* proxy);
 
 
 /** Add a reference to a blob
  *
- * This will increment the blob's reference counter by one.
+ * This will increment the blob's reference counter by one. You should normally
+ * not call this function unless you know what you are doing.
  *
- * @param blob [in,out] Blob to reference; must not be NULL
+ * @param proxy [in,out] Proxy to blob to reference; must not be NULL
  */
-void SkalBlobRef(SkalBlobProxy* blob);
+void SkalBlobRef(SkalBlobProxy* proxy);
 
 
 /** Remove a reference to a blob
  *
- * This will decrement the blob's reference counter by one.
+ * This will decrement the blob's reference counter by one. You should normally
+ * not call this function unless you know what you are doing.
  *
- * If the reference counter becomes 0, the blob is de-allocated. Therefore,
- * always assume you are the last to call `SkalBlobUnref()` on that blob and
- * that it does not exist anymore when this function returns.
- *
- * The blob proxy itself is not de-allocated by this function! Please ensure you
- * call `SkalBlobClose()` on it later. Also, since the blob could have been
- * de-allocated, you must not call any other `SkalBlob*()` function on that blob
- * proxy except `SkalBlobClose()`.
- *
- * @param blob [in,out] Blob to de-reference; must not be NULL
+ * @param proxy [in,out] Proxy to blob to de-reference; must not be NULL
  */
-void SkalBlobUnref(SkalBlobProxy* blob);
+void SkalBlobUnref(SkalBlobProxy* proxy);
 
 
 /** Map the blob's memory into the current process memory
@@ -805,11 +828,11 @@ void SkalBlobUnref(SkalBlobProxy* blob);
  * `SkalBlob*()` functions. You are not allowed to block between a call to
  * `SkalBlobMap()` and `SkalBlobUnmap()`.**
  *
- * @param blob [in,out] Blob to map; must not be NULL
+ * @param proxy [in,out] Proxy to blob to map; must not be NULL
  *
  * @return A pointer to the mapped memory area, or NULL in case of error
  */
-uint8_t* SkalBlobMap(SkalBlobProxy* blob);
+uint8_t* SkalBlobMap(SkalBlobProxy* proxy);
 
 
 /** Unmap the blob's memory from the current process memory
@@ -817,27 +840,39 @@ uint8_t* SkalBlobMap(SkalBlobProxy* blob);
  * Always call this function as soon as possible after a call to
  * `SkalBlobMap()`.
  *
- * @param blob [in,out] Blob to unmap; must not be NULL
+ * @param proxy [in,out] Proxy to blob to unmap; must not be NULL
  */
-void SkalBlobUnmap(SkalBlobProxy* blob);
+void SkalBlobUnmap(SkalBlobProxy* proxy);
 
 
 /** Get the blob's id
  *
- * @param blob [in] Blob to query; must not be NULL
+ * @param proxy [in] Proxy to blob to query; must not be NULL
  *
  * @return The blob id, which may be NULL
  */
-const char* SkalBlobId(const SkalBlobProxy* blob);
+const char* SkalBlobId(const SkalBlobProxy* proxy);
 
 
 /** Get the blob's size, in bytes
  *
- * @param blob [in] The blob to query; must not be NULL
+ * @param proxy [in] Proxy to blob to query; must not be NULL
  *
- * @return The blob's size, in bytes, which may be 0
+ * @return The blob's size, in bytes, which may be 0 (but never <0)
  */
-int64_t SkalBlobSize_B(const SkalBlobProxy* blob);
+int64_t SkalBlobSize_B(const SkalBlobProxy* proxy);
+
+
+/** Duplicate a blob proxy
+ *
+ * The new blob proxy will point to the same blob. The new blob proxy will have
+ * its reference counter set to 1.
+ *
+ * @param proxy [in] Blob proxy to duplicate; must not be NULL
+ *
+ * @return A duplicate blob proxy; this function never returns NULL
+ */
+SkalBlobProxy* SkalBlobDupProxy(const SkalBlobProxy* proxy);
 
 
 /** Create an empty message
@@ -913,6 +948,17 @@ void SkalMsgRef(SkalMsg* msg);
  *                     freed by this call
  */
 void SkalMsgUnref(SkalMsg* msg);
+
+
+/** Get the message id
+ *
+ * This is a unique identifier for messages created on this computer.
+ *
+ * @param msg [in] Message to query; must not be NULL
+ *
+ * @return The message id
+ */
+int64_t SkalMsgId(const SkalMsg* msg);
 
 
 /** Get the time of the message's birth
