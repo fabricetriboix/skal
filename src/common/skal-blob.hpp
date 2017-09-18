@@ -14,21 +14,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SKAL_QUEUE_h_
-#define SKAL_QUEUE_h_
+#pragma once
 
-/** skal-queue
- *
- * Please note all calls related to `SkalQueue` are MT-safe.
- */
+#include "skal-cfg.hpp"
+#include <string>
+#include <functional>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace skal {
 
+class queue_t final {
+public:
+    using hook_t = std::function<void()>;
 
-#include "skal.h"
+    queue_t(const std::string& name);
+    queue_t(const std::string& name, int64_t threshold);
+    queue_t(const std::string& name, hook_t hook);
+    queue_t(const std::string& name, int64_t threshold, hook_t hook);
 
+    const std::string& name() const
+    {
+        return name_;
+    }
+
+    void push(msg_t msg);
+    msg_t pop_BLOCKING(bool internal_only = false);
+    msg_t pop(bool internal_only = false);
+    bool is_over_high_threshold() const;
+    bool is_over_low_threshold() const;
+
+private:
+    std::string name_;
+};
 
 
 /*----------------+
