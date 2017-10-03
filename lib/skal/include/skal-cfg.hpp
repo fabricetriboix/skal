@@ -1,18 +1,4 @@
-/* Copyright (c) 2016,2017  Fabrice Triboix
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+/* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #pragma once
 
@@ -31,6 +17,9 @@ namespace skal {
  * This file defines all the compile-time configuration parameters for SKAL.
  */
 
+/** Default log level: one of the `skal::log:level_t` */
+#define SKAL_DEFAULT_LOG_LEVEL debug
+
 /** Default TTL */
 constexpr int8_t default_ttl = 4;
 
@@ -44,10 +33,10 @@ constexpr auto default_xoff_timeout = std::chrono::milliseconds(50);
 constexpr int default_queue_threshold = 100;
 
 /** Default URL to connect to skald */
-constexpr std::string default_skald_url = "unix:///tmp/skald.sock";
+constexpr const char* default_skald_url = "unix:///tmp/skald.sock";
 
 /** Default timeout value for connectionless sockets */
-constexpr std::chrono::milliseconds default_cnxless_timeout = 10 * 1000;
+constexpr auto default_cnxless_timeout = std::chrono::seconds(10);
 
 /** Default socket buffer size, in bytes */
 constexpr int default_bufsize_B = 128 * 1024;
