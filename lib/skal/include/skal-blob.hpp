@@ -11,8 +11,6 @@
 
 namespace skal {
 
-class blob_allocator_t;
-
 /** Class to provide access to a blob
  *
  * This is a base class which must be derived from to implement the pure
@@ -30,7 +28,8 @@ class blob_proxy_t : boost::noncopyable
 public :
     /** Destructor
      *
-     * The destructor must decrement the blob's reference counter.
+     * The destructor must decrement the blob's reference counter, and thus
+     * potentially destroy the underlying blob.
      */
     virtual ~blob_proxy_t() = default;
 
@@ -52,9 +51,16 @@ public :
     /** Structure to map the blob in a RAII fashion
      *
      * The lifetime of this structure must be as short as possible, in order
-     * to allow other workers to access the blob too.
+     * to allow other workers to access the blob too. An object of type
+     * `scoped_map_t` must have a shorter life span than the `proxy` it is
+     * working on (you can expect a nasty crash otherwise).
      */
     struct scoped_map_t {
+        /** Constructor
+         *
+         * \throw `bad_blob` if the underlying blob has been corrupted or
+         *        can't be mapped for some reason
+         */
         scoped_map_t(blob_proxy_t& proxy) : proxy_(proxy), mem_(proxy_.map())
         {
             proxy_.is_mapped_ = true;
@@ -83,7 +89,9 @@ protected :
      *
      * Accessible only from derived classes.
      */
-    blob_proxy_t() : is_mapped_(false) { }
+    blob_proxy_t() : is_mapped_(false)
+    {
+    }
 
 private :
     /** Increment the reference counter of the underlying blob
@@ -112,6 +120,8 @@ private :
      * most one mapping active at any one time.
      *
      * \return Pointer to the mapped memory area
+     *
+     * \throw `bad_blob` if the blob has been corrupted
      */
     virtual void* map() = 0;
 
@@ -119,6 +129,8 @@ private :
      *
      * This method is the pendent of `map()` and must be called as quickly as
      * possible after `map()` has been called.
+     *
+     * \throw `bad_blob` if the blob has been corrupted
      */
     virtual void unmap() = 0;
 
@@ -156,8 +168,8 @@ public :
 
     /** Allocator base class constructor
      *
-     * \param name  [in] Allocator name; must be unique within the allocator's
-     *                   scope
+     * \param name  [in] Allocator name; must be unique within the
+     *                   allocator's scope
      * \param scope [in] Allocator scope
      */
     blob_allocator_t(const std::string& name, scope_t scope)
@@ -195,15 +207,14 @@ public :
      * the blob to survive the destruction of the proxy, you will have to call
      * `blob_proxy_t::ref()` to increment the blob's reference counter.
      *
-     * This function must throw if the blob already exists.
-     *
      * \param id     [in] Blob identifier (eg: buffer slot on a video card,
      *                    shared memory id, etc.)
      * \param size_B [in] Minimum size of the area to allocate
      *
-     * \return A proxy to the created blob, or an empty pointer in case of
-     *         error (typically because a blob with the same `id` already
-     *         exists)
+     * \return A proxy to the created blob, never an empty pointer
+     *
+     * \throw `bad_blob` if the blob already exists or can't be created for
+     *        some reason
      */
     virtual std::unique_ptr<blob_proxy_t> create(const std::string& id,
             int64_t size_B) = 0;
@@ -217,12 +228,11 @@ public :
      * the "malloc" and the "shm" allocator, the `id` represent a unique
      * identifier for the blob.
      *
-     * This method must throw if the blob does not already exist.
-     *
      * \param id [in] Blob identifier
      *
-     * \return A proxy to the opened blob, or an empty pointer in case of
-     *         error (typically because there is no blob `id`)
+     * \return A proxy to the opened blob, never an empty pointer
+     *
+     * \throw `bad_blob` if blob does not exist or has been corrupted
      */
     virtual std::unique_ptr<blob_proxy_t> open(const std::string& id) = 0;
 
@@ -230,6 +240,14 @@ private :
     std::string name_;
     scope_t scope_;
 };
+
+/** Convert a scope enum to a human-readable string
+ *
+ * \param scope [in] Enum value to convert
+ *
+ * \return A human-readable string
+ */
+std::string to_string(blob_allocator_t::scope_t scope);
 
 /** Add a custom allocator
  *
@@ -241,12 +259,45 @@ private :
  */
 void add_allocator(std::unique_ptr<blob_allocator_t> allocator);
 
-/** Find a custom allocator
+/** Find an allocator by name
  *
  * \param allocator_name [in] Name of allocator to find
  *
  * \return A reference to the found allocator
+ *
+ * \throw `std::out_of_range` if there is no allocator with that name
  */
 blob_allocator_t& find_allocator(const std::string& allocator_name);
+
+/** Helper function to create a blob
+ *
+ * \param allocator_name [in] Name of allocator to use
+ * \param id             [in] Blob id
+ * \param size_B         [in] Blob size
+ *
+ * \return A proxy to the created blob, never an empty pointer
+ *
+ * \throw `std::out_of_range` if there is no allocator with that name
+ *
+ * \throw `bad_blob` if a blob with the same `id` already exists, or if the
+ *        blob can't be created for some reason
+ */
+std::unique_ptr<blob_proxy_t> create_blob(const std::string& allocator_name,
+        const std::string& id, int64_t size_B);
+
+/** Helper function to open a blob
+ *
+ * \param allocator_name [in] Name of allocator to use
+ * \param id             [in] Blob id
+ *
+ * \return A proxy to the opened blob, never an empty pointer
+ *
+ * \throw `std::out_of_range` if there is no allocator with that name
+ *
+ * \throw `bad_blob` there is no blob `id` or blob can't be opened for some
+ *        reason
+ */
+std::unique_ptr<blob_proxy_t> open_blob(const std::string& allocator_name,
+        const std::string& id);
 
 } // namespace skal
