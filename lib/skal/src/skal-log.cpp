@@ -52,8 +52,9 @@ void process(record_t record)
         << " {" << std::hex << std::setfill('0') << std::setw(16)
         << record.thread_id
         << "} " << to_string(record.level)
-        << "[" << file.filename() << ":" << record.line
-        << "] " << record.msg;
+        << "[" << file.filename() << ":" << std::dec << record.line
+        << "] " << record.msg
+        << std::endl;
 }
 
 log_t::log_t(level_t level, const char* file, int line) : oss()
