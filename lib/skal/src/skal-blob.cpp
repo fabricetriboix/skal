@@ -1,8 +1,9 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include "skal-blob.hpp"
-#include "skal-log.hpp"
 #include "skal-error.hpp"
+#include "detail/skal-log.hpp"
+#include "detail/safe-mutex.hpp"
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
@@ -14,7 +15,6 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
-#include <safe_mutex.hpp>
 
 using boost::interprocess::shared_memory_object;
 using boost::interprocess::mapped_region;

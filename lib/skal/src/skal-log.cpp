@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "skal-log.hpp"
+#include "detail/skal-log.hpp"
 #include <iostream>
 #include <iomanip>
 #include <mutex>
@@ -20,6 +20,9 @@ const char* to_string(level_t level)
 
     case level_t::info :
         return "INFO";
+
+    case level_t::notice :
+        return "NOTE";
 
     case level_t::warning :
         return "WARN";

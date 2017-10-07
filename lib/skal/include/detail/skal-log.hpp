@@ -18,6 +18,7 @@ enum class level_t
 {
     debug,
     info,
+    notice,
     warning,
     error
 };
