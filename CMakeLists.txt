@@ -16,9 +16,17 @@ config_compiler_and_linker()
 find_package(Boost 1.62 REQUIRED COMPONENTS date_time filesystem system)
 
 set(LIBSKAL_SRC
+    lib/skal/include/skal-cfg.hpp
     lib/skal/src/skal-log.cpp
+    lib/skal/include/skal-error.hpp
     lib/skal/src/skal-error.cpp
-    lib/skal/src/skal-blob.cpp)
+    lib/skal/include/skal-blob.hpp
+    lib/skal/src/skal-blob.cpp
+    lib/skal/include/skal-alarm.hpp
+    lib/skal/src/skal-alarm.cpp
+    lib/skal/include/detail/safe-mutex.hpp
+    lib/skal/include/detail/skal-log.hpp
+    lib/skal/include/detail/skal-thread-specific.hpp)
 
 add_library(skal STATIC ${LIBSKAL_SRC})
 target_include_directories(skal PUBLIC lib/skal/include)
