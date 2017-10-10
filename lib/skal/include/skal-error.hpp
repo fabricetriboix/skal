@@ -15,12 +15,6 @@ struct error : public std::runtime_error
     error(const std::string& s) : std::runtime_error(s) { }
 };
 
-/** Try to open an invalid blob, or blob is corrupted */
-struct bad_blob : public error
-{
-    bad_blob() : error("skal::bad_blob") { }
-};
-
 struct assert_t
 {
     std::ostringstream oss;

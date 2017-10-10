@@ -87,10 +87,11 @@ struct malloc_blob_t final
 };
 
 /** Proxy to access a "malloc" blob */
-class malloc_proxy_t final : public blob_proxy_t
+class malloc_proxy_t final : public proxy_base_t
 {
 public :
-    malloc_proxy_t(malloc_blob_t* blob) : blob_proxy_t(), blob_(blob)
+    malloc_proxy_t(blob_allocator_t& allocator, malloc_blob_t* blob)
+        : proxy_base_t(allocator), blob_(blob)
     {
         SKAL_ASSERT(blob_ != nullptr);
         char buffer[64];
@@ -102,7 +103,7 @@ public :
 
     ~malloc_proxy_t()
     {
-        blob_->check(id());
+        blob_->check(id_);
         if (--blob_->ref <= 0) {
             // NB: Because the malloc blob object has been constructed with a
             // placement-new operation, we have to call the destructor
@@ -123,14 +124,13 @@ public :
         return blob_->size_B;
     }
 
-private :
-    void do_ref() override
+    void ref() override
     {
         SKAL_ASSERT(blob_ != nullptr);
         ++blob_->ref;
     }
 
-    void do_unref() override
+    void unref() override
     {
         SKAL_ASSERT(blob_ != nullptr);
         --blob_->ref;
@@ -142,7 +142,7 @@ private :
 
     void* map() override
     {
-        blob_->check(id());
+        blob_->check(id_);
         blob_->mutex.lock();
         // NB: The blob data starts right after the blob header
         return static_cast<void*>(blob_ + 1);
@@ -150,10 +150,11 @@ private :
 
     void unmap() override
     {
-        blob_->check(id());
+        blob_->check(id_);
         blob_->mutex.unlock();
     }
 
+private :
     std::string id_;
     malloc_blob_t* blob_;
 };
@@ -167,7 +168,7 @@ public :
 
     virtual ~malloc_allocator_t() = default;
 
-    std::unique_ptr<blob_proxy_t> create(const std::string& id,
+    std::unique_ptr<proxy_base_t> create(const std::string& id,
             int64_t size_B) override
     {
         (void)id; // ignored for 'malloc' allocator
@@ -179,10 +180,10 @@ public :
             << total_size_B << " bytes";
 
         malloc_blob_t* blob = new (ptr) malloc_blob_t(size_B);
-        return std::make_unique<malloc_proxy_t>(blob);
+        return std::make_unique<malloc_proxy_t>(*this, blob);
     }
 
-    std::unique_ptr<blob_proxy_t> open(const std::string& id) override
+    std::unique_ptr<proxy_base_t> open(const std::string& id) override
     {
         malloc_blob_t* blob = nullptr;
         if (std::sscanf(id.c_str(), "%p", &blob) != 1) {
@@ -192,7 +193,7 @@ public :
         }
         blob->check(id);
         ++blob->ref; // Incr. reference counter for proxy about to be created
-        return std::make_unique<malloc_proxy_t>(blob);
+        return std::make_unique<malloc_proxy_t>(*this, blob);
     }
 };
 
@@ -267,12 +268,15 @@ struct shm_blob_t final
  *
  * Be careful not to call virtual methods inside the contructor and destructor!
  */
-class shm_proxy_t final : public blob_proxy_t
+class shm_proxy_t final : public proxy_base_t
 {
 public :
-    shm_proxy_t(std::string id, int64_t size_B,
+    shm_proxy_t(blob_allocator_t& allocator, std::string id, int64_t size_B,
             std::unique_ptr<shared_memory_object> shm)
-        : id_(std::move(id)), size_B_(size_B), shm_(std::move(shm))
+        : proxy_base_t(allocator)
+        , id_(std::move(id))
+        , size_B_(size_B)
+        , shm_(std::move(shm))
     {
         SKAL_ASSERT(size_B_ > 0);
         SKAL_ASSERT(shm_);
@@ -290,7 +294,7 @@ public :
         mapped_region region(*shm_, read_write);
         void* addr = region.get_address();
         shm_blob_t* blob = static_cast<shm_blob_t*>(addr);
-        blob->check(id());
+        blob->check(id_);
         if (--blob->ref <= 0) {
             // NB: Because the shm blob object has been constructed with a
             // placement-new operation, we have to call the destructor
@@ -310,8 +314,7 @@ public :
         return size_B_;
     }
 
-private:
-    void do_ref() override
+    void ref() override
     {
         SKAL_ASSERT(region_);
         void* addr = region_->get_address();
@@ -319,7 +322,7 @@ private:
         ++blob->ref;
     }
 
-    void do_unref() override
+    void unref() override
     {
         SKAL_ASSERT(region_);
         void* addr = region_->get_address();
@@ -362,6 +365,7 @@ private:
         region_.reset();
     }
 
+private :
     std::string id_;
     int64_t size_B_;
     std::unique_ptr<shared_memory_object> shm_;
@@ -370,14 +374,14 @@ private:
 
 class shm_allocator_t final : public blob_allocator_t
 {
-public:
+public :
     shm_allocator_t() : blob_allocator_t("shm", scope_t::computer)
     {
     }
 
     virtual ~shm_allocator_t() = default;
 
-    std::unique_ptr<blob_proxy_t> create(const std::string& id,
+    std::unique_ptr<proxy_base_t> create(const std::string& id,
             int64_t size_B) override
     {
         SKAL_ASSERT(!id.empty());
@@ -413,11 +417,12 @@ public:
             shm_remove(id);
             throw bad_blob();
         }
-        return std::make_unique<shm_proxy_t>(std::move(id),
-                size_B, std::move(shm));
+
+        return std::make_unique<shm_proxy_t>(*this,
+                std::move(id), size_B, std::move(shm));
     }
 
-    std::unique_ptr<blob_proxy_t> open(const std::string& id) override
+    std::unique_ptr<proxy_base_t> open(const std::string& id) override
     {
         SKAL_ASSERT(!id.empty());
 
@@ -446,8 +451,9 @@ public:
                 << "' into current address space: " << e.what();
             throw bad_blob();
         }
-        return std::make_unique<shm_proxy_t>(std::move(id),
-                size_B, std::move(shm));
+
+        return std::make_unique<shm_proxy_t>(*this,
+                std::move(id), size_B, std::move(shm));
     }
 };
 
@@ -465,33 +471,40 @@ struct init_t
 {
     init_t()
     {
-        add_allocator(std::make_unique<malloc_allocator_t>());
-        add_allocator(std::make_unique<shm_allocator_t>());
+        register_allocator(std::make_unique<malloc_allocator_t>());
+        register_allocator(std::make_unique<shm_allocator_t>());
     }
-};
-init_t g_init;
+} g_init;
 
 } // unnamed namespace
+
+blob_proxy_t::blob_proxy_t(const blob_proxy_t& right)
+{
+    SKAL_ASSERT(!right.is_mapped_);
+    base_proxy_ = right.allocator().open(right.id());
+    SKAL_ASSERT(base_proxy_);
+    is_mapped_ = false;
+}
 
 void blob_proxy_t::ref()
 {
     if (is_mapped_) {
-        do_ref();
+        base_proxy_->ref();
     } else {
         // Blob is not mapped => map it temporarily
         scoped_map_t m(*this);
-        do_ref();
+        base_proxy_->ref();
     }
 }
 
 void blob_proxy_t::unref()
 {
     if (is_mapped_) {
-        do_unref();
+        base_proxy_->unref();
     } else {
         // Blob is not mapped => map it temporarily
         scoped_map_t m(*this);
-        do_unref();
+        base_proxy_->unref();
     }
 }
 
@@ -512,7 +525,7 @@ std::string to_string(blob_allocator_t::scope_t scope)
     }
 }
 
-void add_allocator(std::unique_ptr<blob_allocator_t> allocator)
+void register_allocator(std::unique_ptr<blob_allocator_t> allocator)
 {
     lock_t lock(g_mutex);
     SKAL_ASSERT(g_allocators.find(allocator->name()) == g_allocators.end());
@@ -525,16 +538,16 @@ blob_allocator_t& find_allocator(const std::string& allocator_name)
     return *(g_allocators.at(allocator_name));
 }
 
-std::unique_ptr<blob_proxy_t> create_blob(const std::string& allocator_name,
+blob_proxy_t create_blob(const std::string& allocator_name,
         const std::string& id, int64_t size_B)
 {
-    return find_allocator(allocator_name).create(id, size_B);
+    return blob_proxy_t(find_allocator(allocator_name).create(id, size_B));
 }
 
-std::unique_ptr<blob_proxy_t> open_blob(const std::string& allocator_name,
+blob_proxy_t open_blob(const std::string& allocator_name,
         const std::string& id)
 {
-    return find_allocator(allocator_name).open(id);
+    return blob_proxy_t(find_allocator(allocator_name).open(id));
 }
 
 } // namespace skal

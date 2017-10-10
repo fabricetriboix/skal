@@ -3,6 +3,7 @@
 #pragma once
 
 #include "skal-cfg.hpp"
+#include "skal-error.hpp"
 #include <cstdint>
 #include <string>
 #include <memory>
@@ -11,19 +12,60 @@
 
 namespace skal {
 
-/** Class to provide access to a blob
+/** Exception class: try to open an invalid blob, or blob is corrupted */
+struct bad_blob : public error
+{
+    bad_blob() : error("skal::bad_blob") { }
+};
+
+class blob_allocator_t;
+class blob_proxy_t;
+
+/** Helper function to create a blob
+ *
+ * The `allocator_name` may be one of "malloc", "shm", or any custom allocator
+ * that had been registered using the `register_allocator()` function.
+ *
+ * Depending on the chosen allocator, the `id` and `size_B` arguments may or
+ * may not be used by the allocator.
+ *
+ * \param allocator_name [in] Name of allocator to use
+ * \param id             [in] Blob id
+ * \param size_B         [in] Blob size
+ *
+ * \return A proxy to the created blob, never an empty pointer
+ *
+ * \throw `std::out_of_range` if there is no allocator with that name
+ *
+ * \throw `bad_blob` if a blob with the same `id` already exists, or if the
+ *        blob can't be created for some reason
+ */
+blob_proxy_t create_blob(const std::string& allocator_name,
+        const std::string& id, int64_t size_B);
+
+/** Helper function to open a blob
+ *
+ * \param allocator_name [in] Name of allocator to use
+ * \param id             [in] Blob id
+ *
+ * \return A proxy to the opened blob, never an empty pointer
+ *
+ * \throw `std::out_of_range` if there is no allocator with that name
+ *
+ * \throw `bad_blob` if blob `id` does not exist or can't be opened for some
+ *        reason
+ */
+blob_proxy_t open_blob(const std::string& allocator_name,
+        const std::string& id);
+
+/** Base class which represents a proxy to a blob of a certain type
  *
  * This is a base class which must be derived from to implement the pure
  * virtual methods according to the underlying blob allocator. Your derived
  * class should increment the blob's reference counter when a proxy is
  * constructed, and unreference it when it's destructed.
- *
- * When a proxy to a blob is created, that will increment the blob's reference
- * counter. When the proxy is destroyed, the blob's reference counter will be
- * decremented (and the blob potentially destroyed if that was the last
- * reference).
  */
-class blob_proxy_t : boost::noncopyable
+class proxy_base_t : boost::noncopyable
 {
 public :
     /** Destructor
@@ -31,7 +73,16 @@ public :
      * The destructor must decrement the blob's reference counter, and thus
      * potentially destroy the underlying blob.
      */
-    virtual ~blob_proxy_t() = default;
+    virtual ~proxy_base_t() = default;
+
+    /** Get the allocator that created this proxy
+     *
+     * \return The blob allocator that created this proxy
+     */
+    blob_allocator_t& allocator() const
+    {
+        return allocator_;
+    }
 
     /** Get the blob id */
     virtual const std::string& id() const = 0;
@@ -39,66 +90,11 @@ public :
     /** Get the blob size */
     virtual int64_t size_B() const = 0;
 
-    /** Manually increment the reference counter of the underlying blob */
-    void ref();
-
-    /** Manually decrement the reference counter of the underlying blob
-     *
-     * The underlying blob will be destroyed if this counter reaches zero.
-     */
-    void unref();
-
-    /** Structure to map the blob in a RAII fashion
-     *
-     * The lifetime of this structure must be as short as possible, in order
-     * to allow other workers to access the blob too. An object of type
-     * `scoped_map_t` must have a shorter life span than the `proxy` it is
-     * working on (you can expect a nasty crash otherwise).
-     */
-    struct scoped_map_t {
-        /** Constructor
-         *
-         * \throw `bad_blob` if the underlying blob has been corrupted or
-         *        can't be mapped for some reason
-         */
-        scoped_map_t(blob_proxy_t& proxy) : proxy_(proxy), mem_(proxy_.map())
-        {
-            proxy_.is_mapped_ = true;
-        }
-
-        ~scoped_map_t()
-        {
-            proxy_.unmap();
-            proxy_.is_mapped_ = false;
-        }
-
-        void* mem() const
-        {
-            return mem_;
-        }
-
-    private :
-        blob_proxy_t& proxy_;
-        void* mem_;
-    };
-
-protected :
-    /** Constructor for this base class
-     *
-     * The constructor must increment the blob's reference counter.
-     *
-     * Accessible only from derived classes.
-     */
-    blob_proxy_t() : is_mapped_(false)
-    {
-    }
-
-private :
     /** Increment the reference counter of the underlying blob
      *
      * You are guaranteed that the blob is mapped when this method is called.
      */
-    virtual void do_ref() = 0;
+    virtual void ref() = 0;
 
     /** Decrement the reference counter of the underlying blob
      *
@@ -106,7 +102,7 @@ private :
      *
      * You are guaranteed that the blob is mapped when this method is called.
      */
-    virtual void do_unref() = 0;
+    virtual void unref() = 0;
 
     /** Map a blob into the caller's address space
      *
@@ -134,7 +130,132 @@ private :
      */
     virtual void unmap() = 0;
 
-    bool is_mapped_; /**< Is the blob currently mapped? */
+protected :
+    /** Constructor for this base class
+     *
+     * The constructor must increment the blob's reference counter.
+     *
+     * Accessible only from derived classes.
+     *
+     * \param allocator [in] Reference to the allocator that created or
+     *                       opened this blob proxy
+     */
+    proxy_base_t(blob_allocator_t& allocator) : allocator_(allocator)
+    {
+    }
+
+private :
+    blob_allocator_t& allocator_; /**< Allocator that created/open this proxy */
+};
+
+/** Class providing access to a blob
+ *
+ * This class is copyable and assignable.
+ */
+class blob_proxy_t final
+{
+public :
+    blob_proxy_t() = delete;
+    ~blob_proxy_t() = default;
+
+    blob_proxy_t(std::unique_ptr<proxy_base_t> base_proxy)
+        : base_proxy_(std::move(base_proxy))
+    {
+    }
+
+    /** Copy constructor
+     *
+     * You are not allowed to copy a mapped proxy.
+     */
+    blob_proxy_t(const blob_proxy_t& right);
+
+    friend void swap(blob_proxy_t& left, blob_proxy_t& right)
+    {
+        using std::swap;
+        swap(left.base_proxy_, right.base_proxy_);
+    }
+
+    /** Copy-assignment operator
+     *
+     * Uses copy-and-swap idiom. You are not allowed to copy a mapped proxy.
+     */
+    blob_proxy_t& operator=(blob_proxy_t right)
+    {
+        swap(*this, right);
+        return *this;
+    }
+
+    blob_allocator_t& allocator() const
+    {
+        return base_proxy_->allocator();
+    }
+
+    const std::string& id() const
+    {
+        return base_proxy_->id();
+    }
+
+    int64_t size_B() const
+    {
+        return base_proxy_->size_B();
+    }
+
+    /** Increment the reference counter of the underlying blob
+     *
+     * The blob may or may not be mapped when you call this method.
+     */
+    void ref();
+
+    /** Decrement the reference counter of the underlying blob
+     *
+     * The blob may or may not be mapped when you call this method.
+     *
+     * NB: Logically (and unless there is a bug in your code), it is impossible
+     * for the reference counter to reach zero in this method, because the
+     * proxy itself holds a reference to the blob until it is destroyed.
+     */
+    void unref();
+
+    /** Structure to map the blob in a RAII fashion
+     *
+     * The lifetime of this structure must be as short as possible in order
+     * to allow other workers to access the blob too. An object of type
+     * `scoped_map_t` must have a shorter life span than the `proxy` it is
+     * working on (you can expect a nasty crash otherwise).
+     */
+    struct scoped_map_t {
+        /** Constructor
+         *
+         * \param proxy [in,out] Proxy to the blob to map
+         *
+         * \throw `bad_blob` if the underlying blob has been corrupted or
+         *        can't be mapped for some reason
+         */
+        scoped_map_t(blob_proxy_t& proxy)
+            : proxy_(proxy), mem_(proxy_.base_proxy_->map())
+        {
+            proxy_.is_mapped_ = true;
+        }
+
+        ~scoped_map_t()
+        {
+            proxy_.base_proxy_->unmap();
+            proxy_.is_mapped_ = false;
+        }
+
+        void* mem() const
+        {
+            return mem_;
+        }
+
+    private :
+        blob_proxy_t& proxy_;
+        void* mem_;
+    };
+
+private :
+    std::unique_ptr<proxy_base_t> base_proxy_;
+    bool is_mapped_;
 };
 
 /** Class representing a blob allocator
@@ -216,7 +337,7 @@ public :
      * \throw `bad_blob` if the blob already exists or can't be created for
      *        some reason
      */
-    virtual std::unique_ptr<blob_proxy_t> create(const std::string& id,
+    virtual std::unique_ptr<proxy_base_t> create(const std::string& id,
             int64_t size_B) = 0;
 
     /** Open an existing blob
@@ -234,7 +355,7 @@ public :
      *
      * \throw `bad_blob` if blob does not exist or has been corrupted
      */
-    virtual std::unique_ptr<blob_proxy_t> open(const std::string& id) = 0;
+    virtual std::unique_ptr<proxy_base_t> open(const std::string& id) = 0;
 
 private :
     std::string name_;
@@ -251,15 +372,17 @@ std::string to_string(blob_allocator_t::scope_t scope);
 
 /** Add a custom allocator
  *
- * Allocator are uniquely identified by their names. If you add a custom
- * allocator which has the same name as an existing allocator, your allocator
- * will replace the old one.
+ * Allocator are uniquely identified by their names. The name of your allocator
+ * must be unique in this process. Additionally, if the scope of your allocator
+ * is greater than `scope_t::process`, it is expected that the same allocator
+ * names in the various processes and machines refer to the same underlying
+ * blob allocation mechanisms.
  *
  * \param allocator [in] Allocator to add
  */
-void add_allocator(std::unique_ptr<blob_allocator_t> allocator);
+void register_allocator(std::unique_ptr<blob_allocator_t> allocator);
 
-/** Find an allocator by name
+/** Find an allocator
  *
  * \param allocator_name [in] Name of allocator to find
  *
@@ -268,36 +391,5 @@ void add_allocator(std::unique_ptr<blob_allocator_t> allocator);
  * \throw `std::out_of_range` if there is no allocator with that name
  */
 blob_allocator_t& find_allocator(const std::string& allocator_name);
-
-/** Helper function to create a blob
- *
- * \param allocator_name [in] Name of allocator to use
- * \param id             [in] Blob id
- * \param size_B         [in] Blob size
- *
- * \return A proxy to the created blob, never an empty pointer
- *
- * \throw `std::out_of_range` if there is no allocator with that name
- *
- * \throw `bad_blob` if a blob with the same `id` already exists, or if the
- *        blob can't be created for some reason
- */
-std::unique_ptr<blob_proxy_t> create_blob(const std::string& allocator_name,
-        const std::string& id, int64_t size_B);
-
-/** Helper function to open a blob
- *
- * \param allocator_name [in] Name of allocator to use
- * \param id             [in] Blob id
- *
- * \return A proxy to the opened blob, never an empty pointer
- *
- * \throw `std::out_of_range` if there is no allocator with that name
- *
- * \throw `bad_blob` there is no blob `id` or blob can't be opened for some
- *        reason
- */
-std::unique_ptr<blob_proxy_t> open_blob(const std::string& allocator_name,
-        const std::string& id);
 
 } // namespace skal
