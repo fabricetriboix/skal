@@ -170,6 +170,12 @@ public :
      */
     blob_proxy_t(const blob_proxy_t& right);
 
+    /** Move constructor */
+    blob_proxy_t(blob_proxy_t&& right) : is_mapped_(false)
+    {
+        base_proxy_ = std::move(right.base_proxy_);
+    }
+
     friend void swap(blob_proxy_t& left, blob_proxy_t& right)
     {
         using std::swap;
@@ -178,11 +184,21 @@ public :
 
     /** Copy-assignment operator
      *
-     * Uses copy-and-swap idiom. You are not allowed to copy a mapped proxy.
+     * You are not allowed to copy a mapped proxy.
      */
-    blob_proxy_t& operator=(blob_proxy_t right)
+    blob_proxy_t& operator=(const blob_proxy_t& right)
     {
-        swap(*this, right);
+        blob_proxy_t tmp(right);
+        base_proxy_ = std::move(tmp.base_proxy_);
+        is_mapped_ = false;
+        return *this;
+    }
+
+    /** Move-assignment operator */
+    blob_proxy_t& operator=(blob_proxy_t&& right)
+    {
+        base_proxy_ = std::move(right.base_proxy_);
+        is_mapped_ = false;
         return *this;
     }
 
