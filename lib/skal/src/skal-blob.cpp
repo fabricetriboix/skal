@@ -488,6 +488,7 @@ blob_proxy_t::blob_proxy_t(const blob_proxy_t& right)
 
 void blob_proxy_t::ref()
 {
+    SKAL_ASSERT(base_proxy_);
     if (is_mapped_) {
         base_proxy_->ref();
     } else {
@@ -499,6 +500,7 @@ void blob_proxy_t::ref()
 
 void blob_proxy_t::unref()
 {
+    SKAL_ASSERT(base_proxy_);
     if (is_mapped_) {
         base_proxy_->unref();
     } else {

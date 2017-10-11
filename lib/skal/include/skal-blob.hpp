@@ -155,12 +155,13 @@ private :
 class blob_proxy_t final
 {
 public :
-    blob_proxy_t() = delete;
+    blob_proxy_t() = default;
     ~blob_proxy_t() = default;
 
     blob_proxy_t(std::unique_ptr<proxy_base_t> base_proxy)
         : base_proxy_(std::move(base_proxy))
     {
+        SKAL_ASSERT(base_proxy_);
     }
 
     /** Copy constructor
@@ -187,16 +188,19 @@ public :
 
     blob_allocator_t& allocator() const
     {
+        SKAL_ASSERT(base_proxy_);
         return base_proxy_->allocator();
     }
 
     const std::string& id() const
     {
+        SKAL_ASSERT(base_proxy_);
         return base_proxy_->id();
     }
 
     int64_t size_B() const
     {
+        SKAL_ASSERT(base_proxy_);
         return base_proxy_->size_B();
     }
 
