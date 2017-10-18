@@ -9,6 +9,8 @@
 
 namespace skal {
 
+class msg_t;
+
 /** Class that represents an alarm */
 class alarm_t final
 {
@@ -106,6 +108,21 @@ private :
     std::string msg_;
     std::string origin_;
     boost::posix_time::ptime timestamp_;
+
+    alarm_t(std::string name, severity_t severity, bool is_on, bool auto_off,
+            std::string msg, std::string origin,
+            boost::posix_time::ptime timestamp)
+        : name_(std::move(name))
+        , severity_(severity)
+        , is_on_(is_on)
+        , auto_off_(auto_off)
+        , msg_(std::move(msg))
+        , origin_(std::move(origin))
+        , timestamp_(timestamp)
+    {
+    }
+
+    friend class msg_t;
 };
 
 } // namespace skal

@@ -1,0 +1,62 @@
+syntax = "proto2";
+
+package skal;
+
+message Alarm {
+    enum Severity {
+        NOTICE = 0;
+        WARNING = 1;
+        ERROR = 2;
+    }
+
+    required string name = 1;
+    required Severity severity = 2;
+    required bool is_on = 3;
+    required bool auto_off = 4;
+    required string msg = 5;
+    required string origin = 6;
+    required int64 timestamp = 7;
+}
+
+message IntField {
+    required string name = 1;
+    required sint64 value = 2;
+}
+
+message DoubleField {
+    required string name = 1;
+    required double value = 2;
+}
+
+message StringField {
+    required string name = 1;
+    required string value = 2;
+}
+
+message MiniblobField {
+    required string name = 1;
+    required bytes value = 2;
+}
+
+message BlobField {
+    required string name = 1;
+    required string allocator = 2;
+    required string id = 3;
+}
+
+message Msg {
+    required uint32 version = 1;
+    optional int64 timestamp = 2;
+    optional string name = 3;
+    optional string sender = 4;
+    optional string recipient = 5;
+    optional int32 ttl = 6;
+    optional int32 flags = 7;
+    optional int32 iflags = 8;
+    repeated Alarm alarms = 9;
+    repeated IntField int_fields = 10;
+    repeated DoubleField double_fields = 11;
+    repeated StringField string_fields = 12;
+    repeated MiniblobField miniblob_fields = 13;
+    repeated BlobField blob_fields = 14;
+}

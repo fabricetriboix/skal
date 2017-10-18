@@ -22,7 +22,7 @@ struct assert_t
     ~assert_t();
 };
 
-#define SKAL_ASSERT(cond) if (!(cond)) \
+#define skal_assert(cond) if (!(cond)) \
     skal::assert_t(__FILE__, __LINE__, #cond).oss
 
 } // namespace skal

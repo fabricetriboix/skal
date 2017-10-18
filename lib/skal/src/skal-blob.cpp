@@ -93,7 +93,7 @@ public :
     malloc_proxy_t(blob_allocator_t& allocator, malloc_blob_t* blob)
         : proxy_base_t(allocator), blob_(blob)
     {
-        SKAL_ASSERT(blob_ != nullptr);
+        skal_assert(blob_ != nullptr);
         char buffer[64];
         snprintf(buffer, sizeof(buffer), "%p", blob_);
         id_ = buffer;
@@ -120,19 +120,19 @@ public :
 
     int64_t size_B() const override
     {
-        SKAL_ASSERT(blob_ != nullptr);
+        skal_assert(blob_ != nullptr);
         return blob_->size_B;
     }
 
     void ref() override
     {
-        SKAL_ASSERT(blob_ != nullptr);
+        skal_assert(blob_ != nullptr);
         ++blob_->ref;
     }
 
     void unref() override
     {
-        SKAL_ASSERT(blob_ != nullptr);
+        skal_assert(blob_ != nullptr);
         --blob_->ref;
         // NB: The proxy always holds a reference to the underlying blob.
         // Because this proxy object is still alive, it is impossible for the
@@ -172,11 +172,11 @@ public :
             int64_t size_B) override
     {
         (void)id; // ignored for 'malloc' allocator
-        SKAL_ASSERT(size_B > 0);
+        skal_assert(size_B > 0);
 
         int64_t total_size_B = sizeof(malloc_blob_t) + size_B;
         void* ptr = std::malloc(total_size_B);
-        SKAL_ASSERT(ptr != nullptr) << "Failed to malloc "
+        skal_assert(ptr != nullptr) << "Failed to malloc "
             << total_size_B << " bytes";
 
         malloc_blob_t* blob = new (ptr) malloc_blob_t(size_B);
@@ -278,8 +278,8 @@ public :
         , size_B_(size_B)
         , shm_(std::move(shm))
     {
-        SKAL_ASSERT(size_B_ > 0);
-        SKAL_ASSERT(shm_);
+        skal_assert(size_B_ > 0);
+        skal_assert(shm_);
         // NB: The blob's reference counter has been incremented for this
         // proxy by the blob allocator, so we don't do it here.
     }
@@ -290,7 +290,7 @@ public :
         // lifetime of any `scoped_map_t` object created by the user of this
         // proxy is less than the proxy itself (unless the user software has a
         // bug, but that's not our problem).
-        SKAL_ASSERT(shm_);
+        skal_assert(shm_);
         mapped_region region(*shm_, read_write);
         void* addr = region.get_address();
         shm_blob_t* blob = static_cast<shm_blob_t*>(addr);
@@ -316,7 +316,7 @@ public :
 
     void ref() override
     {
-        SKAL_ASSERT(region_);
+        skal_assert(region_);
         void* addr = region_->get_address();
         shm_blob_t* blob = static_cast<shm_blob_t*>(addr);
         ++blob->ref;
@@ -324,7 +324,7 @@ public :
 
     void unref() override
     {
-        SKAL_ASSERT(region_);
+        skal_assert(region_);
         void* addr = region_->get_address();
         shm_blob_t* blob = static_cast<shm_blob_t*>(addr);
         --blob->ref;
@@ -336,8 +336,8 @@ public :
 
     void* map() override
     {
-        SKAL_ASSERT(shm_);
-        SKAL_ASSERT(!region_);
+        skal_assert(shm_);
+        skal_assert(!region_);
 
         try {
             region_.reset(new mapped_region(*shm_, read_write));
@@ -357,7 +357,7 @@ public :
 
     void unmap() override
     {
-        SKAL_ASSERT(region_);
+        skal_assert(region_);
         void* addr = region_->get_address();
         shm_blob_t* blob = static_cast<shm_blob_t*>(addr);
         blob->check(id_);
@@ -384,8 +384,8 @@ public :
     std::unique_ptr<proxy_base_t> create(const std::string& id,
             int64_t size_B) override
     {
-        SKAL_ASSERT(!id.empty());
-        SKAL_ASSERT(size_B > 0);
+        skal_assert(!id.empty());
+        skal_assert(size_B > 0);
 
         std::unique_ptr<shared_memory_object> shm;
         try {
@@ -424,7 +424,7 @@ public :
 
     std::unique_ptr<proxy_base_t> open(const std::string& id) override
     {
-        SKAL_ASSERT(!id.empty());
+        skal_assert(!id.empty());
 
         std::unique_ptr<shared_memory_object> shm;
         try {
@@ -480,15 +480,15 @@ struct init_t
 
 blob_proxy_t::blob_proxy_t(const blob_proxy_t& right)
 {
-    SKAL_ASSERT(!right.is_mapped_);
+    skal_assert(!right.is_mapped_);
     base_proxy_ = right.allocator().open(right.id());
-    SKAL_ASSERT(base_proxy_);
+    skal_assert(base_proxy_);
     is_mapped_ = false;
 }
 
 void blob_proxy_t::ref()
 {
-    SKAL_ASSERT(base_proxy_);
+    skal_assert(base_proxy_);
     if (is_mapped_) {
         base_proxy_->ref();
     } else {
@@ -500,7 +500,7 @@ void blob_proxy_t::ref()
 
 void blob_proxy_t::unref()
 {
-    SKAL_ASSERT(base_proxy_);
+    skal_assert(base_proxy_);
     if (is_mapped_) {
         base_proxy_->unref();
     } else {
@@ -530,7 +530,7 @@ std::string to_string(blob_allocator_t::scope_t scope)
 void register_allocator(std::unique_ptr<blob_allocator_t> allocator)
 {
     lock_t lock(g_mutex);
-    SKAL_ASSERT(g_allocators.find(allocator->name()) == g_allocators.end());
+    skal_assert(g_allocators.find(allocator->name()) == g_allocators.end());
     g_allocators[allocator->name()] = std::move(allocator);
 }
 

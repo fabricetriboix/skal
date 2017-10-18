@@ -10,7 +10,7 @@ namespace skal {
 assert_t::assert_t(const char* file, int line, const char* cond)
 {
     boost::filesystem::path path(file);
-    oss << "SKAL_ASSERT [" << path.filename() << ":" << line << "] "
+    oss << "skal_assert [" << path.filename() << ":" << line << "] "
         << (cond ? cond : "") << " ";
 }
 
