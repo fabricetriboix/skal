@@ -38,6 +38,8 @@ set(LIBSKAL_SRC
     lib/skal/include/detail/safe-mutex.hpp
     lib/skal/include/detail/skal-thread-specific.hpp
     lib/skal/src/skal-thread-specific.cpp
+    lib/skal/include/detail/skal-queue.hpp
+    lib/skal/src/skal-queue.cpp
     ${SKAL_MSG_PROTO_SRC}
     ${SKAL_MSG_PROTO_HDR}
     )
@@ -50,6 +52,7 @@ target_link_libraries(skal Boost::date_time Boost::filesystem Boost::system
 set(LIBSKAL_TEST_SRC
     unit-test/test-blob.cpp
     unit-test/test-msg.cpp
+    unit-test/test-queue.cpp
     )
 add_executable(skal-unit-tests ${LIBSKAL_TEST_SRC})
 target_link_libraries(skal-unit-tests skal gtest gmock_main)

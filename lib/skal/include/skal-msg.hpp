@@ -93,9 +93,14 @@ struct flag_t final
      * This message is to be duplicated for many recipients.
      */
     constexpr static uint8_t multicast = 0x10;
+
+    /** Internal message flag: this is an internal message */
+    constexpr static uint8_t internal = 0x80;
 };
 
 typedef std::vector<uint8_t> miniblob_t;
+
+class queue_t;
 
 /** Class that represents a message */
 class msg_t final
@@ -416,6 +421,8 @@ private :
     std::map<std::string, std::string>  strings_;
     std::map<std::string, miniblob_t>   miniblobs_;
     std::map<std::string, blob_proxy_t> blobs_;
+
+    friend class queue_t;
 };
 
 /** Version number for the message format */
