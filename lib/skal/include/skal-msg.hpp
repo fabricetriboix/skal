@@ -45,7 +45,7 @@ struct flag_t final
      *
      * This flag implies that it's OK to receive duplicate messages.
      */
-    constexpr static uint8_t out_of_order_ok = 0x01;
+    constexpr static uint32_t out_of_order_ok = 0x01;
 
     /** Message flag: it's OK to drop this message
      *
@@ -55,13 +55,13 @@ struct flag_t final
      * This default is to send messages over a reliable transport link that
      * detects and retransmits lost data (typically: TCP).
      */
-    constexpr static uint8_t drop_ok = 0x02;
+    constexpr static uint32_t drop_ok = 0x02;
 
     /** Message flag: send this message over a UDP-link transport link
      *
      * Packets may be dropped, re-ordered or duplicated.
      */
-    constexpr static uint8_t udp = out_of_order_ok | drop_ok;
+    constexpr static uint32_t udp = out_of_order_ok | drop_ok;
 
     /** Message flag: inform the sender of a message if it is dropped
      *
@@ -74,7 +74,7 @@ struct flag_t final
      * generally means that messages with that flag set can't be send over
      * UDP-like transport links.
      */
-    constexpr static uint8_t ntf_drop = 0x04;
+    constexpr static uint32_t ntf_drop = 0x04;
 
     /** Message flag: this message is urgent
      *
@@ -86,16 +86,16 @@ struct flag_t final
      * there are no guarantee that this message will actually arrive before
      * any regular message sent previously.
      */
-    constexpr static uint8_t urgent = 0x08;
+    constexpr static uint32_t urgent = 0x08;
 
     /** Message flag: this is a multicast message
      *
      * This message is to be duplicated for many recipients.
      */
-    constexpr static uint8_t multicast = 0x10;
+    constexpr static uint32_t multicast = 0x10;
 
     /** Internal message flag: this is an internal message */
-    constexpr static uint8_t internal = 0x80;
+    constexpr static uint32_t internal = 0x10000;
 };
 
 typedef std::vector<uint8_t> miniblob_t;
@@ -120,7 +120,7 @@ public :
      * \param flags     [in] Message flag; please refer to `flag_t`
      * \param ttl       [in] Time-to-live counter initial value; <= for default
      */
-    msg_t(std::string name, std::string recipient, uint8_t flags = 0,
+    msg_t(std::string name, std::string recipient, uint32_t flags = 0,
             int8_t ttl = default_ttl);
 
     /** Construct a message from a serialized form
@@ -184,12 +184,12 @@ public :
         return recipient_;
     }
 
-    uint8_t flags() const
+    uint32_t flags() const
     {
         return flags_;
     }
 
-    void flags(uint8_t value)
+    void flags(uint32_t value)
     {
         flags_ = value;
     }
@@ -388,22 +388,22 @@ public :
     std::string serialize() const;
 
 private :
-    uint8_t iflags() const
+    uint32_t iflags() const
     {
         return iflags_;
     }
 
-    void iflags(uint8_t flags)
+    void iflags(uint32_t flags)
     {
         iflags_ = flags;
     }
 
-    void set_iflag(uint8_t flags)
+    void set_iflag(uint32_t flags)
     {
         iflags_ |= flags;
     }
 
-    void reset_iflag(uint8_t flags)
+    void reset_iflag(uint32_t flags)
     {
         iflags_ &= ~flags;
     }
@@ -412,8 +412,8 @@ private :
     std::string              name_;
     std::string              sender_;
     std::string              recipient_;
-    uint8_t                  flags_;
-    uint8_t                  iflags_;
+    uint32_t                 flags_;
+    uint32_t                 iflags_;
     int8_t                   ttl_;
     std::vector<alarm_t>     alarms_;
     std::map<std::string, int64_t>      ints_;

@@ -51,8 +51,8 @@ message Msg {
     optional string sender = 4;
     optional string recipient = 5;
     optional int32 ttl = 6;
-    optional int32 flags = 7;
-    optional int32 iflags = 8;
+    optional uint32 flags = 7;
+    optional uint32 iflags = 8;
     repeated Alarm alarms = 9;
     repeated IntField int_fields = 10;
     repeated DoubleField double_fields = 11;

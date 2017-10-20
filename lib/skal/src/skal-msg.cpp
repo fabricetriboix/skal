@@ -9,7 +9,15 @@
 
 namespace skal {
 
-msg_t::msg_t(std::string name, std::string recipient, uint8_t flags, int8_t ttl)
+const uint32_t flag_t::out_of_order_ok;
+const uint32_t flag_t::drop_ok;
+const uint32_t flag_t::udp;
+const uint32_t flag_t::ntf_drop;
+const uint32_t flag_t::urgent;
+const uint32_t flag_t::multicast;
+const uint32_t flag_t::internal;
+
+msg_t::msg_t(std::string name, std::string recipient, uint32_t flags, int8_t ttl)
     : timestamp_(boost::posix_time::microsec_clock::universal_time())
     , name_(std::move(name))
     , sender_(thread_specific().name)
