@@ -10,6 +10,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <list>
+#include <utility>
 #include <boost/noncopyable.hpp>
 
 namespace skal {
@@ -69,9 +70,9 @@ public :
      *
      * This method always succeeds.
      *
-     * \param msg [in] Message to push
+     * \param msg [in] Message to push; must not be an empty pointer
      */
-    void push(msg_t msg);
+    void push(std::unique_ptr<msg_t> msg);
 
     /** Pop a message from the queue
      *
@@ -92,19 +93,17 @@ public :
      *
      * \param internal_only [in] Whether to pop internal messages only
      *
-     * \return The popped message
+     * \return The popped message, never an empty pointer
      */
-    msg_t pop_BLOCKING(bool internal_only = false);
+    std::unique_ptr<msg_t> pop_BLOCKING(bool internal_only = false);
 
     /** Pop a message from the queue, non-blocking version
      *
      * \param internal_only [in] Whether to pop internal messages only
      *
-     * \return The popped message
-     *
-     * \throw `std::out_of_range` if queue is empty
+     * \return The popped message, or an empty pointer if no message to pop
      */
-    msg_t pop(bool internal_only = false);
+    std::unique_ptr<msg_t> pop(bool internal_only = false);
 
     /** Get the number of pending messages
      *
@@ -131,9 +130,9 @@ private :
     ntf_t ntf_;
     mutable std::mutex mutex_;
     std::condition_variable cv_;
-    std::list<msg_t> internal_;
-    std::list<msg_t> urgent_;
-    std::list<msg_t> regular_;
+    std::list<std::unique_ptr<msg_t>> internal_;
+    std::list<std::unique_ptr<msg_t>> urgent_;
+    std::list<std::unique_ptr<msg_t>> regular_;
 
     typedef std::unique_lock<std::mutex> lock_t;
 };

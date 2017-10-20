@@ -10,56 +10,55 @@ TEST(Queue, PushAndPop)
     EXPECT_FALSE(queue.is_half_full());
     EXPECT_EQ(0u, queue.size());
 
-    {
-        skal::msg_t msg("test-msg", "test-recipient");
-        queue.push(std::move(msg));
-    }
+    queue.push(std::make_unique<skal::msg_t>("test-msg", "test-recipient"));
     EXPECT_FALSE(queue.is_full());
     EXPECT_TRUE(queue.is_half_full());
     EXPECT_EQ(1u, queue.size());
 
-    {
-        skal::msg_t msg("test-msg-2", "test-recipient-2", skal::flag_t::urgent);
-        queue.push(std::move(msg));
-    }
+    queue.push(std::make_unique<skal::msg_t>("test-msg-2", "test-recipient-2",
+            skal::flag_t::urgent));
     EXPECT_TRUE(queue.is_full());
     EXPECT_TRUE(queue.is_half_full());
     EXPECT_EQ(2u, queue.size());
 
-    {
-        skal::msg_t msg("test-msg-3", "test-recipient-3");
-        queue.push(std::move(msg));
-    }
+    queue.push(std::make_unique<skal::msg_t>("test-msg-3",
+                "test-recipient-3"));
     EXPECT_TRUE(queue.is_full());
     EXPECT_TRUE(queue.is_half_full());
     EXPECT_EQ(3u, queue.size());
 
     {
-        skal::msg_t msg = queue.pop_BLOCKING();
-        EXPECT_EQ(msg.name(), "test-msg-2");
-        EXPECT_EQ(msg.recipient(), "test-recipient-2");
+        std::unique_ptr<skal::msg_t> msg = queue.pop_BLOCKING();
+        ASSERT_NE(nullptr, msg);
+        EXPECT_EQ(msg->name(), "test-msg-2");
+        EXPECT_EQ(msg->recipient(), "test-recipient-2");
     }
     EXPECT_TRUE(queue.is_full());
     EXPECT_TRUE(queue.is_half_full());
     EXPECT_EQ(2u, queue.size());
 
     {
-        skal::msg_t msg = queue.pop();
-        EXPECT_EQ(msg.name(), "test-msg");
-        EXPECT_EQ(msg.recipient(), "test-recipient");
+        std::unique_ptr<skal::msg_t> msg = queue.pop();
+        ASSERT_NE(nullptr, msg);
+        EXPECT_EQ(msg->name(), "test-msg");
+        EXPECT_EQ(msg->recipient(), "test-recipient");
     }
     EXPECT_FALSE(queue.is_full());
     EXPECT_TRUE(queue.is_half_full());
     EXPECT_EQ(1u, queue.size());
 
     {
-        skal::msg_t msg = queue.pop();
-        EXPECT_EQ(msg.name(), "test-msg-3");
-        EXPECT_EQ(msg.recipient(), "test-recipient-3");
+        std::unique_ptr<skal::msg_t> msg = queue.pop();
+        ASSERT_NE(nullptr, msg);
+        EXPECT_EQ(msg->name(), "test-msg-3");
+        EXPECT_EQ(msg->recipient(), "test-recipient-3");
     }
     EXPECT_FALSE(queue.is_full());
     EXPECT_FALSE(queue.is_half_full());
     EXPECT_EQ(0u, queue.size());
 
-    EXPECT_THROW(skal::msg_t msg = queue.pop(), std::out_of_range);
+    {
+        std::unique_ptr<skal::msg_t> msg = queue.pop();
+        ASSERT_EQ(nullptr, msg);
+    }
 }

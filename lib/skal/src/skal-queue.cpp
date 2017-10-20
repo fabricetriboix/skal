@@ -5,13 +5,14 @@
 
 namespace skal {
 
-void queue_t::push(msg_t msg)
+void queue_t::push(std::unique_ptr<msg_t> msg)
 {
     lock_t lock(mutex_);
 
-    if (msg.iflags() & flag_t::internal) {
+    skal_assert(msg);
+    if (msg->iflags() & flag_t::internal) {
         internal_.push_back(std::move(msg));
-    } else if (msg.flags() & flag_t::urgent) {
+    } else if (msg->flags() & flag_t::urgent) {
         urgent_.push_back(std::move(msg));
     } else {
         regular_.push_back(std::move(msg));
@@ -23,7 +24,7 @@ void queue_t::push(msg_t msg)
     cv_.notify_one();
 }
 
-msg_t queue_t::pop_BLOCKING(bool internal_only)
+std::unique_ptr<msg_t> queue_t::pop_BLOCKING(bool internal_only)
 {
     lock_t lock(mutex_);
 
@@ -38,47 +39,40 @@ msg_t queue_t::pop_BLOCKING(bool internal_only)
         }
     }
 
+    std::unique_ptr<msg_t> msg;
     if (!internal_.empty()) {
-        msg_t msg = std::move(internal_.front());
+        msg = std::move(internal_.front());
         internal_.pop_front();
-        return std::move(msg);
-
     } else if (!urgent_.empty()) {
-        msg_t msg = std::move(urgent_.front());
+        msg = std::move(urgent_.front());
         urgent_.pop_front();
-        return std::move(msg);
-
     } else {
         skal_assert(!regular_.empty());
-        msg_t msg = std::move(regular_.front());
+        msg = std::move(regular_.front());
         regular_.pop_front();
-        return std::move(msg);
     }
+    return std::move(msg);
 }
 
-msg_t queue_t::pop(bool internal_only)
+std::unique_ptr<msg_t> queue_t::pop(bool internal_only)
 {
     lock_t lock(mutex_);
 
+    std::unique_ptr<msg_t> msg;
     if (!internal_.empty()) {
-        msg_t msg = std::move(internal_.front());
+        msg = std::move(internal_.front());
         internal_.pop_front();
-        return std::move(msg);
-
     } else if (!internal_only) {
         if (!urgent_.empty()) {
-            msg_t msg = std::move(urgent_.front());
+            msg = std::move(urgent_.front());
             urgent_.pop_front();
-            return std::move(msg);
 
         } else if (!regular_.empty()) {
-            msg_t msg = std::move(regular_.front());
+            msg = std::move(regular_.front());
             regular_.pop_front();
-            return std::move(msg);
         }
     }
-
-    throw std::out_of_range("empty queue");
+    return std::move(msg);
 }
 
 size_t queue_t::size() const
