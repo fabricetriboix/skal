@@ -1,6 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include "detail/skal-queue.hpp"
+#include "detail/skal-msg-detail.hpp"
 #include "detail/skal-log.hpp"
 
 namespace skal {
@@ -10,7 +11,7 @@ void queue_t::push(std::unique_ptr<msg_t> msg)
     lock_t lock(mutex_);
 
     skal_assert(msg);
-    if (msg->iflags() & flag_t::internal) {
+    if (msg->iflags() & iflag_t::internal) {
         internal_.push_back(std::move(msg));
     } else if (msg->flags() & flag_t::urgent) {
         urgent_.push_back(std::move(msg));

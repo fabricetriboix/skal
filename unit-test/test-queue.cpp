@@ -1,10 +1,15 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include "detail/skal-queue.hpp"
+#include "detail/skal-msg-detail.hpp"
+#include "detail/skal-thread-specific.hpp"
 #include <gtest/gtest.h>
 
 TEST(Queue, PushAndPop)
 {
+    skal::domain("xyz");
+    skal::thread_specific().name = "skal-external@xyz";
+
     skal::queue_t queue(2);
     EXPECT_FALSE(queue.is_full());
     EXPECT_FALSE(queue.is_half_full());
@@ -31,7 +36,7 @@ TEST(Queue, PushAndPop)
         std::unique_ptr<skal::msg_t> msg = queue.pop_BLOCKING();
         ASSERT_NE(nullptr, msg);
         EXPECT_EQ(msg->name(), "test-msg-2");
-        EXPECT_EQ(msg->recipient(), "test-recipient-2");
+        EXPECT_EQ(msg->recipient(), "test-recipient-2@xyz");
     }
     EXPECT_TRUE(queue.is_full());
     EXPECT_TRUE(queue.is_half_full());
@@ -41,7 +46,7 @@ TEST(Queue, PushAndPop)
         std::unique_ptr<skal::msg_t> msg = queue.pop();
         ASSERT_NE(nullptr, msg);
         EXPECT_EQ(msg->name(), "test-msg");
-        EXPECT_EQ(msg->recipient(), "test-recipient");
+        EXPECT_EQ(msg->recipient(), "test-recipient@xyz");
     }
     EXPECT_FALSE(queue.is_full());
     EXPECT_TRUE(queue.is_half_full());
@@ -51,7 +56,7 @@ TEST(Queue, PushAndPop)
         std::unique_ptr<skal::msg_t> msg = queue.pop();
         ASSERT_NE(nullptr, msg);
         EXPECT_EQ(msg->name(), "test-msg-3");
-        EXPECT_EQ(msg->recipient(), "test-recipient-3");
+        EXPECT_EQ(msg->recipient(), "test-recipient-3@xyz");
     }
     EXPECT_FALSE(queue.is_full());
     EXPECT_FALSE(queue.is_half_full());

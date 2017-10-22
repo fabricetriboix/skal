@@ -93,9 +93,6 @@ struct flag_t final
      * This message is to be duplicated for many recipients.
      */
     constexpr static uint32_t multicast = 0x10;
-
-    /** Internal message flag: this is an internal message */
-    constexpr static uint32_t internal = 0x10000;
 };
 
 typedef std::vector<uint8_t> miniblob_t;
@@ -407,6 +404,17 @@ private :
     {
         iflags_ &= ~flags;
     }
+
+    /** Set the sender
+     *
+     * You should use this method with extreme caution, as the sender is
+     * normally set automatically when the message is created. Calling this
+     * method essentially makes the message pretend it has been sent by
+     * another worker.
+     *
+     * \param sender [in] New sender value
+     */
+    void sender(std::string sender);
 
     boost::posix_time::ptime timestamp_;
     std::string              name_;

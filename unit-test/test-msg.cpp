@@ -1,12 +1,17 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include "skal-msg.hpp"
+#include "detail/skal-msg-detail.hpp"
+#include "detail/skal-thread-specific.hpp"
 #include <cstring>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <gtest/gtest.h>
 
 TEST(Msg, EncodeDecodeMsg)
 {
+    skal::domain("abc");
+    skal::thread_specific().name = std::string("skal-external@abc");
+
     boost::posix_time::ptime time_point
         = boost::posix_time::microsec_clock::universal_time();
     uint32_t flags = skal::flag_t::udp | skal::flag_t::multicast;
@@ -17,8 +22,8 @@ TEST(Msg, EncodeDecodeMsg)
     EXPECT_LE(delta, max);
 
     EXPECT_EQ("test-msg", msg.name());
-    EXPECT_EQ("skal-external", msg.sender());
-    EXPECT_EQ("bob", msg.recipient());
+    EXPECT_EQ("skal-external@abc", msg.sender());
+    EXPECT_EQ("bob@abc", msg.recipient());
     EXPECT_EQ(flags, msg.flags());
     EXPECT_EQ(15, msg.ttl());
 
@@ -29,7 +34,7 @@ TEST(Msg, EncodeDecodeMsg)
     EXPECT_TRUE(alarm.is_on());
     EXPECT_FALSE(alarm.auto_off());
     EXPECT_EQ("This is a test alarm", alarm.msg());
-    EXPECT_EQ("skal-external", alarm.origin());
+    EXPECT_EQ("skal-external@abc", alarm.origin());
     delta = alarm.timestamp() - time_point;
     EXPECT_LE(delta, max);
     msg.attach_alarm(std::move(alarm));
@@ -59,8 +64,8 @@ TEST(Msg, EncodeDecodeMsg)
     skal::msg_t msg2(data);
     EXPECT_EQ(msg.timestamp(), msg2.timestamp());
     EXPECT_EQ("test-msg", msg2.name());
-    EXPECT_EQ("skal-external", msg2.sender());
-    EXPECT_EQ("bob", msg2.recipient());
+    EXPECT_EQ("skal-external@abc", msg2.sender());
+    EXPECT_EQ("bob@abc", msg2.recipient());
     EXPECT_EQ(flags, msg2.flags());
     EXPECT_EQ(15, msg2.ttl());
 
@@ -71,7 +76,7 @@ TEST(Msg, EncodeDecodeMsg)
     EXPECT_TRUE(alarm2->is_on());
     EXPECT_FALSE(alarm2->auto_off());
     EXPECT_EQ("This is a test alarm", alarm2->msg());
-    EXPECT_EQ("skal-external", alarm2->origin());
+    EXPECT_EQ("skal-external@abc", alarm2->origin());
     EXPECT_EQ(alarm.timestamp(), alarm2->timestamp());
 
     boost::optional<skal::alarm_t> alarm3(msg2.detach_alarm());

@@ -1,6 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include "skal-msg.hpp"
+#include "detail/skal-msg-detail.hpp"
 #include "detail/skal-log.hpp"
 #include "detail/skal-thread-specific.hpp"
 #include "detail/skal-util.hpp"
@@ -9,24 +10,46 @@
 
 namespace skal {
 
+namespace {
+
+/** Domain this process belongs to
+ *
+ * NB: We don't bother protecting it with a mutex, because it is set once at
+ *     the beginning (from the main thread and with no worker being created
+ *     yet) and never modified again afer that.
+ */
+std::string g_domain = "^INVAL^";
+
+/** Append the local domain to a worker name if no domain is specified */
+std::string worker_name(std::string name)
+{
+    if (name.find('@') != std::string::npos) {
+        return std::move(name);
+    }
+    return name + '@' + g_domain;
+}
+
+} // unnamed namespace
+
 const uint32_t flag_t::out_of_order_ok;
 const uint32_t flag_t::drop_ok;
 const uint32_t flag_t::udp;
 const uint32_t flag_t::ntf_drop;
 const uint32_t flag_t::urgent;
 const uint32_t flag_t::multicast;
-const uint32_t flag_t::internal;
+
+const uint32_t iflag_t::internal;
 
 msg_t::msg_t(std::string name, std::string recipient, uint32_t flags, int8_t ttl)
     : timestamp_(boost::posix_time::microsec_clock::universal_time())
     , name_(std::move(name))
     , sender_(thread_specific().name)
-    , recipient_(std::move(recipient))
+    , recipient_(worker_name(std::move(recipient)))
     , flags_(flags)
     , ttl_(ttl)
 {
     if (sender_.empty()) {
-        sender_ = "skal-external";
+        sender_ = worker_name("skal-external");
     }
 }
 
@@ -259,6 +282,21 @@ std::string msg_t::serialize() const
     std::string output;
     skal_assert(tmp.SerializeToString(&output));
     return output;
+}
+
+void msg_t::sender(std::string sender)
+{
+    sender_ = worker_name(std::move(sender));
+}
+
+const std::string& domain()
+{
+    return g_domain;
+}
+
+void domain(std::string domain)
+{
+    g_domain = std::move(domain);
 }
 
 } // namespace skal
