@@ -1,7 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "detail/skal-util.hpp"
-#include "skal-error.hpp"
+#include <skal/detail/util.hpp>
+#include <skal/error.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/gregorian/gregorian_types.hpp>
 

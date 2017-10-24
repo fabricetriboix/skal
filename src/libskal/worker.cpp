@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "skal-worker.hpp"
+#include <skal/worker.hpp>
 #include <thread>
 #include <mutex>
 #include <map>
@@ -53,6 +53,7 @@ void create_worker(std::string name, process_t process)
 bool pause()
 {
     // TODO
+    return false;
 }
 
 void cancel_pause()

@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "skal-cfg.hpp"
-#include "skal-msg.hpp"
-#include "skal-error.hpp"
+#include <skal/cfg.hpp>
+#include <skal/msg.hpp>
+#include <skal/error.hpp>
 #include <vector>
 #include <memory>
 #include <functional>

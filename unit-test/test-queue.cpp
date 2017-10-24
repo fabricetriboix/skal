@@ -1,8 +1,8 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "detail/skal-queue.hpp"
-#include "detail/skal-msg-detail.hpp"
-#include "detail/skal-thread-specific.hpp"
+#include <skal/detail/queue.hpp>
+#include <skal/detail/msg.hpp>
+#include <skal/detail/thread-specific.hpp>
 #include <gtest/gtest.h>
 
 TEST(Queue, PushAndPop)

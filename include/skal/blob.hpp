@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "skal-cfg.hpp"
-#include "skal-error.hpp"
+#include <skal/cfg.hpp>
+#include <skal/error.hpp>
 #include <cstdint>
 #include <string>
 #include <memory>

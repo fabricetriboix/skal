@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "skal-error.hpp"
+#include <skal/error.hpp>
 #include <iostream>
 #include <exception>
 #include <boost/filesystem.hpp>

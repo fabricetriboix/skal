@@ -1,8 +1,8 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "skal-msg.hpp"
-#include "detail/skal-msg-detail.hpp"
-#include "detail/skal-thread-specific.hpp"
+#include <skal/msg.hpp>
+#include <skal/detail/msg.hpp>
+#include <skal/detail/thread-specific.hpp>
 #include <cstring>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <gtest/gtest.h>

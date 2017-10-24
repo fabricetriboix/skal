@@ -1,9 +1,9 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "skal-blob.hpp"
-#include "skal-error.hpp"
-#include "detail/skal-log.hpp"
-#include "detail/safe-mutex.hpp"
+#include <skal/blob.hpp>
+#include <skal/error.hpp>
+#include <skal/detail/log.hpp>
+#include <skal/detail/safe-mutex.hpp>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>

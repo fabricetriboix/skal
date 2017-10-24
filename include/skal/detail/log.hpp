@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "skal-cfg.hpp"
+#include <skal/cfg.hpp>
 #include <thread>
 #include <string>
 #include <sstream>

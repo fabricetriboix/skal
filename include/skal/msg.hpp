@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include "skal-cfg.hpp"
-#include "skal-error.hpp"
-#include "skal-alarm.hpp"
-#include "skal-blob.hpp"
+#include <skal/cfg.hpp>
+#include <skal/error.hpp>
+#include <skal/alarm.hpp>
+#include <skal/blob.hpp>
 #include <utility>
 #include <vector>
 #include <map>

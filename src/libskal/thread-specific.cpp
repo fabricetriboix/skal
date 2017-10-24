@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "detail/skal-thread-specific.hpp"
+#include <skal/detail/thread-specific.hpp>
 #include <thread>
 
 namespace skal {

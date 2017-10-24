@@ -19,33 +19,36 @@ find_package(Protobuf REQUIRED)
 include_directories(${Protobuf_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 protobuf_generate_cpp(SKAL_MSG_PROTO_SRC SKAL_MSG_PROTO_HDR
-    lib/skal/src/skal-msg.proto)
+    src/libskal/msg.proto)
 
 set(LIBSKAL_SRC
-    lib/skal/include/skal-cfg.hpp
-    lib/skal/include/detail/skal-log.hpp
-    lib/skal/src/skal-log.cpp
-    lib/skal/include/skal-error.hpp
-    lib/skal/src/skal-error.cpp
-    lib/skal/include/detail/skal-util.hpp
-    lib/skal/src/skal-util.cpp
-    lib/skal/include/skal-blob.hpp
-    lib/skal/src/skal-blob.cpp
-    lib/skal/include/skal-alarm.hpp
-    lib/skal/src/skal-alarm.cpp
-    lib/skal/include/skal-msg.hpp
-    lib/skal/src/skal-msg.cpp
-    lib/skal/include/detail/safe-mutex.hpp
-    lib/skal/include/detail/skal-thread-specific.hpp
-    lib/skal/src/skal-thread-specific.cpp
-    lib/skal/include/detail/skal-queue.hpp
-    lib/skal/src/skal-queue.cpp
+    include/skal/cfg.hpp
+    include/skal/error.hpp
+    include/skal/alarm.hpp
+    include/skal/blob.hpp
+    include/skal/msg.hpp
+    include/skal/worker.hpp
+    include/skal/detail/log.hpp
+    include/skal/detail/thread-specific.hpp
+    include/skal/detail/util.hpp
+    include/skal/detail/safe-mutex.hpp
+    include/skal/detail/msg.hpp
+    include/skal/detail/queue.hpp
+    src/libskal/log.cpp
+    src/libskal/thread-specific.cpp
+    src/libskal/util.cpp
+    src/libskal/error.cpp
+    src/libskal/alarm.cpp
+    src/libskal/blob.cpp
+    src/libskal/msg.cpp
+    src/libskal/queue.cpp
+    src/libskal/worker.cpp
     ${SKAL_MSG_PROTO_SRC}
     ${SKAL_MSG_PROTO_HDR}
     )
 
 add_library(skal STATIC ${LIBSKAL_SRC})
-target_include_directories(skal PUBLIC lib/skal/include)
+target_include_directories(skal PUBLIC include)
 target_link_libraries(skal Boost::date_time Boost::filesystem Boost::system
     ${Protobuf_LIBRARIES} rt)
 

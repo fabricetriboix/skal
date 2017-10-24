@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "skal-blob.hpp"
+#include <skal/blob.hpp>
 #include <cstdlib>
 #include <cstring>
 #include <thread>

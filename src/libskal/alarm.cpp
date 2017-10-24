@@ -1,7 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "skal-alarm.hpp"
-#include "detail/skal-thread-specific.hpp"
+#include <skal/alarm.hpp>
+#include <skal/detail/thread-specific.hpp>
 
 namespace skal {
 

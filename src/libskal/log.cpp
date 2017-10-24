@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "detail/skal-log.hpp"
+#include <skal/detail/log.hpp>
 #include <iostream>
 #include <iomanip>
 #include <mutex>

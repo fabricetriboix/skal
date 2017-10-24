@@ -1,11 +1,11 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "skal-msg.hpp"
-#include "detail/skal-msg-detail.hpp"
-#include "detail/skal-log.hpp"
-#include "detail/skal-thread-specific.hpp"
-#include "detail/skal-util.hpp"
-#include "skal-msg.pb.h"
+#include <skal/msg.hpp>
+#include <skal/detail/msg.hpp>
+#include <skal/detail/log.hpp>
+#include <skal/detail/thread-specific.hpp>
+#include <skal/detail/util.hpp>
+#include "msg.pb.h"
 #include <cstring>
 
 namespace skal {
