@@ -87,7 +87,7 @@ TEST(Blob, CopyProxy)
     skal::blob_proxy_t proxy = skal::create_blob("malloc", "", size_B);
     bool thread_ok = true;
     std::thread thread(
-            [&thread_ok, proxy] ()
+            [&thread_ok, &proxy] ()
             {
                 try {
                     skal::blob_proxy_t proxy2 = proxy;

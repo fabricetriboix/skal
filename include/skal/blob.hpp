@@ -159,7 +159,7 @@ public :
     ~blob_proxy_t() = default;
 
     blob_proxy_t(std::unique_ptr<proxy_base_t> base_proxy)
-        : base_proxy_(std::move(base_proxy))
+        : base_proxy_(std::move(base_proxy)), is_mapped_(false)
     {
         skal_assert(base_proxy_);
     }
