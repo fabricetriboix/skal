@@ -50,6 +50,7 @@ target_link_libraries(skal Boost::date_time Boost::filesystem Boost::system
     ${Protobuf_LIBRARIES} rt)
 
 set(LIBSKAL_TEST_SRC
+    unit-test/test-util.cpp
     unit-test/test-blob.cpp
     unit-test/test-msg.cpp
     unit-test/test-queue.cpp

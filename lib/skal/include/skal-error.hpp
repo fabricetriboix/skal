@@ -15,6 +15,12 @@ struct error : public std::runtime_error
     error(const std::string& s) : std::runtime_error(s) { }
 };
 
+/** Invalid URL exception */
+struct bad_url : public error
+{
+    bad_url() : error("skal::bad_url") { }
+};
+
 struct assert_t
 {
     std::ostringstream oss;
