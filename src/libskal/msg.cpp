@@ -3,7 +3,6 @@
 #include <skal/msg.hpp>
 #include <skal/detail/msg.hpp>
 #include <skal/detail/log.hpp>
-#include <skal/detail/thread-specific.hpp>
 #include <skal/detail/util.hpp>
 #include "msg.pb.h"
 #include <cstring>
@@ -23,6 +22,9 @@ std::string g_domain = "^INVAL^";
 /** Append the local domain to a worker name if no domain is specified */
 std::string worker_name(std::string name)
 {
+    if (name.empty()) {
+        return std::move(name);
+    }
     if (name.find('@') != std::string::npos) {
         return std::move(name);
     }
@@ -40,10 +42,11 @@ const uint32_t flag_t::multicast;
 
 const uint32_t iflag_t::internal;
 
-msg_t::msg_t(std::string name, std::string recipient, uint32_t flags, int8_t ttl)
+msg_t::msg_t(std::string name, std::string sender, std::string recipient,
+        uint32_t flags, int8_t ttl)
     : timestamp_(boost::posix_time::microsec_clock::universal_time())
     , name_(std::move(name))
-    , sender_(thread_specific().name)
+    , sender_(worker_name(std::move(sender)))
     , recipient_(worker_name(std::move(recipient)))
     , flags_(flags)
     , ttl_(ttl)
@@ -103,8 +106,8 @@ msg_t::msg_t(std::string data)
             throw bad_msg_format();
         }
 
-        alarm_t alarm(tmp_alarm.name(), severity, tmp_alarm.is_on(),
-                tmp_alarm.auto_off(), tmp_alarm.msg(), tmp_alarm.origin(),
+        alarm_t alarm(tmp_alarm.name(), tmp_alarm.origin(), severity,
+                tmp_alarm.is_on(), tmp_alarm.auto_off(), tmp_alarm.msg(),
                 us_to_ptime(tmp_alarm.timestamp()));
         alarms_.push_back(alarm);
     } // for each alarm

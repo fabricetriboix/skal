@@ -29,13 +29,11 @@ set(LIBSKAL_SRC
     include/skal/msg.hpp
     include/skal/worker.hpp
     include/skal/detail/log.hpp
-    include/skal/detail/thread-specific.hpp
     include/skal/detail/util.hpp
     include/skal/detail/safe-mutex.hpp
     include/skal/detail/msg.hpp
     include/skal/detail/queue.hpp
     src/libskal/log.cpp
-    src/libskal/thread-specific.cpp
     src/libskal/util.cpp
     src/libskal/error.cpp
     src/libskal/alarm.cpp
@@ -56,7 +54,7 @@ set(LIBSKAL_TEST_SRC
     unit-test/test-util.cpp
     unit-test/test-blob.cpp
     unit-test/test-msg.cpp
-    unit-test/test-queue.cpp
+#    unit-test/test-queue.cpp
     )
 add_executable(skal-unit-tests ${LIBSKAL_TEST_SRC})
 target_link_libraries(skal-unit-tests skal gtest gmock_main)

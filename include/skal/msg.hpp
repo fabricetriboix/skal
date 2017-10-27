@@ -111,14 +111,16 @@ public :
      * \param name      [in] Message name; must not be an empty string; please
      *                       note that message names starting with "skal" are
      *                       reserved for skal's own use
+     * \param sender    [in] Name of worker which created this message; empty
+     *                       string if message created outside a skal worker
      * \param recipient [in] Whom to send this message to; this is the name of
      *                       a worker or a multicast group (in which case the
      *                       `flag_t::multicast` flag must also be set)
      * \param flags     [in] Message flag; please refer to `flag_t`
      * \param ttl       [in] Time-to-live counter initial value; <= for default
      */
-    msg_t(std::string name, std::string recipient, uint32_t flags = 0,
-            int8_t ttl = default_ttl);
+    msg_t(std::string name, std::string sender, std::string recipient,
+            uint32_t flags = 0, int8_t ttl = default_ttl);
 
     /** Construct a message from a serialized form
      *
@@ -405,15 +407,6 @@ private :
         iflags_ &= ~flags;
     }
 
-    /** Set the sender
-     *
-     * You should use this method with extreme caution, as the sender is
-     * normally set automatically when the message is created. Calling this
-     * method essentially makes the message pretend it has been sent by
-     * another worker.
-     *
-     * \param sender [in] New sender value
-     */
     void sender(std::string sender);
 
     boost::posix_time::ptime timestamp_;

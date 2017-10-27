@@ -25,14 +25,17 @@ public :
      *
      * \param name     [in] Alarm name; names starting with "skal-" are
      *                      reserved for the skal framework
+     * \param origin   [in] Name of worker which raised/lowered this alarm;
+     *                      empty string if raised/lowered from outside a skal
+     *                      worker
      * \param severity [in] Alarm severity
      * \param is_on    [in] Whether the alarm is on or off
      * \param auto_off [in] Whether the alarm is turned off by the software
      *                      or by a human; this boolean is purely informational
      * \param msg      [in] Free-form, human-readable message
      */
-    alarm_t(std::string name, severity_t severity, bool is_on, bool auto_off,
-            std::string msg);
+    alarm_t(std::string name, std::string origin, severity_t severity,
+            bool is_on, bool auto_off, std::string msg);
 
     alarm_t() = delete;
     ~alarm_t() = default;
@@ -42,11 +45,11 @@ public :
     {
         using std::swap;
         swap(left.name_, right.name_);
+        swap(left.origin_, right.origin_);
         swap(left.severity_, right.severity_);
         swap(left.is_on_, right.is_on_);
         swap(left.auto_off_, right.auto_off_);
         swap(left.msg_, right.msg_);
-        swap(left.origin_, right.origin_);
         swap(left.timestamp_, right.timestamp_);
     }
 
@@ -59,6 +62,11 @@ public :
     const std::string& name() const
     {
         return name_;
+    }
+
+    const std::string& origin() const
+    {
+        return origin_;
     }
 
     severity_t severity() const
@@ -81,16 +89,6 @@ public :
         return msg_;
     }
 
-    /** Get the name of the worker who raised the alarm
-     *
-     * \return Full worker name, or empty string if the worker was not a
-     *         skal thread
-     */
-    const std::string origin() const
-    {
-        return origin_;
-    }
-
     /** Get the timestamp of when this alarm has been raised
      *
      * \return The alarm timestamp
@@ -102,23 +100,23 @@ public :
 
 private :
     std::string name_;
+    std::string origin_;
     severity_t  severity_;
     bool        is_on_;
     bool        auto_off_;
     std::string msg_;
-    std::string origin_;
     boost::posix_time::ptime timestamp_;
 
-    alarm_t(std::string name, severity_t severity, bool is_on, bool auto_off,
-            std::string msg, std::string origin,
+    alarm_t(std::string name, std::string origin, severity_t severity,
+            bool is_on, bool auto_off, std::string msg,
             boost::posix_time::ptime timestamp)
         : name_(std::move(name))
+        , origin_(std::move(origin))
         , severity_(severity)
         , is_on_(is_on)
         , auto_off_(auto_off)
         , msg_(std::move(msg))
-        , origin_(std::move(origin))
-        , timestamp_(timestamp)
+        , timestamp_(std::move(timestamp))
     {
     }
 

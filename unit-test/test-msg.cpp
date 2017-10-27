@@ -2,7 +2,6 @@
 
 #include <skal/msg.hpp>
 #include <skal/detail/msg.hpp>
-#include <skal/detail/thread-specific.hpp>
 #include <cstring>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <gtest/gtest.h>
@@ -10,31 +9,30 @@
 TEST(Msg, EncodeDecodeMsg)
 {
     skal::domain("abc");
-    skal::thread_specific().name = std::string("skal-external@abc");
 
     boost::posix_time::ptime time_point
         = boost::posix_time::microsec_clock::universal_time();
     uint32_t flags = skal::flag_t::udp | skal::flag_t::multicast;
-    skal::msg_t msg("test-msg", "bob", flags, 15);
+    skal::msg_t msg("test-msg", "alice", "bob", flags, 15);
 
     boost::posix_time::time_duration delta = msg.timestamp() - time_point;
     auto max = boost::posix_time::microseconds(500);
     EXPECT_LE(delta, max);
 
     EXPECT_EQ("test-msg", msg.name());
-    EXPECT_EQ("skal-external@abc", msg.sender());
+    EXPECT_EQ("alice@abc", msg.sender());
     EXPECT_EQ("bob@abc", msg.recipient());
     EXPECT_EQ(flags, msg.flags());
     EXPECT_EQ(15, msg.ttl());
 
-    skal::alarm_t alarm("test-alarm", skal::alarm_t::severity_t::warning,
+    skal::alarm_t alarm("test-alarm", "alice", skal::alarm_t::severity_t::warning,
             true, false, "This is a test alarm");
     EXPECT_EQ("test-alarm", alarm.name());
     EXPECT_EQ(skal::alarm_t::severity_t::warning, alarm.severity());
     EXPECT_TRUE(alarm.is_on());
     EXPECT_FALSE(alarm.auto_off());
     EXPECT_EQ("This is a test alarm", alarm.msg());
-    EXPECT_EQ("skal-external@abc", alarm.origin());
+    EXPECT_EQ("alice", alarm.origin());
     delta = alarm.timestamp() - time_point;
     EXPECT_LE(delta, max);
     msg.attach_alarm(std::move(alarm));
@@ -64,7 +62,7 @@ TEST(Msg, EncodeDecodeMsg)
     skal::msg_t msg2(data);
     EXPECT_EQ(msg.timestamp(), msg2.timestamp());
     EXPECT_EQ("test-msg", msg2.name());
-    EXPECT_EQ("skal-external@abc", msg2.sender());
+    EXPECT_EQ("alice@abc", msg2.sender());
     EXPECT_EQ("bob@abc", msg2.recipient());
     EXPECT_EQ(flags, msg2.flags());
     EXPECT_EQ(15, msg2.ttl());
@@ -76,7 +74,7 @@ TEST(Msg, EncodeDecodeMsg)
     EXPECT_TRUE(alarm2->is_on());
     EXPECT_FALSE(alarm2->auto_off());
     EXPECT_EQ("This is a test alarm", alarm2->msg());
-    EXPECT_EQ("skal-external@abc", alarm2->origin());
+    EXPECT_EQ("alice", alarm2->origin());
     EXPECT_EQ(alarm.timestamp(), alarm2->timestamp());
 
     boost::optional<skal::alarm_t> alarm3(msg2.detach_alarm());
