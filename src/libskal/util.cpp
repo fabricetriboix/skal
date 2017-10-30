@@ -35,6 +35,9 @@ void url_t::url(std::string s)
         throw bad_url();
     }
     scheme_ = s.substr(0, pos);
+    if (scheme_.empty()) {
+        throw bad_url();
+    }
     ++pos;
     if ((s[pos] == '/') && (s[pos] == '/')) {
         pos += 2;
@@ -46,6 +49,8 @@ void url_t::url(std::string s)
     if (pos != std::string::npos) {
         path_ = s.substr(pos);
         s = s.substr(0, pos);
+    } else {
+        path_.clear();
     }
 
     // Parse "host:port"
@@ -53,6 +58,8 @@ void url_t::url(std::string s)
     if (pos != std::string::npos) {
         port_ = s.substr(pos+1);
         s = s.substr(0, pos);
+    } else {
+        port_.clear();
     }
     host_ = s;
 

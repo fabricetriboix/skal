@@ -13,9 +13,9 @@
 namespace skal {
 
 /** Exception: this worker is finished */
-struct end_worker : public error
+struct worker_done : public error
 {
-    end_worker() : error("skal::end_worker") { }
+    worker_done() : error("skal::worker_done") { }
 };
 
 /** Type of a functor to process a message
@@ -28,7 +28,7 @@ struct end_worker : public error
  * message queue is empty.
  *
  * If you want to terminate the worker, this functor should throw an exception.
- * That would typically be `end_worker`, but any exception will terminate the
+ * That would typically be `worker_done`, but any exception will terminate the
  * worker with immediate effect.
  *
  * \note This functor is not allowed to block, except for when mapping a blob.
@@ -36,16 +36,19 @@ struct end_worker : public error
  * \param msg [in] Message to process
  *
  * \throw This functor may throw any exception. The worker will be immediately
- *        terminated if an exception is caught. The `end_worker` exception is
+ *        terminated if an exception is caught. The `worker_done` exception is
  *        provided for terminating the worker when you have no good exception
- *        to throw (eg: the worker just finished its job and wants to termiante
+ *        to throw (eg: the worker just finished its job and wants to terminate
  *        cleanly).
  */
-typedef std::function<void(std::unique_ptr<msg_t> msg)> process_t;
+typedef std::function<void(std::unique_ptr<msg_t> msg)> processor_t;
 
-/** Parameters for the worker and its underlying thread */
+/** Parameters for the worker */
 struct worker_params_t
 {
+    std::string name;
+    processor_t processor;
+
     /** Message queue threshold for this worker; use 0 for skal default
      *
      * If the number of messages in the worker's queue reaches this threshold,
@@ -53,20 +56,7 @@ struct worker_params_t
      */
     int64_t queue_threshold = 0;
 
-    /** Stack size for the underlying thread; use 0 for OS default
-     *
-     * Stack size of the worker's underlying thread. You shouldn't need to set
-     * this parameter, think twice before doing it.
-     */
-    int32_t stack_size_B = 0;
-
-    /** CPU affinity
-     *
-     * This is a list of the CPUs the worker should run on. Keep it empty to
-     * not set any CPU affinity. The CPUs are `int` numbers starting at 0 for
-     * the first CPU, 1 for the 2nd, etc.
-     */
-    std::vector<int> cpus;
+    int executor = -1;
 
     /** How long to wait before retrying to send; use 0 for skal default
      *
@@ -82,48 +72,12 @@ struct worker_params_t
     // TODO: stats
 };
 
-// TODO: from here
-/** Initialise this module
- *
- * \param skald_url [in] URL to connect to the local skald, or the empty
- *                       string for the default
- */
-void init_worker(std::string skald_url);
-
 /** Create a worker
  *
  * \param name    [in] Worker name; must be unique within this process
  * \param process [in] Functor to process messages; must not be empty
  * \param params  [in] Worker parameters
  */
-void create_worker(std::string name, process_t process,
-        const worker_params_t& params);
-
-/** Create a worker with default values for all its parameters
- *
- * \param name    [in] Worker name; must be unique within this process
- * \param process [in] Functor to process messages; must not be empty
- */
-void create_worker(std::string name, process_t process);
-
-/** Pause the execution of the calling thread
- *
- * This call blocks until either (a) all the workers have finished or (b) the
- * `cancel_pause()` function is called.
- *
- * This call can typically be used by the main thread once all the workers have
- * been created.
- *
- * \return `true` if all workers have terminated, or `false` if
- *         `cancel_pause()` has been called
- */
-bool pause();
-
-/** Cancel a `pause()`
- *
- * This can typically be used when the process needs to terminate, for example
- * when a signal such as SIGTERM as been received.
- */
-void cancel_pause();
+void create_worker(const worker_params_t& params);
 
 } // namespace skal

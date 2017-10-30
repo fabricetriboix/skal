@@ -4,34 +4,11 @@
 #include <skal/detail/msg.hpp>
 #include <skal/detail/log.hpp>
 #include <skal/detail/util.hpp>
+#include <skal/detail/domain.hpp>
 #include "msg.pb.h"
 #include <cstring>
 
 namespace skal {
-
-namespace {
-
-/** Domain this process belongs to
- *
- * NB: We don't bother protecting it with a mutex, because it is set once at
- *     the beginning (from the main thread and with no worker being created
- *     yet) and never modified again afer that.
- */
-std::string g_domain = "^INVAL^";
-
-/** Append the local domain to a worker name if no domain is specified */
-std::string worker_name(std::string name)
-{
-    if (name.empty()) {
-        return std::move(name);
-    }
-    if (name.find('@') != std::string::npos) {
-        return std::move(name);
-    }
-    return name + '@' + g_domain;
-}
-
-} // unnamed namespace
 
 const uint32_t flag_t::out_of_order_ok;
 const uint32_t flag_t::drop_ok;
@@ -290,16 +267,6 @@ std::string msg_t::serialize() const
 void msg_t::sender(std::string sender)
 {
     sender_ = worker_name(std::move(sender));
-}
-
-const std::string& domain()
-{
-    return g_domain;
-}
-
-void domain(std::string domain)
-{
-    g_domain = std::move(domain);
 }
 
 } // namespace skal

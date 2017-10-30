@@ -8,9 +8,7 @@
 #include <utility>
 #include <functional>
 #include <mutex>
-#include <condition_variable>
 #include <list>
-#include <utility>
 #include <boost/noncopyable.hpp>
 
 namespace skal {
@@ -76,28 +74,15 @@ public :
 
     /** Pop a message from the queue
      *
-     * This is a blocking method. There are only a few blocking methods in
-     * the skal framework, and this is the main one. If the queue is not empty,
-     * it will pop out the message at the front of the queue. Otherwise, it
-     * will block until a message is pushed into the queue.
-     *
      * If the `internal_only` argument is set, urgent and regular messages are
      * ignored, and only internal messages are popped. If there are no internal
-     * messages, this method blocks regardless of whether or not urgent or
-     * regular messages are available.
+     * messages, this method returns an empty pointer regardless of whether or
+     * not urgent or regular messages are available.
      *
      * Messages are popped in the following order:
      *  - Internal messages first
      *  - If there are no internal message pending, urgent messages
      *  - Otherwise, regular messages
-     *
-     * \param internal_only [in] Whether to pop internal messages only
-     *
-     * \return The popped message, never an empty pointer
-     */
-    std::unique_ptr<msg_t> pop_BLOCKING(bool internal_only = false);
-
-    /** Pop a message from the queue, non-blocking version
      *
      * \param internal_only [in] Whether to pop internal messages only
      *
@@ -111,7 +96,7 @@ public :
      */
     size_t size() const;
 
-    bool empty() const
+    bool is_empty() const
     {
         return size() == 0;
     }
@@ -129,7 +114,6 @@ private :
     size_t threshold_;
     ntf_t ntf_;
     mutable std::mutex mutex_;
-    std::condition_variable cv_;
     std::list<std::unique_ptr<msg_t>> internal_;
     std::list<std::unique_ptr<msg_t>> urgent_;
     std::list<std::unique_ptr<msg_t>> regular_;

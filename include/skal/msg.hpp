@@ -108,18 +108,18 @@ public :
 
     /** Constructor
      *
-     * \param name      [in] Message name; must not be an empty string; please
-     *                       note that message names starting with "skal" are
-     *                       reserved for skal's own use
      * \param sender    [in] Name of worker which created this message; empty
      *                       string if message created outside a skal worker
      * \param recipient [in] Whom to send this message to; this is the name of
      *                       a worker or a multicast group (in which case the
      *                       `flag_t::multicast` flag must also be set)
+     * \param name      [in] Message action; must not be an empty string;
+     *                       please note that message actions starting with
+     *                       "skal" are reserved for skal's own use
      * \param flags     [in] Message flag; please refer to `flag_t`
      * \param ttl       [in] Time-to-live counter initial value; <= for default
      */
-    msg_t(std::string name, std::string sender, std::string recipient,
+    msg_t(std::string sender, std::string recipient, std::string action,
             uint32_t flags = 0, int8_t ttl = default_ttl);
 
     /** Construct a message from a serialized form
@@ -160,11 +160,6 @@ public :
         return timestamp_;
     }
 
-    const std::string& name() const
-    {
-        return name_;
-    }
-
     /** Get the message sender
      *
      * This is the name of the worker who sent this message. If this message
@@ -181,6 +176,11 @@ public :
     const std::string& recipient() const
     {
         return recipient_;
+    }
+
+    const std::string& action() const
+    {
+        return action_;
     }
 
     uint32_t flags() const
@@ -410,9 +410,9 @@ private :
     void sender(std::string sender);
 
     boost::posix_time::ptime timestamp_;
-    std::string              name_;
     std::string              sender_;
     std::string              recipient_;
+    std::string              action_;
     uint32_t                 flags_;
     uint32_t                 iflags_;
     int8_t                   ttl_;
