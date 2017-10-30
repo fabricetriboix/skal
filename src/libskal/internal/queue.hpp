@@ -66,7 +66,8 @@ public :
 
     /** Push a message into the queue
      *
-     * This method always succeeds.
+     * This method always succeeds. If a notification functor has been
+     * registered, it will be called.
      *
      * \param msg [in] Message to push; must not be an empty pointer
      */
@@ -117,6 +118,11 @@ private :
     std::list<std::unique_ptr<msg_t>> internal_;
     std::list<std::unique_ptr<msg_t>> urgent_;
     std::list<std::unique_ptr<msg_t>> regular_;
+
+    size_t calc_size() const
+    {
+        return internal_.size() + urgent_.size() + regular_.size();
+    }
 
     typedef std::unique_lock<std::mutex> lock_t;
 };

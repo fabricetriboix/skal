@@ -39,15 +39,15 @@ std::mutex g_mutex;
 /** Map of workers */
 std::map<std::string, worker_t> g_workers;
 
-void create_worker(std::string name, process_t process,
+void create_worker(std::string name, processor_t processor,
         const worker_params_t& params)
 {
     // TODO
 }
 
-void create_worker(std::string name, process_t process)
+void create_worker(std::string name, processor_t processor)
 {
-    create_worker(std::move(name), process, worker_params_t());
+    create_worker(std::move(name), processor, worker_params_t());
 }
 
 bool pause()

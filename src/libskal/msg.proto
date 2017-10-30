@@ -47,9 +47,9 @@ message BlobField {
 message Msg {
     required uint32 version = 1;
     optional int64 timestamp = 2;
-    optional string name = 3;
-    optional string sender = 4;
-    optional string recipient = 5;
+    optional string sender = 3;
+    optional string recipient = 4;
+    optional string action = 5;
     optional int32 ttl = 6;
     optional uint32 flags = 7;
     optional uint32 iflags = 8;

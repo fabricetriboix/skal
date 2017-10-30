@@ -31,11 +31,13 @@ set(LIBSKAL_SRC
     include/skal/detail/log.hpp
     include/skal/detail/util.hpp
     include/skal/detail/safe-mutex.hpp
-    include/skal/detail/msg.hpp
-    include/skal/detail/queue.hpp
+    src/libskal/internal/domain.hpp
+    src/libskal/internal/msg.hpp
+    src/libskal/internal/queue.hpp
     src/libskal/log.cpp
     src/libskal/util.cpp
     src/libskal/error.cpp
+    src/libskal/domain.cpp
     src/libskal/alarm.cpp
     src/libskal/blob.cpp
     src/libskal/msg.cpp
@@ -46,7 +48,7 @@ set(LIBSKAL_SRC
     )
 
 add_library(skal STATIC ${LIBSKAL_SRC})
-target_include_directories(skal PUBLIC include)
+target_include_directories(skal PUBLIC include PRIVATE src/libskal)
 target_link_libraries(skal Boost::date_time Boost::filesystem Boost::system
     ${Protobuf_LIBRARIES} rt)
 
@@ -57,5 +59,6 @@ set(LIBSKAL_TEST_SRC
 #    unit-test/test-queue.cpp
     )
 add_executable(skal-unit-tests ${LIBSKAL_TEST_SRC})
+target_include_directories(skal-unit-tests PRIVATE src/libskal)
 target_link_libraries(skal-unit-tests skal gtest gmock_main)
 add_test(NAME skal-unit-tests COMMAND skal-unit-tests)

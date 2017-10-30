@@ -11,26 +11,20 @@
 #include <map>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/optional.hpp>
+#include <boost/noncopyable.hpp>
 
 namespace skal {
 
-/** Exception class: bad message */
-struct bad_msg : public error
-{
-    bad_msg() : error("skal::bad_msg") { }
-    bad_msg(const std::string& s) : error(s) { }
-};
-
 /** Exception class: received a message that can't be parsed */
-struct bad_msg_format : public bad_msg
+struct bad_msg_format : public error
 {
-    bad_msg_format() : bad_msg("skal::bad_msg_format") { }
+    bad_msg_format() : error("skal::bad_msg_format") { }
 };
 
 /** Exception class: received a message with an unsupported version number */
-struct bad_msg_version : public bad_msg
+struct bad_msg_version : public error
 {
-    bad_msg_version() : bad_msg("skal::bad_msg_version") { }
+    bad_msg_version() : error("skal::bad_msg_version") { }
 };
 
 struct flag_t final
@@ -100,7 +94,7 @@ typedef std::vector<uint8_t> miniblob_t;
 class queue_t;
 
 /** Class that represents a message */
-class msg_t final
+class msg_t final : boost::noncopyable
 {
 public :
     msg_t() = delete;
@@ -113,7 +107,7 @@ public :
      * \param recipient [in] Whom to send this message to; this is the name of
      *                       a worker or a multicast group (in which case the
      *                       `flag_t::multicast` flag must also be set)
-     * \param name      [in] Message action; must not be an empty string;
+     * \param action    [in] Message action; must not be an empty string;
      *                       please note that message actions starting with
      *                       "skal" are reserved for skal's own use
      * \param flags     [in] Message flag; please refer to `flag_t`
@@ -126,7 +120,10 @@ public :
      *
      * \param data [in] Serialized form of the message
      *
-     * \throw `bad_msg` if `data` is not valid
+     * \throw `bad_msg_format` if `data` is not valid
+     *
+     * \throw `bad_msg_version` if `data` encodes a message of an unsupported
+     *        message version
      *
      * \throw `std::out_of_range` if an attached blob refers to a non-existent
      *        allocator
@@ -134,22 +131,6 @@ public :
      * \throw `bad_blob` if an attached blob can't be opened
      */
     explicit msg_t(std::string data);
-
-    /** Copy-constructor */
-    msg_t(const msg_t&);
-
-    /** Move-constructor */
-    msg_t(msg_t&&);
-
-    /** Copy-assignment operator
-     *
-     * NB: We don't use the copy-and-swap idiom because we want the
-     *     move-assignment operator to be very fast.
-     */
-    msg_t& operator=(const msg_t&);
-
-    /** Move-assignment operator */
-    msg_t& operator=(msg_t&&);
 
     /** Get the timestamp of when this message had been created
      *
@@ -160,14 +141,6 @@ public :
         return timestamp_;
     }
 
-    /** Get the message sender
-     *
-     * This is the name of the worker who sent this message. If this message
-     * had been sent from a thread that is not managed by skal, this will be
-     * an empty string.
-     *
-     * \return The message sender
-     */
     const std::string& sender() const
     {
         return sender_;

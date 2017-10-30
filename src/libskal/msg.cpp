@@ -1,10 +1,10 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include <skal/detail/msg.hpp>
+#include "internal/msg.hpp"
+#include "internal/domain.hpp"
 #include <skal/detail/log.hpp>
 #include <skal/detail/util.hpp>
-#include <skal/detail/domain.hpp>
 #include "msg.pb.h"
 #include <cstring>
 
@@ -19,12 +19,12 @@ const uint32_t flag_t::multicast;
 
 const uint32_t iflag_t::internal;
 
-msg_t::msg_t(std::string name, std::string sender, std::string recipient,
+msg_t::msg_t(std::string sender, std::string recipient, std::string action,
         uint32_t flags, int8_t ttl)
     : timestamp_(boost::posix_time::microsec_clock::universal_time())
-    , name_(std::move(name))
     , sender_(worker_name(std::move(sender)))
     , recipient_(worker_name(std::move(recipient)))
+    , action_(std::move(action))
     , flags_(flags)
     , ttl_(ttl)
 {
@@ -46,8 +46,8 @@ msg_t::msg_t(std::string data)
             tmp.version() << "; I only support " << msg_version;
         throw bad_msg_version();
     }
-    if (!tmp.has_timestamp() || !tmp.has_name() || !tmp.has_sender()
-            || !tmp.has_recipient() || !tmp.has_ttl())
+    if (!tmp.has_timestamp() || !tmp.has_sender() || !tmp.has_recipient()
+            || !tmp.has_action() || !tmp.has_ttl())
     {
         SKAL_LOG(warning)
             << "Received a message that is missing required fields";
@@ -55,9 +55,9 @@ msg_t::msg_t(std::string data)
     }
 
     timestamp_ = us_to_ptime(tmp.timestamp());
-    name_ = tmp.name();
     sender_ = tmp.sender();
     recipient_ = tmp.recipient();
+    action_ = tmp.action();
     flags_ = tmp.flags();
     iflags_ = tmp.iflags();
     ttl_ = tmp.ttl();
@@ -115,76 +115,6 @@ msg_t::msg_t(std::string data)
     }
 }
 
-msg_t::msg_t(const msg_t& right)
-    : timestamp_(right.timestamp_)
-    , name_(right.name_)
-    , sender_(right.sender_)
-    , recipient_(right.recipient_)
-    , flags_(right.flags_)
-    , iflags_(right.iflags_)
-    , ttl_(right.ttl_)
-    , alarms_(right.alarms_)
-    , ints_(right.ints_)
-    , doubles_(right.doubles_)
-    , strings_(right.strings_)
-    , miniblobs_(right.miniblobs_)
-    , blobs_(right.blobs_)
-{
-}
-
-msg_t::msg_t(msg_t&& right)
-    : timestamp_(std::move(right.timestamp_))
-    , name_(std::move(right.name_))
-    , sender_(std::move(right.sender_))
-    , recipient_(std::move(right.recipient_))
-    , flags_(right.flags_)
-    , iflags_(right.iflags_)
-    , ttl_(right.ttl_)
-    , alarms_(std::move(right.alarms_))
-    , ints_(std::move(right.ints_))
-    , doubles_(std::move(right.doubles_))
-    , strings_(std::move(right.strings_))
-    , miniblobs_(std::move(right.miniblobs_))
-    , blobs_(std::move(right.blobs_))
-{
-}
-
-msg_t& msg_t::operator=(const msg_t& right)
-{
-    timestamp_ = right.timestamp_;
-    name_ = right.name_;
-    sender_ = right.sender_;
-    recipient_ = right.recipient_;
-    flags_ = right.flags_;
-    iflags_ = right.iflags_;
-    ttl_ = right.ttl_;
-    alarms_ = right.alarms_;
-    ints_ = right.ints_;
-    doubles_ = right.doubles_;
-    strings_ = right.strings_;
-    miniblobs_ = right.miniblobs_;
-    blobs_ = right.blobs_;
-    return *this;
-}
-
-msg_t& msg_t::operator=(msg_t&& right)
-{
-    timestamp_ = std::move(right.timestamp_);
-    name_ = std::move(right.name_);
-    sender_ = std::move(right.sender_);
-    recipient_ = std::move(right.recipient_);
-    flags_ = right.flags_;
-    iflags_ = right.iflags_;
-    ttl_ = right.ttl_;
-    alarms_ = std::move(right.alarms_);
-    ints_ = std::move(right.ints_);
-    doubles_ = std::move(right.doubles_);
-    strings_ = std::move(right.strings_);
-    miniblobs_ = std::move(right.miniblobs_);
-    blobs_ = std::move(right.blobs_);
-    return *this;
-}
-
 boost::optional<alarm_t> msg_t::detach_alarm()
 {
     if (alarms_.empty()) {
@@ -200,9 +130,9 @@ std::string msg_t::serialize() const
     Msg tmp;
     tmp.set_version(msg_version);
     tmp.set_timestamp(ptime_to_us(timestamp_));
-    tmp.set_name(name_);
     tmp.set_sender(sender_);
     tmp.set_recipient(recipient_);
+    tmp.set_action(action_);
     tmp.set_flags(flags_);
     tmp.set_iflags(iflags_);
     tmp.set_ttl(ttl_);

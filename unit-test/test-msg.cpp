@@ -1,7 +1,8 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include <skal/detail/msg.hpp>
+#include "internal/domain.hpp"
+#include "internal/msg.hpp"
 #include <cstring>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <gtest/gtest.h>
@@ -13,13 +14,13 @@ TEST(Msg, EncodeDecodeMsg)
     boost::posix_time::ptime time_point
         = boost::posix_time::microsec_clock::universal_time();
     uint32_t flags = skal::flag_t::udp | skal::flag_t::multicast;
-    skal::msg_t msg("test-msg", "alice", "bob", flags, 15);
+    skal::msg_t msg("alice", "bob", "test-msg", flags, 15);
 
     boost::posix_time::time_duration delta = msg.timestamp() - time_point;
     auto max = boost::posix_time::microseconds(500);
     EXPECT_LE(delta, max);
 
-    EXPECT_EQ("test-msg", msg.name());
+    EXPECT_EQ("test-msg", msg.action());
     EXPECT_EQ("alice@abc", msg.sender());
     EXPECT_EQ("bob@abc", msg.recipient());
     EXPECT_EQ(flags, msg.flags());
@@ -61,7 +62,7 @@ TEST(Msg, EncodeDecodeMsg)
     // De-serialize the message and check its content
     skal::msg_t msg2(data);
     EXPECT_EQ(msg.timestamp(), msg2.timestamp());
-    EXPECT_EQ("test-msg", msg2.name());
+    EXPECT_EQ("test-msg", msg2.action());
     EXPECT_EQ("alice@abc", msg2.sender());
     EXPECT_EQ("bob@abc", msg2.recipient());
     EXPECT_EQ(flags, msg2.flags());
