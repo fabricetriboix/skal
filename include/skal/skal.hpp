@@ -12,14 +12,23 @@
 
 namespace skal {
 
+/** How to schedule workers when there is contention */
+enum class policy_t {
+    carousel, /**< Each in turn */
+    priority, /**< Higher priority first */
+    biggest,  /**< Worker with most pending messages first */
+};
+
 /** Executor configuration */
-struct exec_cfg_t
+struct executor_t
 {
     /** CPU number to run this executor on
      *
      * The first CPU is number 0, 2nd CPU number 1, etc.
      */
-    size_t cpu;
+    int cpu;
+
+    policy_t policy;
 };
 
 /** Run the skal framework
@@ -38,9 +47,8 @@ struct exec_cfg_t
  *
  * \throw `bad_url` if `skald_url` is malformatted
  */
-void run_skal(std::string skald_url,
-        std::vector<exec_cfg_t> exec_cfgs,
-        std::vector<worker_params_t> workers);
+void run_skal(std::string skald_url, std::vector<executor_t> executors,
+        std::vector<worker_t> workers);
 
 /** Terminate the skal framework
  *

@@ -21,6 +21,12 @@ struct bad_url : public error
     bad_url() : error("skal::bad_url") { }
 };
 
+/** Duplicated name, typically of a worker's name */
+struct duplicate_error : public error
+{
+    duplicate_error() : error("skal::duplicate_error") { }
+};
+
 struct assert_t
 {
     std::ostringstream oss;

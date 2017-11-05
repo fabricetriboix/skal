@@ -1,8 +1,8 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include "internal/msg.hpp"
-#include "internal/domain.hpp"
+#include <internal/msg.hpp>
+#include <internal/domain.hpp>
 #include <skal/detail/log.hpp>
 #include <skal/detail/util.hpp>
 #include "msg.pb.h"

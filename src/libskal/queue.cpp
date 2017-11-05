@@ -1,7 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include "internal/queue.hpp"
-#include "internal/msg.hpp"
+#include <internal/queue.hpp>
+#include <internal/msg.hpp>
 #include <skal/detail/log.hpp>
 
 namespace skal {

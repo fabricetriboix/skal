@@ -22,27 +22,29 @@ protobuf_generate_cpp(SKAL_MSG_PROTO_SRC SKAL_MSG_PROTO_HDR
     src/libskal/msg.proto)
 
 set(LIBSKAL_SRC
-    include/skal/cfg.hpp
-    include/skal/error.hpp
     include/skal/alarm.hpp
     include/skal/blob.hpp
+    include/skal/cfg.hpp
+    include/skal/error.hpp
     include/skal/msg.hpp
     include/skal/worker.hpp
     include/skal/detail/log.hpp
-    include/skal/detail/util.hpp
     include/skal/detail/safe-mutex.hpp
+    include/skal/detail/semaphore.hpp
+    include/skal/detail/util.hpp
     src/libskal/internal/domain.hpp
+    src/libskal/internal/job.hpp
     src/libskal/internal/msg.hpp
     src/libskal/internal/queue.hpp
-    src/libskal/log.cpp
-    src/libskal/util.cpp
-    src/libskal/error.cpp
-    src/libskal/domain.cpp
     src/libskal/alarm.cpp
     src/libskal/blob.cpp
+    src/libskal/domain.cpp
+    src/libskal/error.cpp
+    src/libskal/job.cpp
+    src/libskal/log.cpp
     src/libskal/msg.cpp
     src/libskal/queue.cpp
-    src/libskal/worker.cpp
+    src/libskal/util.cpp
     ${SKAL_MSG_PROTO_SRC}
     ${SKAL_MSG_PROTO_HDR}
     )
