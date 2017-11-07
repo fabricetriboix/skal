@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 #include <map>
+#include <memory>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/optional.hpp>
 #include <boost/noncopyable.hpp>
@@ -92,6 +93,8 @@ struct flag_t final
 typedef std::vector<uint8_t> miniblob_t;
 
 class queue_t;
+class msg_t;
+typedef std::unique_ptr<msg_t> msg_ptr_t;
 
 /** Class that represents a message */
 class msg_t final : boost::noncopyable
@@ -116,6 +119,14 @@ public :
     msg_t(std::string sender, std::string recipient, std::string action,
             uint32_t flags = 0, int8_t ttl = default_ttl);
 
+    /** Utility function to create a msg */
+    static msg_ptr_t create(std::string sender, std::string recipient,
+            std::string action, uint32_t flags = 0, int8_t ttl = default_ttl)
+    {
+        return std::make_unique<msg_t>(std::move(sender), std::move(recipient),
+                std::move(action), flags, ttl);
+    }
+
     /** Construct a message from a serialized form
      *
      * \param data [in] Serialized form of the message
@@ -131,6 +142,11 @@ public :
      * \throw `bad_blob` if an attached blob can't be opened
      */
     explicit msg_t(std::string data);
+
+    static msg_ptr_t create(std::string data)
+    {
+        return std::make_unique<msg_t>(std::move(data));
+    }
 
     /** Get the timestamp of when this message had been created
      *

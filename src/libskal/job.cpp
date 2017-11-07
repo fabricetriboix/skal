@@ -3,14 +3,13 @@
 #include <internal/job.hpp>
 #include <mutex>
 #include <unordered_map>
-#include <memory>
 #include <algorithm>
 
 namespace skal {
 
 namespace {
 
-typedef std::unordered_map<std::string, std::unique_ptr<job_t>> jobs_t;
+typedef std::unordered_map<std::string, job_t*> jobs_t;
 jobs_t g_jobs;
 std::mutex g_mutex;
 
@@ -25,12 +24,13 @@ job_t::lock_t job_t::get_lock()
     return lock_t();
 }
 
-void job_t::add(const worker_t& worker, queue_t::ntf_t ntf)
+void job_t::add(const std::string& worker_name, job_t* job)
 {
-    if (lookup(worker.name) != nullptr) {
+    skal_assert(job != nullptr);
+    if (lookup(worker_name) != nullptr) {
         throw duplicate_error();
     }
-    g_jobs[worker.name] = std::make_unique<job_t>(worker, ntf);
+    g_jobs[worker_name] = job;
 }
 
 void job_t::remove(const std::string& worker_name)
@@ -42,7 +42,7 @@ job_t* job_t::lookup(const std::string& worker_name)
 {
     jobs_t::iterator it = g_jobs.find(worker_name);
     if (it != g_jobs.end()) {
-        return it->second.get();
+        return it->second;
     } else {
         return nullptr;
     }

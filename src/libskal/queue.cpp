@@ -6,10 +6,9 @@
 
 namespace skal {
 
-void queue_t::push(std::unique_ptr<msg_t> msg)
+void queue_t::push(msg_ptr_t msg)
 {
     skal_assert(msg);
-    lock_t lock(mutex_);
     if (msg->iflags() & iflag_t::internal) {
         internal_.push_back(std::move(msg));
     } else if (msg->flags() & flag_t::urgent) {
@@ -22,10 +21,9 @@ void queue_t::push(std::unique_ptr<msg_t> msg)
     }
 }
 
-std::unique_ptr<msg_t> queue_t::pop(bool internal_only)
+msg_ptr_t queue_t::pop(bool internal_only)
 {
-    lock_t lock(mutex_);
-    std::unique_ptr<msg_t> msg;
+    msg_ptr_t msg;
     if (!internal_.empty()) {
         msg = std::move(internal_.front());
         internal_.pop_front();
@@ -39,26 +37,6 @@ std::unique_ptr<msg_t> queue_t::pop(bool internal_only)
         }
     }
     return std::move(msg);
-}
-
-size_t queue_t::size() const
-{
-    lock_t lock(mutex_);
-    return calc_size();
-}
-
-bool queue_t::is_full() const
-{
-    lock_t lock(mutex_);
-    size_t size = calc_size();
-    return size >= threshold_;
-}
-
-bool queue_t::is_half_full() const
-{
-    lock_t lock(mutex_);
-    size_t size = calc_size();
-    return size >= (threshold_ / 2);
 }
 
 } // namespace skal

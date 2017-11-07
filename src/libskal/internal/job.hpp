@@ -40,7 +40,7 @@ struct job_t final : boost::noncopyable
     /** Names of workers to notify when they can start sending again */
     std::set<std::string> ntf_xon;
 
-    explicit job_t(const worker_t& worker, queue_t::ntf_t ntf)
+    job_t(const worker_t& worker, queue_t::ntf_t ntf)
         : priority(worker.priority)
         , queue(worker.queue_threshold, ntf)
         , process_msg(worker.process_msg)
@@ -67,13 +67,13 @@ struct job_t final : boost::noncopyable
      *
      * You must have locked the global structure using `get_lock()` beforehand.
      *
-     * \param worker [in] Worker to add
-     * \param ntf    [in] Functor to be called every time a message is pushed
-     *                    into that job's queue
+     * \param worker_name [in] Name of worker of job to add
+     * \param job         [in] Pointer to job to add, the caller owns the job
+     *                         object; must not be `nullptr`
      *
      * \throw `duplicate_error` if a job already exists for that worker
      */
-    static void add(const worker_t& worker, queue_t::ntf_t ntf);
+    static void add(const std::string& worker_name, job_t* job);
 
     /** Remove a job
      *

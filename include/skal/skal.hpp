@@ -14,21 +14,23 @@ namespace skal {
 
 /** How to schedule workers when there is contention */
 enum class policy_t {
+    biggest,  /**< Worker with most pending messages first */
+    biggest,  /**< Worker with most pending messages first */
     carousel, /**< Each in turn */
     priority, /**< Higher priority first */
-    biggest,  /**< Worker with most pending messages first */
 };
 
 /** Executor configuration */
 struct executor_t
 {
-    /** CPU number to run this executor on
-     *
-     * The first CPU is number 0, 2nd CPU number 1, etc.
-     */
-    int cpu;
-
     policy_t policy;
+};
+
+/** Parameters of the skal framework */
+struct params_t
+{
+    /** URL to connect to skald; use empty string for default */
+    std::string skald_url;
 };
 
 /** Run the skal framework
@@ -39,15 +41,13 @@ struct executor_t
  * This function blocks until the skal framework is ordered to shut down by
  * a call to `terminate_skal()`.
  *
- * \param skald_url    [in] URL to connect to skald; use empty string for
- *                          default
- * \param workers      [in] Initial workers; must not be empty
- * \param exec_cfgs    [in] Executor configurations; use empty vector for
- *                          default
+ * \param params    [in] Parameters of the skal framework
+ * \param workers   [in] Initial workers; must not be empty
+ * \param executors [in] Executor configurations; use empty vector for default
  *
- * \throw `bad_url` if `skald_url` is malformatted
+ * \throw `bad_url` if `params.skald_url` is malformatted
  */
-void run_skal(std::string skald_url, std::vector<executor_t> executors,
+void run_skal(const params_t& params, std::vector<executor_t> executors,
         std::vector<worker_t> workers);
 
 /** Terminate the skal framework

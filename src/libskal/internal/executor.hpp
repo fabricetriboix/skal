@@ -2,40 +2,58 @@
 
 #pragma once
 
-#include <skal/cfg.hpp>
-#include <skal/worker.hpp>
-#include <internal/policy.hpp>
+#include <skal/skal.hpp>
+#include <internal/semaphore.hpp>
+#include <internal/job.hpp>
 #include <memory>
 #include <list>
 #include <mutex>
 #include <thread>
+#include <utility>
 #include <boost/noncopyable.hpp>
 
 namespace skal {
 
+/** Executor class */
 class executor_t final : boost::noncopyable
 {
+    typedef std::unique_lock<std::mutex> lock_t;
+    mutable std::mutex mutex_; /**< Mutex to protect `workers_to_add_` */
+    std::list<worker_t> workers_to_add_;
+
+    ft::semaphore_t semaphore_;
+    // TODO std::unique_ptr<policy_interface_t> policy_;
+    std::thread thread_;
+    jobs_t jobs_;
+
+    /** Thread entry point */
+    void run();
+
+    /** Create a job for the given worker */
+    void create_job(worker_t worker);
+
 public :
     executor_t() = delete;
     ~executor_t();
 
+    typedef std::list<std::unique_ptr<job_t>> jobs_t;
+
     /** Constructor
      *
-     * \param cpu [in] CPU to run this executor on
+     * \param policy [in] Type of policy to use
      */
-    executor_t(int cpu, std::unique_ptr<policy_interface_t> policy);
+    explicit executor_t(policy_t policy);
 
     /** Add a worker to be executed on this executor
      *
-     * \param params [in] Worker's parameters
+     * \param worker [in] Worker to add
      */
-    void add(const worker_t& params);
-
-private :
-    mutable std::mutex mutex_;
-    typedef std::unique_lock<std::mutex> lock_t;
-    std::thread thread_;
-    std::unique_ptr<policy_interface_t> policy_;
+    void add(worker_t worker)
+    {
+        lock_t lock(mutex_);
+        workers_to_add_.push_back(std::move(worker));
+        semaphore_.post();
+    }
 };
 
 } // namespace skal

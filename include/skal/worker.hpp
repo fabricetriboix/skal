@@ -58,7 +58,6 @@ struct worker_t
         , process_msg(process)
         , priority(0)
         , queue_threshold(default_queue_threshold)
-        , cpu(-1)
         , xoff_timeout(default_xoff_timeout)
     {
     }
@@ -97,14 +96,6 @@ struct worker_t
      * Must be >0.
      */
     int64_t queue_threshold;
-
-    /** CPU this worker should run on
-     *
-     * This must be either -1, which means that the worker will be allocated
-     * to an executor in an arbitrary manner, or a CPU number on which an
-     * executor is running (please refer to `run_skal()` for more information).
-     */
-    int cpu;
 
     /** How long to wait before retrying to send
      *

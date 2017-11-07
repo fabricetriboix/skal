@@ -7,7 +7,6 @@
 #include <skal/msg.hpp>
 #include <utility>
 #include <functional>
-#include <mutex>
 #include <list>
 #include <boost/noncopyable.hpp>
 
@@ -19,23 +18,6 @@ namespace skal {
  * messages, urgent messages and internal messages. Internal messages are for
  * the skal framework internal communications and are not directly available to
  * the client software.
- *
- * A number of assumptions have been made in the design of this message queue,
- * which is tailored for a specific usage. In essence, this queue is meant to
- * hold messages to be delivered to only one thread; this means that only that
- * thread will ever pop messages from it.
- *
- * In addition, it is assumed the queue is created before the thread and
- * destroyed after it.
- *
- * Finally, it is assumed that whomever pushes messages into the queue has the
- * knowledge that the thread had terminated or not. Therefore, the pusher will
- * not attempt to push into the queue once the queue's thread had terminated.
- *
- * The consequence of all these assumptions is that the queue destructor does
- * not need to perform any checks are be careful about anything, because when
- * the queue is destroyed, it is not used by either a pusher thread or the
- * recipient thread.
  */
 class queue_t final : boost::noncopyable
 {
@@ -71,7 +53,7 @@ public :
      *
      * \param msg [in] Message to push; must not be an empty pointer
      */
-    void push(std::unique_ptr<msg_t> msg);
+    void push(msg_ptr_t msg);
 
     /** Pop a message from the queue
      *
@@ -89,13 +71,16 @@ public :
      *
      * \return The popped message, or an empty pointer if no message to pop
      */
-    std::unique_ptr<msg_t> pop(bool internal_only = false);
+    msg_ptr_t pop(bool internal_only = false);
 
     /** Get the number of pending messages
      *
      * \return The number of pending messages
      */
-    size_t size() const;
+    size_t size() const
+    {
+        return internal_.size() + urgent_.size() + regular_.size();
+    }
 
     bool is_empty() const
     {
@@ -106,25 +91,23 @@ public :
      *
      * The queue is full if there are more than `threshold` messages.
      */
-    bool is_full() const;
+    bool is_full() const
+    {
+        return size() >= threshold_;
+    }
 
     /** Check if the queue is half-full */
-    bool is_half_full() const;
+    bool is_half_full() const
+    {
+        return size() >= (threshold_ / 2);
+    }
 
 private :
     size_t threshold_;
     ntf_t ntf_;
-    mutable std::mutex mutex_;
-    std::list<std::unique_ptr<msg_t>> internal_;
-    std::list<std::unique_ptr<msg_t>> urgent_;
-    std::list<std::unique_ptr<msg_t>> regular_;
-
-    size_t calc_size() const
-    {
-        return internal_.size() + urgent_.size() + regular_.size();
-    }
-
-    typedef std::unique_lock<std::mutex> lock_t;
+    std::list<msg_ptr_t> internal_;
+    std::list<msg_ptr_t> urgent_;
+    std::list<msg_ptr_t> regular_;
 };
 
 } // namespace skal

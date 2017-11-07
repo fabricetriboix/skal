@@ -30,12 +30,12 @@ set(LIBSKAL_SRC
     include/skal/worker.hpp
     include/skal/detail/log.hpp
     include/skal/detail/safe-mutex.hpp
-    include/skal/detail/semaphore.hpp
     include/skal/detail/util.hpp
     src/libskal/internal/domain.hpp
     src/libskal/internal/job.hpp
     src/libskal/internal/msg.hpp
     src/libskal/internal/queue.hpp
+    src/libskal/internal/semaphore.hpp
     src/libskal/alarm.cpp
     src/libskal/blob.cpp
     src/libskal/domain.cpp
