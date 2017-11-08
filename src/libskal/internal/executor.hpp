@@ -17,6 +17,8 @@ namespace skal {
 /** Executor class */
 class executor_t final : boost::noncopyable
 {
+    typedef std::list<std::unique_ptr<job_t>> jobs_t;
+
     typedef std::unique_lock<std::mutex> lock_t;
     mutable std::mutex mutex_; /**< Mutex to protect `workers_to_add_` */
     std::list<worker_t> workers_to_add_;
@@ -32,11 +34,12 @@ class executor_t final : boost::noncopyable
     /** Create a job for the given worker */
     void create_job(worker_t worker);
 
+    /** Pop a message for the given job and process it */
+    void run_one(jobs_t::iterator& job);
+
 public :
     executor_t() = delete;
     ~executor_t();
-
-    typedef std::list<std::unique_ptr<job_t>> jobs_t;
 
     /** Constructor
      *

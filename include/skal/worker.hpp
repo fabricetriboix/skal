@@ -50,17 +50,10 @@ struct worker_t
 {
     /** Constructor: use default values wherever it makes sense
      *
-     * \param worker_name [in] Worker's name; must not be empty
-     * \param process     [in] Message processing functor; must not be empty
+     * \param name    [in] Worker's name; must not be empty
+     * \param process [in] Message processing functor; must not be empty
      */
-    worker_t(std::string worker_name, process_msg_t process)
-        : name(std::move(worker_name))
-        , process_msg(process)
-        , priority(0)
-        , queue_threshold(default_queue_threshold)
-        , xoff_timeout(default_xoff_timeout)
-    {
-    }
+    worker_t(std::string name, process_msg_t process);
 
     void check() const
     {

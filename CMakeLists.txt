@@ -45,6 +45,7 @@ set(LIBSKAL_SRC
     src/libskal/msg.cpp
     src/libskal/queue.cpp
     src/libskal/util.cpp
+    src/libskal/worker.cpp
     ${SKAL_MSG_PROTO_SRC}
     ${SKAL_MSG_PROTO_HDR}
     )

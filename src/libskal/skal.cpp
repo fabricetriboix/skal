@@ -9,31 +9,29 @@ namespace skal {
 namespace {
 
 boost::asio::io_service g_io_service;
+std::vector<executor_t> g_executors;
 
 } // unnamed namespace
 
-void run_skal(std::string process_name, std::string skald_url,
-        std::vector<worker_params_t> workers,
-        std::vector<exec_cfg_t> exec_cfgs)
+void run_skal(const params_t& params, std::vector<executor_cfg_t> executor_cfgs,
+        std::vector<worker_t> workers)
 {
-    url_t url(skald_url);
+    skal_assert(!workers.empty());
 
-    if (url.scheme() == "tcp") {
-        boost::asio::ip::tcp::resolver resolver(g_io_service);
-        if (url.host().empty() || url.port().empty()) {
-            throw bad_url();
-        }
-        boost::asio::ip::tcp::resolver::query query(url.host(), port);
-        // TODO: from here
-        boost::asio::ip::tcp::resolver::iterator it
+    if (executor_cfgs.empty()) {
+        executor_cfgs.push_back(executor_cfg_t { policy_t::biggest });
     }
+    for (const auto& cfg : executor_cfgs) {
+        g_executors.emplace_back(cfg.policy);
+    }
+
+    
 
     boost::asio::io_service::work work(g_io_service);
 }
 
 void terminate_skal()
 {
-    // TODO
     g_io_service.stop();
 }
 

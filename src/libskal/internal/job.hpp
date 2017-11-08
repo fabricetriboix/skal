@@ -26,6 +26,7 @@ struct job_t final : boost::noncopyable
     job_t() = delete;
     ~job_t() = default;
 
+    std::string worker_name;
     int priority;
     queue_t queue;
     process_msg_t process_msg;
@@ -41,7 +42,8 @@ struct job_t final : boost::noncopyable
     std::set<std::string> ntf_xon;
 
     job_t(const worker_t& worker, queue_t::ntf_t ntf)
-        : priority(worker.priority)
+        : worker_name(worker.name)
+        , priority(worker.priority)
         , queue(worker.queue_threshold, ntf)
         , process_msg(worker.process_msg)
     {

@@ -69,17 +69,17 @@ struct malloc_blob_t final
     void check(const std::string& id)
     {
         if (this == nullptr) {
-            SKAL_LOG(error) << "Invalid 'malloc' blob '" << id
+            skal_log(error) << "Invalid 'malloc' blob '" << id
                 << "': `this` is a nullptr";
             throw bad_blob();
         }
         if (std::memcmp(magic, malloc_blob_magic, sizeof(magic)) != 0) {
-            SKAL_LOG(error) << "Invalid 'malloc' blob '" << id
+            skal_log(error) << "Invalid 'malloc' blob '" << id
                 << "': wrong magic number";
             throw bad_blob();
         }
         if (size_B <= 0) {
-            SKAL_LOG(error) << "Invalid 'malloc' blob '" << id
+            skal_log(error) << "Invalid 'malloc' blob '" << id
                 << "': invalid size (" << size_B << "): must be >0";
             throw bad_blob();
         }
@@ -187,7 +187,7 @@ public :
     {
         malloc_blob_t* blob = nullptr;
         if (std::sscanf(id.c_str(), "%p", &blob) != 1) {
-            SKAL_LOG(error) << "Can't open 'malloc' blob id='"
+            skal_log(error) << "Can't open 'malloc' blob id='"
                 << id << "': id is not a pointer";
             throw bad_blob();
         }
@@ -206,7 +206,7 @@ constexpr const char* shm_blob_magic = "sharedXX";
 void shm_remove(const std::string& id)
 {
     if (!shared_memory_object::remove(id.c_str())) {
-        SKAL_LOG(warning)
+        skal_log(warning)
             << "Failed to remove shared memory area '" << id << "'";
     }
 }
@@ -247,17 +247,17 @@ struct shm_blob_t final
     void check(const std::string& id)
     {
         if (this == nullptr) {
-            SKAL_LOG(error) << "Invalid 'shm' blob '" << id
+            skal_log(error) << "Invalid 'shm' blob '" << id
                 << "': `this` is a nullptr";
             throw bad_blob();
         }
         if (std::memcmp(magic, shm_blob_magic, sizeof(magic)) != 0) {
-            SKAL_LOG(error) << "Invalid 'shm' blob '" << id
+            skal_log(error) << "Invalid 'shm' blob '" << id
                 << "': wrong magic number";
             throw bad_blob();
         }
         if (size_B <= 0) {
-            SKAL_LOG(error) << "Invalid 'shm' blob '" << id
+            skal_log(error) << "Invalid 'shm' blob '" << id
                 << "': invalid size (" << size_B << "): must be >0";
             throw bad_blob();
         }
@@ -342,7 +342,7 @@ public :
         try {
             region_.reset(new mapped_region(*shm_, read_write));
         } catch (std::exception& e) { // TODO: determine exact exception
-            SKAL_LOG(error) << "Failed to map 'shm' blob '" << id_ << "': "
+            skal_log(error) << "Failed to map 'shm' blob '" << id_ << "': "
                 << e.what();
             throw bad_blob();
         }
@@ -392,7 +392,7 @@ public :
             shm.reset(new shared_memory_object(create_only,
                         id.c_str(), read_write));
         } catch (std::exception& e) { // TODO: determine the exact exception
-            SKAL_LOG(warning) << "Failed to create shared memory blob '"
+            skal_log(warning) << "Failed to create shared memory blob '"
                 << id << "' because it already exists: " << e.what();
             throw bad_blob();
         }
@@ -401,7 +401,7 @@ public :
         try {
             shm->truncate(total_size_B);
         } catch (std::exception& e) { // TODO: determine the exact exception
-            SKAL_LOG(error) << "Failed to set size of shared memory blob '"
+            skal_log(error) << "Failed to set size of shared memory blob '"
                 << id << "' to " << total_size_B << " bytes: " << e.what();
             shm_remove(id);
             throw bad_blob();
@@ -412,7 +412,7 @@ public :
             void* addr = region.get_address();
             new (addr) shm_blob_t(size_B);
         } catch (std::exception& e) { // TODO: determine the exact exception
-            SKAL_LOG(error) << "Failed to map shared memory blob '" << id
+            skal_log(error) << "Failed to map shared memory blob '" << id
                 << "' into current address space: " << e.what();
             shm_remove(id);
             throw bad_blob();
@@ -431,7 +431,7 @@ public :
             shm.reset(new shared_memory_object(open_only,
                         id.c_str(), read_write));
         } catch (std::exception& e) { // TODO: determine exact exception
-            SKAL_LOG(error) << "Failed to open shared memory blob '"
+            skal_log(error) << "Failed to open shared memory blob '"
                 << id << "' because it does not exist: " << e.what();
             throw bad_blob();
         }
@@ -447,7 +447,7 @@ public :
         } catch (bad_blob&) {
             throw; // re-throw `bad_blob` exceptions
         } catch (std::exception& e) { // TODO: determine exact exception
-            SKAL_LOG(error) << "Failed to map shared memory blob '" << id
+            skal_log(error) << "Failed to map shared memory blob '" << id
                 << "' into current address space: " << e.what();
             throw bad_blob();
         }

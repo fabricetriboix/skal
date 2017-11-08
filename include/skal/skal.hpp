@@ -15,13 +15,12 @@ namespace skal {
 /** How to schedule workers when there is contention */
 enum class policy_t {
     biggest,  /**< Worker with most pending messages first */
-    biggest,  /**< Worker with most pending messages first */
     carousel, /**< Each in turn */
     priority, /**< Higher priority first */
 };
 
 /** Executor configuration */
-struct executor_t
+struct executor_cfg_t
 {
     policy_t policy;
 };
@@ -41,13 +40,14 @@ struct params_t
  * This function blocks until the skal framework is ordered to shut down by
  * a call to `terminate_skal()`.
  *
- * \param params    [in] Parameters of the skal framework
- * \param workers   [in] Initial workers; must not be empty
- * \param executors [in] Executor configurations; use empty vector for default
+ * \param params        [in] Parameters of the skal framework
+ * \param executor_cfgs [in] Executor configurations; use empty vector for
+ *                           default
+ * \param workers       [in] Initial workers; must not be empty
  *
  * \throw `bad_url` if `params.skald_url` is malformatted
  */
-void run_skal(const params_t& params, std::vector<executor_t> executors,
+void run_skal(const params_t& params, std::vector<executor_cfg_t> executors,
         std::vector<worker_t> workers);
 
 /** Terminate the skal framework

@@ -14,8 +14,7 @@ namespace skal {
 namespace log {
 
 /** Severity levels */
-enum class level_t
-{
+enum class level_t {
     debug,
     info,
     notice,
@@ -48,7 +47,7 @@ void process(record_t record);
 
 /** Structure to log a message
  *
- * You should not use this structure on its own, use the `SKAL_LOG()` macro
+ * You should not use this structure on its own, use the `skal_log()` macro
  * instead.
  */
 struct log_t
@@ -65,7 +64,7 @@ struct log_t
     }
 };
 
-#define SKAL_LOG(level) \
+#define skal_log(level) \
     if ((::skal::log::level_t::level) >= ::skal::log::minimum_level()) \
         skal::log::log_t((::skal::log::level_t::level), __FILE__, __LINE__).oss
 

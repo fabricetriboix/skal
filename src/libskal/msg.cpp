@@ -37,19 +37,19 @@ msg_t::msg_t(std::string data)
 {
     Msg tmp;
     if (!tmp.ParseFromString(data)) {
-        SKAL_LOG(warning) << "Failed to parse message";
+        skal_log(warning) << "Failed to parse message";
         throw bad_msg_format();
     }
 
     if (tmp.version() != msg_version) {
-        SKAL_LOG(warning) << "Received a message with version " <<
+        skal_log(warning) << "Received a message with version " <<
             tmp.version() << "; I only support " << msg_version;
         throw bad_msg_version();
     }
     if (!tmp.has_timestamp() || !tmp.has_sender() || !tmp.has_recipient()
             || !tmp.has_action() || !tmp.has_ttl())
     {
-        SKAL_LOG(warning)
+        skal_log(warning)
             << "Received a message that is missing required fields";
         throw bad_msg_format();
     }
@@ -77,7 +77,7 @@ msg_t::msg_t(std::string data)
             severity = alarm_t::severity_t::error;
             break;
         default :
-            SKAL_LOG(warning)
+            skal_log(warning)
                 << "Received a message with an alarm with an invalid severity: "
                 << static_cast<int>(tmp_alarm.severity());
             throw bad_msg_format();
