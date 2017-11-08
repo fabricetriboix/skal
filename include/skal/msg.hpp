@@ -93,8 +93,6 @@ struct flag_t final
 typedef std::vector<uint8_t> miniblob_t;
 
 class queue_t;
-class msg_t;
-typedef std::unique_ptr<msg_t> msg_ptr_t;
 
 /** Class that represents a message */
 class msg_t final : boost::noncopyable
@@ -102,6 +100,8 @@ class msg_t final : boost::noncopyable
 public :
     msg_t() = delete;
     ~msg_t() = default;
+
+    typedef std::unique_ptr<msg_t> ptr_t;
 
     /** Constructor
      *
@@ -120,7 +120,7 @@ public :
             uint32_t flags = 0, int8_t ttl = default_ttl);
 
     /** Utility function to create a msg */
-    static msg_ptr_t create(std::string sender, std::string recipient,
+    static ptr_t create(std::string sender, std::string recipient,
             std::string action, uint32_t flags = 0, int8_t ttl = default_ttl)
     {
         return std::make_unique<msg_t>(std::move(sender), std::move(recipient),
@@ -143,7 +143,7 @@ public :
      */
     explicit msg_t(std::string data);
 
-    static msg_ptr_t create(std::string data)
+    static ptr_t create(std::string data)
     {
         return std::make_unique<msg_t>(std::move(data));
     }
@@ -208,7 +208,7 @@ public :
      *
      * If more than one alarm are currently attached to the message, an alarm
      * is selected in an arbitrary fashion to be detached and returned by this
-     * method.
+     * function.
      *
      * \return The detached alarm, or `boost::none` if no more alarms.
      */
@@ -348,7 +348,7 @@ public :
 
     /** Detach a blob field
      *
-     * This method is similar to `get_blob()`, but it removes the blob proxy
+     * This function is similar to `get_blob()`, but it removes the blob proxy
      * from the message, effectively transferring the blob proxy from the
      * message to you.
      *

@@ -1,8 +1,8 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include "internal/domain.hpp"
-#include "internal/msg.hpp"
+#include <skal/detail/msg.hpp>
+#include <skal/detail/domain.hpp>
 #include <cstring>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <gtest/gtest.h>
@@ -26,14 +26,15 @@ TEST(Msg, EncodeDecodeMsg)
     EXPECT_EQ(flags, msg.flags());
     EXPECT_EQ(15, msg.ttl());
 
-    skal::alarm_t alarm("test-alarm", "alice", skal::alarm_t::severity_t::warning,
+    skal::alarm_t alarm("test-alarm", "alice",
+            skal::alarm_t::severity_t::warning,
             true, false, "This is a test alarm");
     EXPECT_EQ("test-alarm", alarm.name());
     EXPECT_EQ(skal::alarm_t::severity_t::warning, alarm.severity());
     EXPECT_TRUE(alarm.is_on());
     EXPECT_FALSE(alarm.auto_off());
-    EXPECT_EQ("This is a test alarm", alarm.msg());
-    EXPECT_EQ("alice", alarm.origin());
+    EXPECT_EQ("This is a test alarm", alarm.note());
+    EXPECT_EQ("alice@abc", alarm.origin());
     delta = alarm.timestamp() - time_point;
     EXPECT_LE(delta, max);
     msg.attach_alarm(std::move(alarm));
@@ -74,8 +75,8 @@ TEST(Msg, EncodeDecodeMsg)
     EXPECT_EQ(skal::alarm_t::severity_t::warning, alarm2->severity());
     EXPECT_TRUE(alarm2->is_on());
     EXPECT_FALSE(alarm2->auto_off());
-    EXPECT_EQ("This is a test alarm", alarm2->msg());
-    EXPECT_EQ("alice", alarm2->origin());
+    EXPECT_EQ("This is a test alarm", alarm2->note());
+    EXPECT_EQ("alice@abc", alarm2->origin());
     EXPECT_EQ(alarm.timestamp(), alarm2->timestamp());
 
     boost::optional<skal::alarm_t> alarm3(msg2.detach_alarm());

@@ -3,113 +3,111 @@
 #pragma once
 
 #include <skal/cfg.hpp>
-#include <skal/msg.hpp>
 #include <skal/error.hpp>
-#include <vector>
-#include <memory>
+#include <skal/msg.hpp>
+#include <skal/detail/domain.hpp>
+#include <skal/detail/queue.hpp>
 #include <functional>
-#include <utility>
+#include <memory>
 #include <boost/noncopyable.hpp>
+#include <boost/optional.hpp>
 
 namespace skal {
 
-/** Exception: this worker is finished */
-struct worker_done : public error
+class worker_t final : boost::noncopyable
 {
-    worker_done() : error("skal::worker_done") { }
-};
+public :
+    worker_t() = delete;
+    ~worker_t();
 
-/** Type of a functor to process a message
- *
- * When a worker is created, a companion message queue is created for it to
- * buffer messages the worker has to process. The skal framework will call the
- * `process_msg_t` functor when messages are pushed into the queue. If your
- * process functor does not work fast enough, some backup may occur. The skal
- * framework will repeatedly call your process functor as quickly as possible
- * until the message queue is empty.
- *
- * If you want to terminate the worker, this functor should throw an exception.
- * That would typically be `worker_done`, but any exception will terminate the
- * worker with immediate effect.
- *
- * \note This functor should not block; otherwise it will block the executor
- *       it is running on, and all other workers running on that executor will
- *       be blocked.
- *
- * \param msg [in] Message to process
- *
- * \throw This functor may throw any exception. The worker will be immediately
- *        terminated if an exception is caught. The `worker_done` exception is
- *        provided for terminating the worker when its natural lifetime is
- *        finished.
- */
-typedef std::function<void(std::unique_ptr<msg_t> msg)> process_msg_t;
+    typedef std::unique_ptr<worker_t> ptr_t;
 
-/** Worker parameters */
-struct worker_t
-{
-    /** Constructor: use default values wherever it makes sense
+    /** Type of a functor to process a message
      *
-     * \param name    [in] Worker's name; must not be empty
-     * \param process [in] Message processing functor; must not be empty
+     * When a worker is created, a companion message queue is created for it to
+     * buffer messages the worker has to process. The skal framework will call
+     * the `process_msg_t` functor when messages are pushed into the queue. If
+     * your process functor does not work fast enough, some backup may occur.
+     * The skal framework will repeatedly call your process functor as quickly
+     * as possible until the message queue is empty.
+     *
+     * If you want to terminate the worker, this functor should return `false`
+     * and the worker will be terminated with immediate effect.
+     *
+     * \note This functor should not block and should return as quickly as
+     *       possible; otherwise it will block the executor it is running on,
+     *       and all other workers running on that executor will be blocked.
+     *
+     * \param msg [in] Message to process
+     *
+     * \return `true` to continue processing messages, `false` to terminate
+     *         this worker
+     *
+     * \throw If this functor throws an exception, the worker will be terminated
+     *        as if it returned `false`. In addition, an alarm will be raised.
      */
-    worker_t(std::string name, process_msg_t process);
+    typedef std::function<bool(msg_t::ptr_t msg)> process_t;
 
-    void check() const
+    /** Factory function to create a worker
+     *
+     * This will also register the worker into the global register.
+     *
+     * \param name            [in] Worker's name; must not be empty; must be
+     *                             unique for this process
+     * \param process         [in] Message processing functor for this worker;
+     *                             must not be empty
+     * \param queue_threshold [in] If the number of messages in this worker's
+     *                             message queue reaches this threshold,
+     *                             throttling will occur; please refer to TODO
+     *                             for more information; this is a fine-tuning
+     *                             parameter, do not touch unless you know what
+     *                             you are doing.
+     * \param xoff_timeout    [in] How long to wait before retrying to send;
+     *                             this is a fine-tuning parameter, do not touch
+     *                             unless you know what you are doing.
+     *
+     * \return The created worker, this function never returns an empty pointer
+     *
+     * \throw `duplicate_error` if a worker already exists in this process with
+     *        the same name
+     */
+    static ptr_t create(std::string name, process_t process,
+            int64_t queue_threshold = default_queue_threshold,
+            std::chrono::nanoseconds xoff_timeout = default_xoff_timeout);
+
+    /** Post a message to the given worker in this process
+     *
+     * The worker that will receive this message is indicated by the `msg`'s
+     * recipient.
+     *
+     * \param msg [in] Message to post; the message will be consumed only if
+     *                 this function returns `true` (in other words, if this
+     *                 function returns `true`, `msg` will be empty)
+     *
+     * \return `true` if successfully posted, `false` if there is no worker in
+     *         this process that can receive this message
+     */
+    static bool post(msg_t::ptr_t& msg);
+
+    const std::string& name() const
     {
-        skal_assert(!name.empty() && process_msg && (queue_threshold > 0)
-                && (xoff_timeout > std::chrono::microseconds(0)));
+        return name_;
     }
 
-    /** Worker's name */
-    std::string name;
+private :
+    std::string name_;
+    process_t process_;
+    queue_t queue_;
+    std::chrono::nanoseconds xoff_timeout_;
 
-    /** Message processing functor
-     *
-     * This is the functor to call when the worker has a message to process.
-     * It must not be empty.
-     */
-    process_msg_t process_msg;
-
-    /** Worker priority
-     *
-     * This may be used by some scheduling policies.
-     *
-     * Typically, this number is arbitrary and is only significant relative to
-     * priorities of other workers running on the same executor. Although this
-     * depends on the actual scheduling policy being used.
-     */
-    int priority;
-
-    /** Message queue threshold for this worker
-     *
-     * If the number of messages in the worker's queue reaches this threshold,
-     * throttling will occur; please refer to TODO for more information.
-     *
-     * Must be >0.
-     */
-    int64_t queue_threshold;
-
-    /** How long to wait before retrying to send
-     *
-     * If blocked by another worker for `xoff_timeout`, the skal framework will
-     * send that worker a "skal-ntf-xon" message to tell it to inform us
-     * whether we can send again.
-     *
-     * This is a fine-tuning parameter. Set it to a non-default value only if
-     * you know what you are doing.
-     *
-     * Must be >0.
-     */
-    std::chrono::microseconds xoff_timeout;
-
-    // TODO: stats
+    worker_t(std::string name, process_t process, int64_t queue_threshold,
+            std::chrono::nanoseconds xoff_timeout)
+        : name_(worker_name(name))
+        , process_(process)
+        , queue_(queue_threshold)
+        , xoff_timeout_(xoff_timeout)
+    {
+    }
 };
-
-/** Create a worker
- *
- * \param worker [in] Worker's parameters
- */
-void create_worker(const worker_t& worker);
 
 } // namespace skal

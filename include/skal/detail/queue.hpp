@@ -28,38 +28,37 @@ public :
     /** Prototype of a push notification functor */
     typedef std::function<void()> ntf_t;
 
-    /** Constructor with push notification
+    /** Constructor
      *
      * \param threshold [in] Queue threshold; must be >0
-     * \param ntf       [in] Functor to call back when an item is pushed into
-     *                       the queue
      */
-    queue_t(size_t threshold, ntf_t ntf) : threshold_(threshold), ntf_(ntf)
+    queue_t(size_t threshold) : threshold_(threshold)
     {
     }
 
-    /** Constructor without push notification
+    /** Register a functor to be notified when a message is pushed
      *
-     * \param threshold [in] Queue threshold; must be >0
+     * \param ntf [in] Functor to register; must not be empty
      */
-    explicit queue_t(size_t threshold) : threshold_(threshold)
+    void listen(ntf_t ntf)
     {
+        skal_assert(ntf);
+        ntf_.push_back(ntf);
     }
 
     /** Push a message into the queue
      *
-     * This method always succeeds. If a notification functor has been
-     * registered, it will be called.
+     * This function always succeeds. Listeners will be notified.
      *
      * \param msg [in] Message to push; must not be an empty pointer
      */
-    void push(msg_ptr_t msg);
+    void push(msg_t::ptr_t msg);
 
     /** Pop a message from the queue
      *
      * If the `internal_only` argument is set, urgent and regular messages are
      * ignored, and only internal messages are popped. If there are no internal
-     * messages, this method returns an empty pointer regardless of whether or
+     * messages, this function returns an empty pointer regardless of whether or
      * not urgent or regular messages are available.
      *
      * Messages are popped in the following order:
@@ -71,7 +70,7 @@ public :
      *
      * \return The popped message, or an empty pointer if no message to pop
      */
-    msg_ptr_t pop(bool internal_only = false);
+    msg_t::ptr_t pop(bool internal_only = false);
 
     /** Get the number of pending messages
      *
@@ -104,10 +103,10 @@ public :
 
 private :
     size_t threshold_;
-    ntf_t ntf_;
-    std::list<msg_ptr_t> internal_;
-    std::list<msg_ptr_t> urgent_;
-    std::list<msg_ptr_t> regular_;
+    std::list<ntf_t> ntf_;
+    std::list<msg_t::ptr_t> internal_;
+    std::list<msg_t::ptr_t> urgent_;
+    std::list<msg_t::ptr_t> regular_;
 };
 
 } // namespace skal

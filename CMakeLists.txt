@@ -27,28 +27,35 @@ set(LIBSKAL_SRC
     include/skal/cfg.hpp
     include/skal/error.hpp
     include/skal/msg.hpp
+    #include/skal/policy.hpp
+    #include/skal/skal.hpp
     include/skal/worker.hpp
+
+    include/skal/detail/domain.hpp
+    #include/skal/detail/executor.hpp
     include/skal/detail/log.hpp
+    include/skal/detail/msg.hpp
+    include/skal/detail/queue.hpp
     include/skal/detail/safe-mutex.hpp
+    include/skal/detail/semaphore.hpp
     include/skal/detail/util.hpp
-    src/libskal/internal/domain.hpp
-    src/libskal/internal/job.hpp
-    src/libskal/internal/msg.hpp
-    src/libskal/internal/queue.hpp
-    src/libskal/internal/semaphore.hpp
+
     src/libskal/alarm.cpp
     src/libskal/blob.cpp
     src/libskal/domain.cpp
     src/libskal/error.cpp
-    src/libskal/job.cpp
+    #src/libskal/executor.cpp
     src/libskal/log.cpp
     src/libskal/msg.cpp
+    #src/libskal/policy.cpp
     src/libskal/queue.cpp
+    #src/libskal/skal.cpp
     src/libskal/util.cpp
     src/libskal/worker.cpp
+
     ${SKAL_MSG_PROTO_SRC}
     ${SKAL_MSG_PROTO_HDR}
-    )
+)
 
 add_library(skal STATIC ${LIBSKAL_SRC})
 target_include_directories(skal PUBLIC include PRIVATE src/libskal)

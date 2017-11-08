@@ -61,7 +61,7 @@ blob_proxy_t open_blob(const std::string& allocator_name,
 /** Base class which represents a proxy to a blob of a certain type
  *
  * This is a base class which must be derived from to implement the pure
- * virtual methods according to the underlying blob allocator. Your derived
+ * virtual functions according to the underlying blob allocator. Your derived
  * class should increment the blob's reference counter when a proxy is
  * constructed, and unreference it when it's destructed.
  */
@@ -92,7 +92,7 @@ public :
 
     /** Increment the reference counter of the underlying blob
      *
-     * You are guaranteed that the blob is mapped when this method is called.
+     * You are guaranteed that the blob is mapped when this function is called.
      */
     virtual void ref() = 0;
 
@@ -100,13 +100,13 @@ public :
      *
      * The underlying blob will be destroyed if this counter reaches zero.
      *
-     * You are guaranteed that the blob is mapped when this method is called.
+     * You are guaranteed that the blob is mapped when this function is called.
      */
     virtual void unref() = 0;
 
     /** Map a blob into the caller's address space
      *
-     * This method will be called to allow the current process/thread to read
+     * This function will be called to allow the current process/thread to read
      * and/or write the blob's memory area.
      *
      * It is strongly advised that a mutual exclusion mechanism is implemented.
@@ -123,7 +123,7 @@ public :
 
     /** Unmap a blob from the caller's address space
      *
-     * This method is the pendent of `map()` and must be called as quickly as
+     * This function is the pendent of `map()` and must be called as quickly as
      * possible after `map()` has been called.
      *
      * \throw `bad_blob` if the blob has been corrupted
@@ -222,16 +222,16 @@ public :
 
     /** Increment the reference counter of the underlying blob
      *
-     * The blob may or may not be mapped when you call this method.
+     * The blob may or may not be mapped when you call this function.
      */
     void ref();
 
     /** Decrement the reference counter of the underlying blob
      *
-     * The blob may or may not be mapped when you call this method.
+     * The blob may or may not be mapped when you call this function.
      *
      * NB: Logically (and unless there is a bug in your code), it is impossible
-     * for the reference counter to reach zero in this method, because the
+     * for the reference counter to reach zero in this function, because the
      * proxy itself holds a reference to the blob until it is destroyed.
      */
     void unref();
@@ -291,7 +291,7 @@ private :
  *    operating system shared memory capabilities)
  *
  * If you want to create your own custom blob allocator, you must derive from
- * this base class and override the pure virtual methods.
+ * this base class and override the pure virtual functions.
  */
 class blob_allocator_t : boost::noncopyable
 {
@@ -332,7 +332,7 @@ public :
 
     /** Create a blob
      *
-     * This method must create a new blob, and also creates a blob proxy to
+     * This function must create a new blob, and also creates a blob proxy to
      * access the blob.
      *
      * Whether the arguments are used or not depends on the allocator. For the
@@ -341,7 +341,7 @@ public :
      * be >0.
      *
      * The created blob must have an internal reference counter, which should
-     * be initialised to 0 by this method. For the avoidance of doubt, the
+     * be initialised to 0 by this function. For the avoidance of doubt, the
      * reference counter is actually 1 when this function returns, as the
      * created proxy holds a reference to the blob. If the returned proxy is
      * immediately destroyed, the blob will be destroyed as well. If you want
@@ -362,7 +362,7 @@ public :
 
     /** Open an existing blob
      *
-     * This method opens an existing blob, and creates a blob proxy to access
+     * This function opens an existing blob, and creates a blob proxy to access
      * the blob.
      *
      * Whether the arguments are used or not depends on the allocator. For both

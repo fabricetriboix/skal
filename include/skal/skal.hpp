@@ -12,13 +12,6 @@
 
 namespace skal {
 
-/** How to schedule workers when there is contention */
-enum class policy_t {
-    biggest,  /**< Worker with most pending messages first */
-    carousel, /**< Each in turn */
-    priority, /**< Higher priority first */
-};
-
 /** Executor configuration */
 struct executor_cfg_t
 {

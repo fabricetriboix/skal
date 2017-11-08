@@ -1,8 +1,8 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include <internal/msg.hpp>
-#include <internal/domain.hpp>
+#include <skal/detail/msg.hpp>
+#include <skal/detail/domain.hpp>
 #include <skal/detail/log.hpp>
 #include <skal/detail/util.hpp>
 #include "msg.pb.h"
@@ -84,7 +84,7 @@ msg_t::msg_t(std::string data)
         }
 
         alarm_t alarm(tmp_alarm.name(), tmp_alarm.origin(), severity,
-                tmp_alarm.is_on(), tmp_alarm.auto_off(), tmp_alarm.msg(),
+                tmp_alarm.is_on(), tmp_alarm.auto_off(), tmp_alarm.note(),
                 us_to_ptime(tmp_alarm.timestamp()));
         alarms_.push_back(alarm);
     } // for each alarm
@@ -157,7 +157,7 @@ std::string msg_t::serialize() const
         tmp_alarm->set_name(alarm.name());
         tmp_alarm->set_is_on(alarm.is_on());
         tmp_alarm->set_auto_off(alarm.auto_off());
-        tmp_alarm->set_msg(alarm.msg());
+        tmp_alarm->set_note(alarm.note());
         tmp_alarm->set_origin(alarm.origin());
         tmp_alarm->set_timestamp(ptime_to_us(alarm.timestamp()));
     } // for each alarm

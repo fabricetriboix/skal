@@ -3,6 +3,7 @@
 #pragma once
 
 #include <skal/cfg.hpp>
+#include <skal/detail/domain.hpp>
 #include <string>
 #include <utility>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
@@ -32,10 +33,10 @@ public :
      * \param is_on    [in] Whether the alarm is on or off
      * \param auto_off [in] Whether the alarm is turned off by the software
      *                      or by a human; this boolean is purely informational
-     * \param msg      [in] Free-form, human-readable message
+     * \param note     [in] Free-form, human-readable message
      */
     alarm_t(std::string name, std::string origin, severity_t severity,
-            bool is_on, bool auto_off, std::string msg);
+            bool is_on, bool auto_off, std::string note);
 
     alarm_t() = delete;
     ~alarm_t() = default;
@@ -49,7 +50,7 @@ public :
         swap(left.severity_, right.severity_);
         swap(left.is_on_, right.is_on_);
         swap(left.auto_off_, right.auto_off_);
-        swap(left.msg_, right.msg_);
+        swap(left.note_, right.note_);
         swap(left.timestamp_, right.timestamp_);
     }
 
@@ -84,9 +85,9 @@ public :
         return auto_off_;
     }
 
-    std::string msg() const
+    const std::string& note() const
     {
-        return msg_;
+        return note_;
     }
 
     /** Get the timestamp of when this alarm has been raised
@@ -104,18 +105,18 @@ private :
     severity_t  severity_;
     bool        is_on_;
     bool        auto_off_;
-    std::string msg_;
+    std::string note_;
     boost::posix_time::ptime timestamp_;
 
     alarm_t(std::string name, std::string origin, severity_t severity,
-            bool is_on, bool auto_off, std::string msg,
+            bool is_on, bool auto_off, std::string note,
             boost::posix_time::ptime timestamp)
         : name_(std::move(name))
-        , origin_(std::move(origin))
+        , origin_(worker_name(origin))
         , severity_(severity)
         , is_on_(is_on)
         , auto_off_(auto_off)
-        , msg_(std::move(msg))
+        , note_(std::move(note))
         , timestamp_(std::move(timestamp))
     {
     }
