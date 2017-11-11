@@ -52,7 +52,7 @@ public :
      *
      * \param msg [in] Message to push; must not be an empty pointer
      */
-    void push(msg_t::ptr_t msg);
+    void push(std::unique_ptr<msg_t> msg);
 
     /** Pop a message from the queue
      *
@@ -70,7 +70,7 @@ public :
      *
      * \return The popped message, or an empty pointer if no message to pop
      */
-    msg_t::ptr_t pop(bool internal_only = false);
+    std::unique_ptr<msg_t> pop(bool internal_only = false);
 
     /** Get the number of pending messages
      *
@@ -104,9 +104,9 @@ public :
 private :
     size_t threshold_;
     std::list<ntf_t> ntf_;
-    std::list<msg_t::ptr_t> internal_;
-    std::list<msg_t::ptr_t> urgent_;
-    std::list<msg_t::ptr_t> regular_;
+    std::list<std::unique_ptr<msg_t>> internal_;
+    std::list<std::unique_ptr<msg_t>> urgent_;
+    std::list<std::unique_ptr<msg_t>> regular_;
 };
 
 } // namespace skal

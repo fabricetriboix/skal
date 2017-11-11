@@ -1,7 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include <skal/detail/msg.hpp>
 #include <skal/detail/domain.hpp>
 #include <cstring>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -13,7 +12,7 @@ TEST(Msg, EncodeDecodeMsg)
 
     boost::posix_time::ptime time_point
         = boost::posix_time::microsec_clock::universal_time();
-    uint32_t flags = skal::flag_t::udp | skal::flag_t::multicast;
+    uint32_t flags = skal::msg_t::flag_t::udp | skal::msg_t::flag_t::multicast;
     skal::msg_t msg("alice", "bob", "test-msg", flags, 15);
 
     boost::posix_time::time_duration delta = msg.timestamp() - time_point;

@@ -2,6 +2,7 @@
 
 #include <skal/detail/util.hpp>
 #include <skal/error.hpp>
+#include <cstring>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/gregorian/gregorian_types.hpp>
 
@@ -20,6 +21,11 @@ boost::posix_time::ptime us_to_ptime(int64_t us)
     // We calculate the timestamp from the Epoch: 1970-01-01 00:00:00
     boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
     return epoch + boost::posix_time::microseconds(us);
+}
+
+bool start_with(const std::string& haystack, const std::string& needle)
+{
+    return std::strncmp(haystack.c_str(), needle.c_str(), needle.size());
 }
 
 url_t::url_t(std::string s)

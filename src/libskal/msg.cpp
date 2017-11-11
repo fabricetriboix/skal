@@ -1,7 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include <skal/detail/msg.hpp>
 #include <skal/detail/domain.hpp>
 #include <skal/detail/log.hpp>
 #include <skal/detail/util.hpp>
@@ -10,27 +9,55 @@
 
 namespace skal {
 
-const uint32_t flag_t::out_of_order_ok;
-const uint32_t flag_t::drop_ok;
-const uint32_t flag_t::udp;
-const uint32_t flag_t::ntf_drop;
-const uint32_t flag_t::urgent;
-const uint32_t flag_t::multicast;
+const uint32_t msg_t::flag_t::out_of_order_ok;
+const uint32_t msg_t::flag_t::drop_ok;
+const uint32_t msg_t::flag_t::udp;
+const uint32_t msg_t::flag_t::ntf_drop;
+const uint32_t msg_t::flag_t::urgent;
+const uint32_t msg_t::flag_t::multicast;
 
-const uint32_t iflag_t::internal;
+const uint32_t msg_t::iflag_t::internal;
 
 msg_t::msg_t(std::string sender, std::string recipient, std::string action,
-        uint32_t flags, int8_t ttl)
+        uint32_t fl, int8_t ttl)
     : timestamp_(boost::posix_time::microsec_clock::universal_time())
     , sender_(worker_name(std::move(sender)))
     , recipient_(worker_name(std::move(recipient)))
     , action_(std::move(action))
-    , flags_(flags)
     , ttl_(ttl)
 {
     if (sender_.empty()) {
+        iflags_ |= iflag_t::external;
         sender_ = worker_name("skal-external");
     }
+    flags(fl);
+}
+
+std::unique_ptr<msg_t> msg_t::create(std::string sender, std::string recipient,
+        std::string action, uint32_t flags, int8_t ttl)
+{
+    return std::make_unique<msg_t>(std::move(sender), std::move(recipient),
+            std::move(action), flags, ttl);
+}
+
+std::unique_ptr<msg_t> msg_t::create(std::string recipient, std::string action,
+        uint32_t flags, int8_t ttl)
+{
+    return std::make_unique<msg_t>(std::move(recipient), std::move(action),
+            flags, ttl);
+}
+
+std::unique_ptr<msg_t> msg_t::create(std::string data)
+{
+    return std::make_unique<msg_t>(std::move(data));
+}
+
+std::unique_ptr<msg_t> msg_t::create_internal(std::string sender,
+        std::string recipient, std::string action, uint32_t flags, int8_t ttl)
+{
+    std::unique_ptr<msg_t> msg = create(sender, recipient, action, flags, ttl);
+    msg->iflags(iflag_t::internal);
+    return std::move(msg);
 }
 
 msg_t::msg_t(std::string data)
@@ -112,6 +139,15 @@ msg_t::msg_t(std::string data)
     for (int i = 0; i < tmp.blob_fields_size(); ++i) {
         const BlobField& field = tmp.blob_fields(i);
         blobs_[field.name()] = open_blob(field.allocator(), field.id());
+    }
+}
+
+void msg_t::flags(uint32_t value)
+{
+    flags_ = value;
+    if ((flags_ & flag_t::multicast) || (iflags_ & iflag_t::external)) {
+        flags_ |= flag_t::udp;
+        flags_ &= ~flag_t::ntf_drop;
     }
 }
 

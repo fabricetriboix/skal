@@ -12,6 +12,8 @@ int64_t ptime_to_us(boost::posix_time::ptime timestamp);
 
 boost::posix_time::ptime us_to_ptime(int64_t us);
 
+bool start_with(const std::string& haystack, const std::string& needle);
+
 class url_t final
 {
 public :

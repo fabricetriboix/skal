@@ -14,13 +14,16 @@
 
 namespace skal {
 
+/** Worker class
+ *
+ * This class manages a worker, which is essentially a message queue paired
+ * with a message processing function.
+ */
 class worker_t final : boost::noncopyable
 {
 public :
     worker_t() = delete;
     ~worker_t();
-
-    typedef std::unique_ptr<worker_t> ptr_t;
 
     /** Type of a functor to process a message
      *
@@ -46,7 +49,7 @@ public :
      * \throw If this functor throws an exception, the worker will be terminated
      *        as if it returned `false`. In addition, an alarm will be raised.
      */
-    typedef std::function<bool(msg_t::ptr_t msg)> process_t;
+    typedef std::function<bool(std::unique_ptr<msg_t> msg)> process_t;
 
     /** Factory function to create a worker
      *
@@ -71,7 +74,7 @@ public :
      * \throw `duplicate_error` if a worker already exists in this process with
      *        the same name
      */
-    static ptr_t create(std::string name, process_t process,
+    static std::unique_ptr<worker_t> create(std::string name, process_t process,
             int64_t queue_threshold = default_queue_threshold,
             std::chrono::nanoseconds xoff_timeout = default_xoff_timeout);
 
@@ -84,14 +87,25 @@ public :
      *                 this function returns `true` (in other words, if this
      *                 function returns `true`, `msg` will be empty)
      *
-     * \return `true` if successfully posted, `false` if there is no worker in
-     *         this process that can receive this message
+     * \return `true` if OK, `false` if there is no worker in this process that
+     *         can receive this message
      */
-    static bool post(msg_t::ptr_t& msg);
+    static bool post(std::unique_ptr<msg_t>& msg);
+
+    /** Drop the `msg`, notifying the sender if required
+     *
+     * \param msg [in] Message to drop
+     */
+    static void drop(std::unique_ptr<msg_t> msg);
 
     const std::string& name() const
     {
         return name_;
+    }
+
+    bool paused() const
+    {
+        return paused_;
     }
 
 private :
@@ -99,6 +113,7 @@ private :
     process_t process_;
     queue_t queue_;
     std::chrono::nanoseconds xoff_timeout_;
+    bool paused_;
 
     worker_t(std::string name, process_t process, int64_t queue_threshold,
             std::chrono::nanoseconds xoff_timeout)
@@ -106,8 +121,12 @@ private :
         , process_(process)
         , queue_(queue_threshold)
         , xoff_timeout_(xoff_timeout)
+        , paused_(false)
     {
     }
+
+    friend class scheduler_t;
+    friend class executor_t;
 };
 
 } // namespace skal

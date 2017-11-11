@@ -6,10 +6,6 @@
 
 namespace skal {
 
-struct iflag_t final
-{
-    /** Internal message flag: this is an internal message */
-    constexpr static uint32_t internal = 0x10000;
-};
+constexpr const char* skal_external = "skal-external";
 
 } // namespace skal

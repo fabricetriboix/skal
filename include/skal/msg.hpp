@@ -28,68 +28,6 @@ struct bad_msg_version : public error
     bad_msg_version() : error("skal::bad_msg_version") { }
 };
 
-struct flag_t final
-{
-    /** Message flag: it's OK to receive this message out of order
-     *
-     * Skal will try to send this message using a transport link that does not
-     * guarantee packet ordering, in exchange of a faster transfer.
-     *
-     * The default is to send messages over a reliable transport link that
-     * delivers data in the same order is has been sent (typically: TCP).
-     *
-     * This flag implies that it's OK to receive duplicate messages.
-     */
-    constexpr static uint32_t out_of_order_ok = 0x01;
-
-    /** Message flag: it's OK to drop this message
-     *
-     * Skal will try to send this message using a transport link that does not
-     * guarantee reliable delivery, in exchange of a faster transfer.
-     *
-     * This default is to send messages over a reliable transport link that
-     * detects and retransmits lost data (typically: TCP).
-     */
-    constexpr static uint32_t drop_ok = 0x02;
-
-    /** Message flag: send this message over a UDP-link transport link
-     *
-     * Packets may be dropped, re-ordered or duplicated.
-     */
-    constexpr static uint32_t udp = out_of_order_ok | drop_ok;
-
-    /** Message flag: inform the sender of a message if it is dropped
-     *
-     * A "skal-msg-drop" message will be sent to the sender of this message if
-     * the message is dropped before reaching its destination. This flag has
-     * no effect unless the `drop_ok` flag is also set.
-     *
-     * Please note that using this flag comes with a performance penality as
-     * the transport link must be able to detect dropped messages, which
-     * generally means that messages with that flag set can't be send over
-     * UDP-like transport links.
-     */
-    constexpr static uint32_t ntf_drop = 0x04;
-
-    /** Message flag: this message is urgent
-     *
-     * This message will jump in front of regular messages when enqueued at
-     * the various hops.
-     *
-     * The default is to send non-urgent messages. Please use this flag
-     * sparringly. This feature is implemented on a "best-effort" basis only,
-     * there are no guarantee that this message will actually arrive before
-     * any regular message sent previously.
-     */
-    constexpr static uint32_t urgent = 0x08;
-
-    /** Message flag: this is a multicast message
-     *
-     * This message is to be duplicated for many recipients.
-     */
-    constexpr static uint32_t multicast = 0x10;
-};
-
 typedef std::vector<uint8_t> miniblob_t;
 
 class queue_t;
@@ -101,7 +39,69 @@ public :
     msg_t() = delete;
     ~msg_t() = default;
 
-    typedef std::unique_ptr<msg_t> ptr_t;
+    struct flag_t final
+    {
+        /** Message flag: it's OK to receive this message out of order
+         *
+         * Skal will try to send this message using a transport link that does
+         * not guarantee packet ordering, in exchange of a faster transfer.
+         *
+         * The default is to send messages over a reliable transport link that
+         * delivers data in the same order is has been sent (typically: TCP).
+         *
+         * This flag implies that it's OK to receive duplicate messages.
+         */
+        constexpr static uint32_t out_of_order_ok = 0x01;
+
+        /** Message flag: it's OK to drop this message
+         *
+         * Skal will try to send this message using a transport link that does
+         * not guarantee reliable delivery, in exchange of a faster transfer.
+         *
+         * This default is to send messages over a reliable transport link that
+         * detects and retransmits lost data (typically: TCP).
+         */
+        constexpr static uint32_t drop_ok = 0x02;
+
+        /** Message flag: send this message over a UDP-link transport link
+         *
+         * Packets may be dropped, re-ordered or duplicated.
+         */
+        constexpr static uint32_t udp = out_of_order_ok | drop_ok;
+
+        /** Message flag: inform the sender of a message if it is dropped
+         *
+         * A "skal-msg-drop" message will be sent to the sender of this message
+         * if the message is dropped before reaching its destination. This flag
+         * has no effect unless the `drop_ok` flag is also set.
+         *
+         * Please note that using this flag comes with a performance penality
+         * as the transport link must be able to detect dropped messages, which
+         * generally means that messages with that flag set can't be send over
+         * UDP-like transport links.
+         */
+        constexpr static uint32_t ntf_drop = 0x04;
+
+        /** Message flag: this message is urgent
+         *
+         * This message will jump in front of regular messages when enqueued at
+         * the various hops.
+         *
+         * The default is to send non-urgent messages. Please use this flag
+         * sparringly. This feature is implemented on a "best-effort" basis
+         * only, there are no guarantee that this message will actually arrive
+         * before any regular message sent previously.
+         */
+        constexpr static uint32_t urgent = 0x08;
+
+        /** Message flag: this is a multicast message
+         *
+         * This message is to be duplicated for many recipients.
+         *
+         * This flag implies `udp` and `!ntf_drop`.
+         */
+        constexpr static uint32_t multicast = 0x10;
+    };
 
     /** Constructor
      *
@@ -119,12 +119,23 @@ public :
     msg_t(std::string sender, std::string recipient, std::string action,
             uint32_t flags = 0, int8_t ttl = default_ttl);
 
-    /** Utility function to create a msg */
-    static ptr_t create(std::string sender, std::string recipient,
-            std::string action, uint32_t flags = 0, int8_t ttl = default_ttl)
+    /** Constuctor where the sender is not from the skal framework
+     *
+     * Such a message will have the `udp` and `!ntf_drop` set implicitely.
+     *
+     * \param recipient [in] Whom to send this message to; this is the name of
+     *                       a worker or a multicast group (in which case the
+     *                       `flag_t::multicast` flag must also be set)
+     * \param action    [in] Message action; must not be an empty string;
+     *                       please note that message actions starting with
+     *                       "skal" are reserved for skal's own use
+     * \param flags     [in] Message flag; please refer to `flag_t`
+     * \param ttl       [in] Time-to-live counter initial value; <= for default
+     */
+    msg_t(std::string recipient, std::string action,
+            uint32_t flags = 0, int8_t ttl = default_ttl)
+        : msg_t("", std::move(recipient), std::move(action), flags, ttl)
     {
-        return std::make_unique<msg_t>(std::move(sender), std::move(recipient),
-                std::move(action), flags, ttl);
     }
 
     /** Construct a message from a serialized form
@@ -143,10 +154,17 @@ public :
      */
     explicit msg_t(std::string data);
 
-    static ptr_t create(std::string data)
-    {
-        return std::make_unique<msg_t>(std::move(data));
-    }
+    /** Utility function to create a msg */
+    static std::unique_ptr<msg_t> create(std::string sender,
+            std::string recipient, std::string action,
+            uint32_t flags = 0, int8_t ttl = default_ttl);
+
+    /** Utility function to create a msg from an external source */
+    static std::unique_ptr<msg_t> create(std::string recipient,
+            std::string action, uint32_t flags = 0, int8_t ttl = default_ttl);
+
+    /** Utility function to create a msg from a serialized form */
+    static std::unique_ptr<msg_t> create(std::string data);
 
     /** Get the timestamp of when this message had been created
      *
@@ -177,10 +195,7 @@ public :
         return flags_;
     }
 
-    void flags(uint32_t value)
-    {
-        flags_ = value;
-    }
+    void flags(uint32_t value);
 
     int8_t ttl() const
     {
@@ -376,6 +391,15 @@ public :
     std::string serialize() const;
 
 private :
+    struct iflag_t final
+    {
+        /** Internal message flag: this is an internal message */
+        constexpr static uint32_t internal = 0x10000;
+
+        /** External message flag: this message originates from outside skal */
+        constexpr static uint32_t external = 0x20000;
+    };
+
     uint32_t iflags() const
     {
         return iflags_;
@@ -398,6 +422,11 @@ private :
 
     void sender(std::string sender);
 
+    /** Utility function to create an internal msg */
+    static std::unique_ptr<msg_t> create_internal(std::string sender,
+            std::string recipient, std::string action,
+            uint32_t flags = 0, int8_t ttl = default_ttl);
+
     boost::posix_time::ptime timestamp_;
     std::string              sender_;
     std::string              recipient_;
@@ -413,6 +442,7 @@ private :
     std::map<std::string, blob_proxy_t> blobs_;
 
     friend class queue_t;
+    friend class worker_t;
 };
 
 /** Version number for the message format */

@@ -1,17 +1,16 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/detail/queue.hpp>
-#include <skal/detail/msg.hpp>
 #include <skal/detail/log.hpp>
 
 namespace skal {
 
-void queue_t::push(msg_t::ptr_t msg)
+void queue_t::push(std::unique_ptr<msg_t> msg)
 {
     skal_assert(msg);
-    if (msg->iflags() & iflag_t::internal) {
+    if (msg->iflags() & msg_t::iflag_t::internal) {
         internal_.push_back(std::move(msg));
-    } else if (msg->flags() & flag_t::urgent) {
+    } else if (msg->flags() & msg_t::flag_t::urgent) {
         urgent_.push_back(std::move(msg));
     } else {
         regular_.push_back(std::move(msg));
@@ -21,9 +20,9 @@ void queue_t::push(msg_t::ptr_t msg)
     }
 }
 
-msg_t::ptr_t queue_t::pop(bool internal_only)
+std::unique_ptr<msg_t> queue_t::pop(bool internal_only)
 {
-    msg_t::ptr_t msg;
+    std::unique_ptr<msg_t> msg;
     if (!internal_.empty()) {
         msg = std::move(internal_.front());
         internal_.pop_front();
