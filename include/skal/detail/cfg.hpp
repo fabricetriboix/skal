@@ -6,6 +6,5 @@
 
 namespace skal {
 
-constexpr const char* skal_external = "skal-external";
 
 } // namespace skal

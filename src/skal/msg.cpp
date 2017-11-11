@@ -28,7 +28,6 @@ msg_t::msg_t(std::string sender, std::string recipient, std::string action,
 {
     if (sender_.empty()) {
         iflags_ |= iflag_t::external;
-        sender_ = worker_name("skal-external");
     }
     flags(fl);
 }
@@ -56,7 +55,7 @@ std::unique_ptr<msg_t> msg_t::create_internal(std::string sender,
         std::string recipient, std::string action, uint32_t flags, int8_t ttl)
 {
     std::unique_ptr<msg_t> msg = create(sender, recipient, action, flags, ttl);
-    msg->iflags(iflag_t::internal);
+    msg->iflags_ = iflag_t::internal;
     return std::move(msg);
 }
 
@@ -82,8 +81,8 @@ msg_t::msg_t(std::string data)
     }
 
     timestamp_ = us_to_ptime(tmp.timestamp());
-    sender_ = tmp.sender();
-    recipient_ = tmp.recipient();
+    sender_ = worker_name(tmp.sender());
+    recipient_ = worker_name(tmp.recipient());
     action_ = tmp.action();
     flags_ = tmp.flags();
     iflags_ = tmp.iflags();

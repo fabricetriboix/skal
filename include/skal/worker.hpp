@@ -129,4 +129,10 @@ private :
     friend class executor_t;
 };
 
+/** Send the `msg`
+ *
+ * \param msg [in] Message to send
+ */
+void send(std::unique_ptr<msg_t> msg);
+
 } // namespace skal
