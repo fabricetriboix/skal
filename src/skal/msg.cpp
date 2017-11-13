@@ -19,11 +19,12 @@ const uint32_t msg_t::flag_t::multicast;
 const uint32_t msg_t::iflag_t::internal;
 
 msg_t::msg_t(std::string sender, std::string recipient, std::string action,
-        uint32_t fl, int8_t ttl)
+        uint32_t fl, uint32_t ifl, int8_t ttl)
     : timestamp_(boost::posix_time::microsec_clock::universal_time())
     , sender_(worker_name(std::move(sender)))
     , recipient_(worker_name(std::move(recipient)))
     , action_(std::move(action))
+    , iflags_(ifl)
     , ttl_(ttl)
 {
     if (sender_.empty()) {
@@ -56,6 +57,7 @@ std::unique_ptr<msg_t> msg_t::create_internal(std::string sender,
 {
     std::unique_ptr<msg_t> msg = create(sender, recipient, action, flags, ttl);
     msg->iflags_ = iflag_t::internal;
+    msg->flags(flags); // Set some flags for internal messages
     return std::move(msg);
 }
 
@@ -144,7 +146,9 @@ msg_t::msg_t(std::string data)
 void msg_t::flags(uint32_t value)
 {
     flags_ = value;
-    if ((flags_ & flag_t::multicast) || (iflags_ & iflag_t::external)) {
+    if (    (flags_ & flag_t::multicast)
+         || (iflags_ & iflag_t::internal)
+         || (iflags_ & iflag_t::external)) {
         flags_ |= flag_t::udp;
         flags_ &= ~flag_t::ntf_drop;
     }

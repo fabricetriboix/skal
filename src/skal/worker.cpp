@@ -43,6 +43,13 @@ worker_t::~worker_t()
     g_workers.erase(name_);
 }
 
+void worker_t::send(std::unique_ptr<msg_t> msg)
+{
+    if (!post(msg)) {
+        // TODO: forward to skald
+    }
+}
+
 bool worker_t::post(std::unique_ptr<msg_t>& msg)
 {
     lock_t lock(g_mutex);
@@ -50,6 +57,7 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
     if (it == g_workers.end()) {
         return false;
     }
+    skal_assert(it->second);
 
     bool tell_xoff = false;
     std::string sender;
@@ -75,9 +83,8 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
     if (tell_xoff) {
         std::unique_ptr<msg_t> xoff_msg = msg_t::create_internal(
                 it->second->name_, std::move(sender), "skal-xoff");
-        if (!post(xoff_msg)) {
-            // TODO: send to skald
-        }
+        it->second->ntf_xon_.insert(xoff_msg->recipient());
+        send(std::move(xoff_msg));
     }
     return true;
 }
@@ -90,8 +97,98 @@ void worker_t::drop(std::unique_ptr<msg_t> msg)
     std::ostringstream oss;
     oss << "Worker '" << msg->recipient() << "' does not exist";
     msg->add_field("extra", oss.str());
-    if (!post(drop_msg)) {
-        // TODO: send to skald
+    send(std::move(drop_msg));
+}
+
+worker_t::process_result_t worker_t::process_one()
+{
+    bool internal_only = !xoff_.empty();
+    std::unique_ptr<msg_t> msg = queue_.pop(internal_only);
+    if (!msg) {
+        return process_result_t::no_msg;
+    }
+
+    bool stop = false;
+    if (msg->iflags() & msg_t::iflag_t::internal) {
+        stop = process_internal_msg(std::move(msg));
+    }
+    if (!ntf_xon_.empty() && !queue_.is_half_full() && !stop) {
+        // Some workers are waiting for my queue not to be full anymore
+        send_xon();
+    }
+
+    time_point_t start = std::chrono::steady_clock::now();
+    try {
+        process_(std::move(msg));
+    } catch (std::exception& e) {
+        std::ostringstream oss;
+        oss << "Worker '" << name_ << "' threw an exception: " << e.what();
+        skal_log(error) << oss.str();
+        stop = true;
+        // TODO: raise an alarm
+    } catch (...) {
+        std::ostringstream oss;
+        oss << "Worker '" << name_ << "' threw an exception";
+        skal_log(error) << oss.str();
+        stop = true;
+        // TODO: raise an alarm
+    }
+    time_point_t end = std::chrono::steady_clock::now();
+    auto duration = end - start;
+    (void)duration; // TODO: do something with that
+
+    send_ntf_xon(end);
+
+    if (!stop) {
+        return process_result_t::ok;
+    }
+
+    // This worker is now terminated; release any worker blocked on me
+    send_xon();
+    return process_result_t::finished;
+}
+
+bool worker_t::process_internal_msg(std::unique_ptr<msg_t> msg)
+{
+    bool terminate = false;
+    if (msg->action() == "skal-xoff") {
+        // A worker is telling me to stop sending to it
+        xoff_[msg->sender()] = std::chrono::steady_clock::now();
+
+    } else if (msg->action() == "skal-xon") {
+        // A worker is telling me I can resume sending
+        xoff_.erase(msg->sender());
+
+    } else if (msg->action() == "skal-ntf-xon") {
+        // A worker I am blocking is telling me to notify it when it can send
+        // messages again
+        ntf_xon_.insert(msg->sender());
+
+    } else if (msg->action() == "skal-terminate") {
+        terminate = true;
+    }
+    // TODO: from here: build and commit
+    return terminate;
+}
+
+void worker_t::send_xon()
+{
+    for (auto& worker_name : ntf_xon_) {
+        send(msg_t::create_internal(name_, worker_name, "skal-xon"));
+    }
+    ntf_xon_.clear();
+}
+
+void worker_t::send_ntf_xon(std::chrono::steady_clock::time_point now)
+{
+    for (auto& xoff : xoff_) {
+        auto elapsed = now - xoff.second;
+        if (elapsed > xoff_timeout_) {
+            // We waited for quite a while for an "skal-xon" message
+            //  => Poke the worker that is blocking me
+            send(msg_t::create_internal(name_, xoff.first, "skal-ntf-xon"));
+            xoff.second = now;
+        }
     }
 }
 

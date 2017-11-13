@@ -9,6 +9,9 @@
 #include <skal/detail/queue.hpp>
 #include <functional>
 #include <memory>
+#include <map>
+#include <set>
+#include <chrono>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 
@@ -29,7 +32,7 @@ public :
      *
      * When a worker is created, a companion message queue is created for it to
      * buffer messages the worker has to process. The skal framework will call
-     * the `process_msg_t` functor when messages are pushed into the queue. If
+     * the `process_t` functor when messages are pushed into the queue. If
      * your process functor does not work fast enough, some backup may occur.
      * The skal framework will repeatedly call your process functor as quickly
      * as possible until the message queue is empty.
@@ -78,6 +81,16 @@ public :
             int64_t queue_threshold = default_queue_threshold,
             std::chrono::nanoseconds xoff_timeout = default_xoff_timeout);
 
+    /** Send the `msg` to its recipient
+     *
+     * The recipient could be in this process or not. If the recipient is not
+     * in this process, the message will be forwarded to skald; if this process
+     * is standalone, the message is dropped.
+     *
+     * \param msg [in] Message to send
+     */
+    static void send(std::unique_ptr<msg_t> msg);
+
     /** Post a message to the given worker in this process
      *
      * The worker that will receive this message is indicated by the `msg`'s
@@ -103,17 +116,41 @@ public :
         return name_;
     }
 
-    bool paused() const
-    {
-        return paused_;
-    }
+    enum class process_result_t {
+        ok,      /**< Message popped and processed */
+        no_msg,  /**< There was no message to process */
+        finished /**< Msg processing function returned `false` or threw */
+    };
+
+    /** Pop the top message and process it
+     *
+     * \return See `process_result_t`
+     */
+    process_result_t process_one();
 
 private :
+    typedef std::chrono::steady_clock::time_point time_point_t;
+
     std::string name_;
     process_t process_;
     queue_t queue_;
     std::chrono::nanoseconds xoff_timeout_;
-    bool paused_;
+
+    /** Workers that sent me an xoff msg
+     *
+     * The key is the peer worker name, the value is the last time I sent
+     * the peer a "skal-ntf-xon" message.
+     *
+     * While this map is not empty, this worker is throttled (i.e. it is not
+     * allowed to process any non-internal message).
+     */
+    std::map<std::string, time_point_t> xoff_;
+
+    /** Workers I sent an xoff msg to
+     *
+     * I will need to send them an xon msg when my queue is not full anymore.
+     */
+    std::set<std::string> ntf_xon_;
 
     worker_t(std::string name, process_t process, int64_t queue_threshold,
             std::chrono::nanoseconds xoff_timeout)
@@ -121,18 +158,28 @@ private :
         , process_(process)
         , queue_(queue_threshold)
         , xoff_timeout_(xoff_timeout)
-        , paused_(false)
     {
     }
+
+    /** Process an internal message
+     *
+     * \param msg [in] Message to process
+     *
+     * \return `true` if OK, `false` to stop this worker immediately
+     */
+    bool process_internal_msg(std::unique_ptr<msg_t> msg);
+
+    /** Send "skal-xon" messages to workers which are waiting for me */
+    void send_xon();
+
+    /** Send "skal-ntf-xon" messages to workers which are blocking me
+     *
+     * \param now [in] Current time
+     */
+    void send_ntf_xon(time_point_t now);
 
     friend class scheduler_t;
     friend class executor_t;
 };
-
-/** Send the `msg`
- *
- * \param msg [in] Message to send
- */
-void send(std::unique_ptr<msg_t> msg);
 
 } // namespace skal

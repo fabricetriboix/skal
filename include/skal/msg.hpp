@@ -117,7 +117,11 @@ public :
      * \param ttl       [in] Time-to-live counter initial value; <= for default
      */
     msg_t(std::string sender, std::string recipient, std::string action,
-            uint32_t flags = 0, int8_t ttl = default_ttl);
+            uint32_t flags = 0, int8_t ttl = default_ttl)
+        : msg_t(std::move(sender), std::move(recipient), std::move(action),
+                flags, 0, ttl)
+    {
+    }
 
     /** Constuctor where the sender is not from the skal framework
      *
@@ -422,7 +426,15 @@ private :
 
     void sender(std::string sender);
 
-    /** Utility function to create an internal msg */
+    /** Constructor with internal flags */
+    msg_t(std::string sender, std::string recipient, std::string action,
+            uint32_t flags, uint32_t iflags, int8_t ttl);
+
+    /** Utility function to create an internal msg
+     *
+     * An internal message implicitely has `flag_t::udp` and
+     * `!flag_t::ntf_drop`.
+     */
     static std::unique_ptr<msg_t> create_internal(std::string sender,
             std::string recipient, std::string action,
             uint32_t flags = 0, int8_t ttl = default_ttl);
