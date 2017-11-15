@@ -27,7 +27,7 @@ set(SKAL_SRC
     include/skal/cfg.hpp
     include/skal/error.hpp
     include/skal/msg.hpp
-    #include/skal/policy.hpp
+    include/skal/scheduler.hpp
     #include/skal/skal.hpp
     include/skal/worker.hpp
 
@@ -46,8 +46,8 @@ set(SKAL_SRC
     #src/skal/executor.cpp
     src/skal/log.cpp
     src/skal/msg.cpp
-    #src/skal/policy.cpp
     src/skal/queue.cpp
+    src/skal/scheduler.cpp
     #src/skal/skal.cpp
     src/skal/util.cpp
     src/skal/worker.cpp

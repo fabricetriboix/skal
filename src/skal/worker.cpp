@@ -167,7 +167,6 @@ bool worker_t::process_internal_msg(std::unique_ptr<msg_t> msg)
     } else if (msg->action() == "skal-terminate") {
         terminate = true;
     }
-    // TODO: from here: build and commit
     return terminate;
 }
 

@@ -6,6 +6,8 @@
 #include <string>
 #include <chrono>
 
+using namespace std::literals::chrono_literals;
+
 namespace skal {
 
 /** SKAL compile-time configuration
@@ -24,7 +26,7 @@ namespace skal {
 constexpr int8_t default_ttl = 4;
 
 /** Default XOFF timeout (how long to wait before retrying to send) */
-constexpr auto default_xoff_timeout = std::chrono::milliseconds(50);
+constexpr auto default_xoff_timeout = 50ms;
 
 /** Default queue threshold
  *
@@ -36,7 +38,7 @@ constexpr int default_queue_threshold = 100;
 constexpr const char* default_skald_url = "unix:///tmp/skald.sock";
 
 /** Default timeout value for connectionless sockets */
-constexpr auto default_cnxless_timeout = std::chrono::seconds(10);
+constexpr auto default_cnxless_timeout = 10s;
 
 /** Default socket buffer size, in bytes */
 constexpr int default_bufsize_B = 128 * 1024;
@@ -51,7 +53,7 @@ constexpr int max_bufsize_B = 212992;
 constexpr int default_mtu_B = 1472;
 
 /** Default retransmit timeout */
-constexpr auto default_retransmit_timeout = std::chrono::milliseconds(5);
+constexpr auto default_retransmit_timeout = 5ms;
 
 /** Default send queue size */
 constexpr int default_send_queue_size = 5;

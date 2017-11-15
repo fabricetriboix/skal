@@ -20,8 +20,10 @@ enum class policy_t {
 /** Scheduler base class
  *
  * A scheduler's responsibilities are:
- *  - Own workers: it's the scheduler responsibility to manage worker objects
- *  - Select the next worker to run
+ *  - To own workers: it's the scheduler responsibility to manage worker objects
+ *  - To select the next worker to run
+ *
+ * This class must be derived and its pure virtual functions overriden.
  */
 class scheduler_t : boost::noncopyable
 {
@@ -30,37 +32,19 @@ public :
 
     /** Add a worker
      *
-     * \param worker [in] Worker to add
-     */
-    void add_worker(std::unique_ptr<worker_t> worker);
-
-    /** Run the next worker
-     *
-     * \return `true` if there are more workers to run, `false` if there are
-     *         no more workers to run.
-     */
-    bool run_one();
-
-private :
-    /** Add the worker to your internal data structures
-     *
      * If a worker with the same name already exists, you must assert.
      *
-     * The mutex has been locked when this function is called, so you can
-     * access your internal data structures for this scheduler safely.
-     *
-     * \param worker [in] Worker to add
+     * \param worker [in] Worker to add; must not be empty
      */
     virtual void add(std::unique_ptr<worker_t> worker) = 0;
 
     /** Remove the given worker from your internal data structures
      *
-     * The mutex has been locked when this function is called, so you can
-     * access your internal data structures for this scheduler safely.
+     * If the given worker does not exists, this function must do nothing.
      *
      * \param worker_name [in] Full name of worker to remove
      */
-    virtual void erase(const std::string& worker_name) = 0;
+    virtual void remove(const std::string& worker_name) = 0;
 
     /** Select the next worker to run
      *
@@ -74,6 +58,6 @@ private :
     virtual worker_t* select() = 0;
 };
 
-std::unique_ptr<policy_interface_t> create_policy(policy_t policy);
+std::unique_ptr<scheduler_t> create_scheduler(policy_t policy);
 
 } // namespace skal

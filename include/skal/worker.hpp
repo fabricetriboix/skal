@@ -128,6 +128,21 @@ public :
      */
     process_result_t process_one();
 
+    size_t internal_msg_count() const
+    {
+        return queue_.internal_size();
+    }
+
+    size_t msg_count() const
+    {
+        return queue_.size();
+    }
+
+    bool blocked() const
+    {
+        return !xoff_.empty();
+    }
+
 private :
     typedef std::chrono::steady_clock::time_point time_point_t;
 

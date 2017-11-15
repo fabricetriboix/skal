@@ -81,6 +81,11 @@ public :
         return internal_.size() + urgent_.size() + regular_.size();
     }
 
+    size_t internal_size() const
+    {
+        return internal_.size();
+    }
+
     bool is_empty() const
     {
         return size() == 0;

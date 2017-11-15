@@ -1,67 +1,78 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include <internal/policy.hpp>
-#include <internal/queue.hpp>
+#include <skal/scheduler.hpp>
 #include <skal/worker.hpp>
-#include <skal/detail/semaphore.hpp>
+#include <skal/error.hpp>
 #include <list>
-#include <mutex>
 #include <memory>
 #include <utility>
-#include <boost/optional.hpp>
+#include <algorithm>
 
 namespace skal {
+
 namespace {
 
-struct work_t
+class fair_scheduler_t final : public scheduler_t
 {
-    int priority;
-    queue_t queue;
-    process_msg_t process_msg;
-
-    work_t(const worker_t& params, queue_t::ntf_t ntf)
-        : priority(params.priority)
-        , queue(params.queue_threshold, ntf)
-        , process_msg(params.process_msg)
-    {
-    }
-};
-
-class carousel_policy_t : public policy_interface_t
-{
-    typedef std::unique_lock<std::mutex> lock_t;
-    typedef std::list<std::unique_ptr<work_t>> workers_t;
-    mutable std::mutex mutex_;
-    workers_t workers_;
-    boost::optional<workers_t::iterator> iterator_;
-    ft::semaphore_t semaphore_;
-
 public :
-    carousel_policy_t() = default;
+    typedef std::list<std::unique_ptr<worker_t>> workers_t;
 
-    void add(std::unique_ptr<work_t> worker) override
+    ~fair_scheduler_t() = default;
+    fair_scheduler_t() = default;
+
+    void add(std::unique_ptr<worker_t> worker) override
     {
-        params.check();
-        lock_t lock(mutex_);
+        skal_assert(worker);
+        workers_t::iterator it = lookup(worker->name());
+        skal_assert(it == workers_.end()) << "Duplicate worker name '"
+            << worker->name() << "'";
         workers_.push_back(std::move(worker));
     }
 
-    bool run_one() override
+    void remove(const std::string& worker_name) override
     {
-        lock_t lock(mutex_);
-        semaphore_.take();
-        if (workers_t.empty()) {
-            return false;
+        workers_t::iterator it = lookup(worker_name);
+        if (it != workers_.end()) {
+            workers_.erase(it);
         }
-        workers_t::iterator = next();
-        std::unique_ptr<msg_t> msg = iterator->queue.pop();
-        try {
-            next->process_msg(
+    }
+
+    worker_t* select() override
+    {
+        worker_t* selected = nullptr;
+        for (auto& worker : workers_) {
+            if (worker->blocked()) {
+                if (worker->internal_msg_count() > 0) {
+                    return worker.get();
+                }
+            } else if ((selected == nullptr) && (worker->msg_count() > 0)) {
+                selected = worker.get();
+            } else if (worker->msg_count() > selected->msg_count()) {
+                selected = worker.get();
+            }
+        } // for each worker
+        return selected;
     }
 
 private :
+    workers_t workers_;
+
+    workers_t::iterator lookup(const std::string& worker_name)
+    {
+        return std::find_if(workers_.begin(), workers_.end(),
+                [&worker_name] (const std::unique_ptr<worker_t>& worker)
+                {
+                    return worker->name() == worker_name;
+                });
+    }
 };
 
 } // unnamed namespace
+
+std::unique_ptr<scheduler_t> create_scheduler(policy_t policy)
+{
+    skal_assert(policy == policy_t::fair);
+    return std::make_unique<fair_scheduler_t>();
+}
 
 } // namespace skal
