@@ -6,9 +6,11 @@
 namespace skal {
 
 executor_t::executor(std::unique_ptr<scheduler_t> scheduler)
-    : work_(io_service_)
+    : scheduler_(std::move(scheduler))
+    , work_(io_service_)
     , dispatcher_thread_( [this] () { this->run_dispatcher(); } )
 {
+    skal_assert(scheduler_);
     for (int i = 0; i < 3; ++i) {
         threads_.emplace_back( [this] () { io_service_.run(); } )
     }
@@ -34,9 +36,37 @@ void executor_t::run_dispatcher()
         if (is_terminated_) {
             break;
         }
-        lock_t lock(mutex_);
-        // TODO: from here
-    }
+        std::shared_ptr<worker_t> worker = scheduler_->select();
+        if (!worker) {
+            // May happen if a worker terminates before processing that msg
+            skal_log(debug)
+                << "I received a signal that a message has come, but there is no worker with pending messages";
+            continue;
+        }
+
+        bool terminated = false;
+        try {
+            terminated = worker->process_one();
+        } catch (std::exception& e) {
+            skal_log(notice) << "Worker '" << worker->name()
+                << "' threw an exception: " << e.what()
+                << " - worker is now terminated";
+            terminated = true;
+        } catch (...) {
+            skal_log(notice) << "Worker '" << worker->name()
+                << "' threw a non-standard exception - worker is now terminated";
+            terminated = true;
+        }
+
+        if (terminated) {
+            scheduler_->remove(worker->name());
+            worker.reset();
+            if (scheduler_->count() == 0) {
+                skal_log(info) << "Last worker terminated for this executor";
+                break;
+            }
+        }
+    } // infinite loop
 }
 
 } // namespace skal

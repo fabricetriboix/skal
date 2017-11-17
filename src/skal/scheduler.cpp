@@ -43,6 +43,11 @@ class fair_scheduler_t final : public scheduler_t
         }
     }
 
+    bool do_is_empty() const override
+    {
+        return workers_.empty();
+    }
+
     std::shared_ptr<worker_t> do_select() const override
     {
         std::shared_ptr<worker_t> selected;

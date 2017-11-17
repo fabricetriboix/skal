@@ -24,8 +24,14 @@ public :
     executor_t(std::unique_ptr<scheduler_t> scheduler);
     ~executor_t();
 
+    scheduler_t& scheduler()
+    {
+        return *scheduler_.get();
+    }
+
 private :
     std::atomic<bool> is_terminated_ = false;
+    std::unique_ptr<scheduler_t> scheduler_;
     boost::asio::io_service io_service_;
     boost::asio::io_service::work work_;
     std::vector<std::thread> threads_;

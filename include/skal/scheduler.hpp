@@ -57,6 +57,12 @@ public :
         do_remove(worker_name);
     }
 
+    bool is_empty() const
+    {
+        lock_t lock(mutex_);
+        return do_is_empty();
+    }
+
     /** Select the next worker to run
      *
      * \return A shared pointer to the worker to run, or an empty pointer if
@@ -84,6 +90,8 @@ private :
      * \param worker_name [in] Full name of worker to remove
      */
     virtual void do_remove(const std::string& worker_name) = 0;
+
+    virtual bool do_is_empty() const = 0;
 
     /** Select the next worker to run
      *

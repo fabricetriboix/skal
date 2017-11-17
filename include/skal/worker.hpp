@@ -116,17 +116,13 @@ public :
         return name_;
     }
 
-    enum class process_result_t {
-        ok,      /**< Message popped and processed */
-        no_msg,  /**< There was no message to process */
-        finished /**< Msg processing function returned `false` or threw */
-    };
-
     /** Pop the top message and process it
      *
-     * \return See `process_result_t`
+     * This function asserts if there are no messages enqueued for this worker.
+     *
+     * \return `true` if OK, `false` if the worker must terminate ASAP
      */
-    process_result_t process_one();
+    bool process_one();
 
     size_t internal_msg_count() const
     {

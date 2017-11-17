@@ -100,13 +100,12 @@ void worker_t::drop(std::unique_ptr<msg_t> msg)
     send(std::move(drop_msg));
 }
 
-worker_t::process_result_t worker_t::process_one()
+bool worker_t::process_one()
 {
     bool internal_only = !xoff_.empty();
     std::unique_ptr<msg_t> msg = queue_.pop(internal_only);
-    if (!msg) {
-        return process_result_t::no_msg;
-    }
+    skal_assert(msg) << "Worker '" << name_
+        << "' told to process one message, but its queue is empty";
 
     bool stop = false;
     if (msg->iflags() & msg_t::iflag_t::internal) {
@@ -117,35 +116,38 @@ worker_t::process_result_t worker_t::process_one()
         send_xon();
     }
 
-    time_point_t start = std::chrono::steady_clock::now();
-    try {
-        process_(std::move(msg));
-    } catch (std::exception& e) {
-        std::ostringstream oss;
-        oss << "Worker '" << name_ << "' threw an exception: " << e.what();
-        skal_log(error) << oss.str();
-        stop = true;
-        // TODO: raise an alarm
-    } catch (...) {
-        std::ostringstream oss;
-        oss << "Worker '" << name_ << "' threw an exception";
-        skal_log(error) << oss.str();
-        stop = true;
-        // TODO: raise an alarm
-    }
-    time_point_t end = std::chrono::steady_clock::now();
-    auto duration = end - start;
-    (void)duration; // TODO: do something with that
-
-    send_ntf_xon(end);
-
-    if (!stop) {
-        return process_result_t::ok;
+    if (!(msg->iflags() & msg_t::iflag_t::internal)) {
+        time_point_t start = std::chrono::steady_clock::now();
+        try {
+            process_(std::move(msg));
+        } catch (std::exception& e) {
+            std::ostringstream oss;
+            oss << "Worker '" << name_ << "' threw an exception: " << e.what();
+            skal_log(error) << oss.str();
+            stop = true;
+            // TODO: raise an alarm
+        } catch (...) {
+            std::ostringstream oss;
+            oss << "Worker '" << name_ << "' threw an exception";
+            skal_log(error) << oss.str();
+            stop = true;
+            // TODO: raise an alarm
+        }
+        time_point_t end = std::chrono::steady_clock::now();
+        auto duration = end - start;
+        (void)duration; // TODO: do something with that
     }
 
-    // This worker is now terminated; release any worker blocked on me
-    send_xon();
-    return process_result_t::finished;
+    if (!xoff_.empty()) {
+        // I am blocked => Send reminders to workers who are blocking me
+        send_ntf_xon(std::chrono::steady_clock::now());
+    }
+
+    if (stop) {
+        // This worker is now terminated; release any worker blocked on me
+        send_xon();
+    }
+    return stop;
 }
 
 bool worker_t::process_internal_msg(std::unique_ptr<msg_t> msg)
