@@ -14,11 +14,55 @@ namespace skal {
 namespace log {
 
 /** Severity levels */
-enum class level_t {
+enum class level_t
+{
+    /** Debug level
+     *
+     * For debugging by developers. This produces a lot of output and will have
+     * an impact on the real-time behaviour of the skal-based application.
+     *
+     * Eg: Human-readable dump of each and every message that is passed through
+     *     the skal framework.
+     */
     debug,
+
+    /** Information level
+     *
+     * For debugging by the user of the skal framework. This produces
+     * informational statements useful to track down problems when running the
+     * skal-based application.
+     *
+     * Eg: When a worker is created or terminated.
+     */
     info,
+
+    /** Notices
+     *
+     * These logs are useful and important messages. When such a message is
+     * issued, this is for information only and nothing bad is happening in the
+     * skal framework.
+     *
+     * Eg: When a worker throws an exception.
+     */
     notice,
+
+    /** Warnings
+     *
+     * These logs are issued when an error condition occurred, but it is
+     * recoverable and the skal framework will try to recover it.
+     *
+     * Eg: Timeout when delivering a message.
+     */
     warning,
+
+    /** Errors
+     *
+     * These logs are issued when an unrecoverable error condition occurred.
+     * The skal framework can continue, but the functionality of the skal
+     * application has been impacted.
+     *
+     * Eg: Failed to deliver a message that had to be delivered.
+     */
     error
 };
 
