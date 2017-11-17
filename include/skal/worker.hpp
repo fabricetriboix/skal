@@ -11,7 +11,7 @@
 #include <memory>
 #include <map>
 #include <set>
-#include <chrono>
+#include <stdexcept>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 
@@ -118,9 +118,9 @@ public :
 
     /** Pop the top message and process it
      *
-     * This function asserts if there are no messages enqueued for this worker.
-     *
      * \return `true` if OK, `false` if the worker must terminate ASAP
+     *
+     * \throw `std::underflow_error` if there are no message to process
      */
     bool process_one();
 
@@ -188,6 +188,8 @@ private :
      * \param now [in] Current time
      */
     void send_ntf_xon(time_point_t now);
+
+    static void send_to_skald(std::unique_ptr<msg_t> msg);
 
     friend class scheduler_t;
     friend class executor_t;

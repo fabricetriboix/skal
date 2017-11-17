@@ -126,7 +126,7 @@ TEST(Blob, CopyProxy)
 
         // Keep the blob mapped for 10ms
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        ASSERT_TRUE(thread_ok);
+        ASSERT_TRUE(thread_ok); // FIXME: there is sometimes a failure here
     }
 
     // Let the thread do its stuff

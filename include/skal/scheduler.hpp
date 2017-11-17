@@ -29,11 +29,12 @@ enum class policy_t {
  */
 class scheduler_t : boost::noncopyable
 {
-    mutable std::mutex mutex_;
-    typedef std::unique_lock<std::mutex> lock_t;
-
 public :
     virtual ~scheduler_t() = default;
+
+private :
+    mutable std::mutex mutex_;
+    typedef std::unique_lock<std::mutex> lock_t;
 
     /** Add a worker
      *
@@ -74,7 +75,6 @@ public :
         return do_select();
     }
 
-private :
     /** Add a worker
      *
      * If a worker with the same name already exists, you must assert.
@@ -103,6 +103,8 @@ private :
      *         there are no workers to run
      */
     virtual std::shared_ptr<worker_t> do_select() const = 0;
+
+    friend class executor_t;
 };
 
 std::unique_ptr<scheduler_t> create_scheduler(policy_t policy);

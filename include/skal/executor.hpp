@@ -24,13 +24,11 @@ public :
     executor_t(std::unique_ptr<scheduler_t> scheduler);
     ~executor_t();
 
-    scheduler_t& scheduler()
-    {
-        return *scheduler_.get();
-    }
+    // TODO
+    void add_worker() { }
 
 private :
-    std::atomic<bool> is_terminated_ = false;
+    std::atomic<bool> is_terminated_;
     std::unique_ptr<scheduler_t> scheduler_;
     boost::asio::io_service io_service_;
     boost::asio::io_service::work work_;
@@ -41,6 +39,8 @@ private :
     typedef std::unique_lock<std::mutex> lock_t;
 
     void run_dispatcher();
+
+    void msg_pushed_hook();
 };
 
 } // namespace skal

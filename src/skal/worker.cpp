@@ -27,12 +27,14 @@ std::unique_ptr<worker_t> worker_t::create(std::string name, process_t process,
     if (g_workers.find(name) != g_workers.end()) {
         throw duplicate_error();
     }
+
     // NB: Can't use `make_unique` here because constructor is private
     std::unique_ptr<worker_t> worker = std::unique_ptr<worker_t>
         (new worker_t(name, process, queue_threshold, xoff_timeout));
     g_workers[worker->name_] = worker.get();
-    skal_log(debug) << "Created and registered worker '"
-        << worker->name() << "'";
+    skal_log(info) << "Worker '" << worker->name() << "' created";
+
+    worker->queue_.push(msg_t::create(worker->name(), "skal-init"));
     return std::move(worker);
 }
 
@@ -45,8 +47,9 @@ worker_t::~worker_t()
 
 void worker_t::send(std::unique_ptr<msg_t> msg)
 {
+    // Try sending the message internally first, otherwise send to skald
     if (!post(msg)) {
-        // TODO: forward to skald
+        send_to_skald(std::move(msg));
     }
 }
 
@@ -68,8 +71,10 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
             drop(std::move(msg));
             return true;
         }
-        if (!(msg->iflags() & msg_t::iflag_t::internal)) {
-            // NB: Internal messages are excluded from the throttling mechanism
+        if (    !(msg->iflags() & msg_t::iflag_t::internal)
+             && !(msg->iflags() & msg_t::iflag_t::external)) {
+            // NB: Internal and external messages are excluded from the
+            // throttling mechanism
             tell_xoff = true;
         }
         if (tell_xoff) {
@@ -77,14 +82,21 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
         }
     }
 
-    // NB: We moved the `msg`, so don't access it any more
     it->second->queue_.push(std::move(msg));
 
     if (tell_xoff) {
+        // NB: We moved the `msg`, so don't access it any more
         std::unique_ptr<msg_t> xoff_msg = msg_t::create_internal(
-                it->second->name_, std::move(sender), "skal-xoff");
+                it->second->name_, sender, "skal-xoff");
         it->second->ntf_xon_.insert(xoff_msg->recipient());
-        send(std::move(xoff_msg));
+
+        auto it2 = g_workers.find(sender);
+        if (it2 != g_workers.end()) {
+            skal_assert(it2->second);
+            it2->second->queue_.push(std::move(xoff_msg));
+        } else {
+            send_to_skald(std::move(xoff_msg));
+        }
     }
     return true;
 }
@@ -104,43 +116,54 @@ bool worker_t::process_one()
 {
     bool internal_only = !xoff_.empty();
     std::unique_ptr<msg_t> msg = queue_.pop(internal_only);
-    skal_assert(msg) << "Worker '" << name_
-        << "' told to process one message, but its queue is empty";
+    if (!msg) {
+        std::ostringstream oss;
+        oss << "Worker '" << name_
+            << "' told to process one message, but its queue is empty; "
+            << "this is a bug, please fix it";
+        throw std::underflow_error(oss.str());
+    }
 
+    time_point_t start = std::chrono::steady_clock::now();
     bool stop = false;
-    if (msg->iflags() & msg_t::iflag_t::internal) {
+    bool is_internal = msg->iflags() & msg_t::iflag_t::internal;
+    if (is_internal) {
         stop = process_internal_msg(std::move(msg));
     }
-    if (!ntf_xon_.empty() && !queue_.is_half_full() && !stop) {
+    if (!ntf_xon_.empty() && !queue_.is_half_full()) {
         // Some workers are waiting for my queue not to be full anymore
         send_xon();
     }
 
-    if (!(msg->iflags() & msg_t::iflag_t::internal)) {
-        time_point_t start = std::chrono::steady_clock::now();
+    if (!is_internal) {
+        // Message not processed yet
         try {
-            process_(std::move(msg));
+            if (!process_(std::move(msg))) {
+                skal_log(info) << "Worker '" << name_
+                    << "' terminated naturally";
+                stop = true;
+            }
         } catch (std::exception& e) {
             std::ostringstream oss;
             oss << "Worker '" << name_ << "' threw an exception: " << e.what();
-            skal_log(error) << oss.str();
+            skal_log(notice) << oss.str();
             stop = true;
             // TODO: raise an alarm
         } catch (...) {
             std::ostringstream oss;
             oss << "Worker '" << name_ << "' threw an exception";
-            skal_log(error) << oss.str();
+            skal_log(notice) << oss.str();
             stop = true;
             // TODO: raise an alarm
         }
-        time_point_t end = std::chrono::steady_clock::now();
-        auto duration = end - start;
-        (void)duration; // TODO: do something with that
     }
+    time_point_t end = std::chrono::steady_clock::now();
+    auto duration = end - start;
+    (void)duration; // TODO: do something with that
 
     if (!xoff_.empty()) {
         // I am blocked => Send reminders to workers who are blocking me
-        send_ntf_xon(std::chrono::steady_clock::now());
+        send_ntf_xon(end);
     }
 
     if (stop) {
@@ -191,6 +214,13 @@ void worker_t::send_ntf_xon(std::chrono::steady_clock::time_point now)
             xoff.second = now;
         }
     }
+}
+
+void worker_t::send_to_skald(std::unique_ptr<msg_t> msg)
+{
+    // TODO
+    (void)msg;
+    skal_assert(false) << "Sending to skald not yet implemented";
 }
 
 } // namespace skal

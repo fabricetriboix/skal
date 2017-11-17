@@ -103,7 +103,7 @@ public :
     /** Check if the queue is half-full */
     bool is_half_full() const
     {
-        return size() >= (threshold_ / 2);
+        return size() > (threshold_ / 2);
     }
 
 private :

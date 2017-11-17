@@ -5,14 +5,15 @@
 
 namespace skal {
 
-executor_t::executor(std::unique_ptr<scheduler_t> scheduler)
-    : scheduler_(std::move(scheduler))
+executor_t::executor_t(std::unique_ptr<scheduler_t> scheduler)
+    : is_terminated_(false)
+    , scheduler_(std::move(scheduler))
     , work_(io_service_)
     , dispatcher_thread_( [this] () { this->run_dispatcher(); } )
 {
     skal_assert(scheduler_);
     for (int i = 0; i < 3; ++i) {
-        threads_.emplace_back( [this] () { io_service_.run(); } )
+        threads_.emplace_back( [this] () { io_service_.run(); } );
     }
 }
 
@@ -61,7 +62,7 @@ void executor_t::run_dispatcher()
         if (terminated) {
             scheduler_->remove(worker->name());
             worker.reset();
-            if (scheduler_->count() == 0) {
+            if (scheduler_->is_empty()) {
                 skal_log(info) << "Last worker terminated for this executor";
                 break;
             }
