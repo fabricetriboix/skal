@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include <skal/detail/util.hpp>
+#include <skal/util.hpp>
 #include <gtest/gtest.h>
 
 TEST(Util, ParseFullUrl)

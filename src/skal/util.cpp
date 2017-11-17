@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include <skal/detail/util.hpp>
+#include <skal/util.hpp>
 #include <skal/error.hpp>
 #include <cstring>
 #include <boost/date_time/posix_time/posix_time.hpp>

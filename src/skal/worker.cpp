@@ -1,8 +1,8 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/worker.hpp>
-#include <skal/detail/log.hpp>
-#include <skal/detail/cfg.hpp>
+#include <skal/log.hpp>
+#include <skal/cfg.hpp>
 #include <mutex>
 #include <unordered_map>
 #include <algorithm>

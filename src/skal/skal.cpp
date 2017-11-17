@@ -1,7 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/skal.hpp>
-#include <skal/detail/util.hpp>
+#include <skal/util.hpp>
 #include <boost/asio.hpp>
 
 namespace skal {

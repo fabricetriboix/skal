@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <detail/safe-mutex.hpp>
+#include <skal/safe-mutex.hpp>
 #include <mutex>
 #include <condition_variable>
 #include <chrono>

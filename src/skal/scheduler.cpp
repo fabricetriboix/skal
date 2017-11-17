@@ -14,13 +14,19 @@ namespace {
 
 class fair_scheduler_t final : public scheduler_t
 {
-public :
-    typedef std::list<std::unique_ptr<worker_t>> workers_t;
+    typedef std::list<std::shared_ptr<worker_t>> workers_t;
+    workers_t workers_;
 
-    ~fair_scheduler_t() = default;
-    fair_scheduler_t() = default;
+    workers_t::iterator lookup(const std::string& worker_name)
+    {
+        return std::find_if(workers_.begin(), workers_.end(),
+                [&worker_name] (const std::shared_ptr<worker_t>& worker)
+                {
+                    return worker->name() == worker_name;
+                });
+    }
 
-    void add(std::unique_ptr<worker_t> worker) override
+    void do_add(std::unique_ptr<worker_t> worker) override
     {
         skal_assert(worker);
         workers_t::iterator it = lookup(worker->name());
@@ -29,7 +35,7 @@ public :
         workers_.push_back(std::move(worker));
     }
 
-    void remove(const std::string& worker_name) override
+    void do_remove(const std::string& worker_name) override
     {
         workers_t::iterator it = lookup(worker_name);
         if (it != workers_.end()) {
@@ -37,34 +43,27 @@ public :
         }
     }
 
-    worker_t* select() override
+    std::shared_ptr<worker_t> do_select() const override
     {
-        worker_t* selected = nullptr;
+        std::shared_ptr<worker_t> selected;
         for (auto& worker : workers_) {
             if (worker->blocked()) {
                 if (worker->internal_msg_count() > 0) {
-                    return worker.get();
+                    // Empty blocked workers' internal messages first
+                    return worker;
                 }
-            } else if ((selected == nullptr) && (worker->msg_count() > 0)) {
-                selected = worker.get();
+            } else if (!selected && (worker->msg_count() > 0)) {
+                selected = worker;
             } else if (worker->msg_count() > selected->msg_count()) {
-                selected = worker.get();
+                selected = worker;
             }
         } // for each worker
         return selected;
     }
 
-private :
-    workers_t workers_;
-
-    workers_t::iterator lookup(const std::string& worker_name)
-    {
-        return std::find_if(workers_.begin(), workers_.end(),
-                [&worker_name] (const std::unique_ptr<worker_t>& worker)
-                {
-                    return worker->name() == worker_name;
-                });
-    }
+public :
+    ~fair_scheduler_t() = default;
+    fair_scheduler_t() = default;
 };
 
 } // unnamed namespace

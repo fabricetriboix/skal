@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include <skal/detail/domain.hpp>
+#include <skal/domain.hpp>
 
 namespace skal {
 

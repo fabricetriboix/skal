@@ -2,61 +2,39 @@
 
 #pragma once
 
-#include <skal/skal.hpp>
-#include <internal/semaphore.hpp>
-#include <internal/job.hpp>
-#include <memory>
-#include <list>
-#include <mutex>
+#include <skal/scheduler.hpp>
+#include <skal/semaphore.hpp>
+#include <vector>
 #include <thread>
-#include <utility>
+#include <mutex>
+#include <atomic>
 #include <boost/noncopyable.hpp>
+#include <boost/asio.hpp>
 
 namespace skal {
 
-/** Executor class */
+/** Executor class
+ *
+ * This is a toy implementation; real implementation to come when I have
+ * numa stuff.
+ */
 class executor_t final : boost::noncopyable
 {
-    typedef std::list<std::unique_ptr<job_t>> jobs_t;
-
-    typedef std::unique_lock<std::mutex> lock_t;
-    mutable std::mutex mutex_; /**< Mutex to protect `workers_to_add_` */
-    std::list<worker_t> workers_to_add_;
-
-    ft::semaphore_t semaphore_;
-    // TODO std::unique_ptr<policy_interface_t> policy_;
-    std::thread thread_;
-    jobs_t jobs_;
-
-    /** Thread entry point */
-    void run();
-
-    /** Create a job for the given worker */
-    void create_job(worker_t worker);
-
-    /** Pop a message for the given job and process it */
-    void run_one(jobs_t::iterator& job);
-
 public :
-    executor_t() = delete;
+    executor_t(std::unique_ptr<scheduler_t> scheduler);
     ~executor_t();
 
-    /** Constructor
-     *
-     * \param policy [in] Type of policy to use
-     */
-    explicit executor_t(policy_t policy);
+private :
+    std::atomic<bool> is_terminated_ = false;
+    boost::asio::io_service io_service_;
+    boost::asio::io_service::work work_;
+    std::vector<std::thread> threads_;
+    std::thread dispatcher_thread_;
+    ft::semaphore_t semaphore_;
+    std::mutex mutex_;
+    typedef std::unique_lock<std::mutex> lock_t;
 
-    /** Add a worker to be executed on this executor
-     *
-     * \param worker [in] Worker to add
-     */
-    void add(worker_t worker)
-    {
-        lock_t lock(mutex_);
-        workers_to_add_.push_back(std::move(worker));
-        semaphore_.post();
-    }
+    void run_dispatcher();
 };
 
 } // namespace skal

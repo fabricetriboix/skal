@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include <skal/detail/queue.hpp>
+#include <skal/queue.hpp>
 #include <gtest/gtest.h>
 
 TEST(Queue, PushAndPop)

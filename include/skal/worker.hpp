@@ -5,8 +5,8 @@
 #include <skal/cfg.hpp>
 #include <skal/error.hpp>
 #include <skal/msg.hpp>
-#include <skal/detail/domain.hpp>
-#include <skal/detail/queue.hpp>
+#include <skal/domain.hpp>
+#include <skal/queue.hpp>
 #include <functional>
 #include <memory>
 #include <map>

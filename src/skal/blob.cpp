@@ -2,8 +2,8 @@
 
 #include <skal/blob.hpp>
 #include <skal/error.hpp>
-#include <skal/detail/log.hpp>
-#include <skal/detail/safe-mutex.hpp>
+#include <skal/log.hpp>
+#include <skal/safe-mutex.hpp>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>

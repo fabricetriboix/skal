@@ -1,9 +1,9 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include <skal/detail/domain.hpp>
-#include <skal/detail/log.hpp>
-#include <skal/detail/util.hpp>
+#include <skal/domain.hpp>
+#include <skal/log.hpp>
+#include <skal/util.hpp>
 #include "msg.pb.h"
 #include <cstring>
 
