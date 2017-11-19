@@ -5,6 +5,15 @@
 
 namespace skal {
 
+void queue_t::listen(ntf_t ntf)
+{
+    skal_assert(ntf);
+    ntf_ = std::move(ntf);
+    for (; pending_ > 0; --pending_) {
+        ntf_();
+    }
+}
+
 void queue_t::push(std::unique_ptr<msg_t> msg)
 {
     skal_assert(msg);
@@ -15,8 +24,10 @@ void queue_t::push(std::unique_ptr<msg_t> msg)
     } else {
         regular_.push_back(std::move(msg));
     }
-    for (auto& ntf : ntf_) {
-        ntf();
+    if (ntf_) {
+        ntf_();
+    } else {
+        ++pending_;
     }
 }
 

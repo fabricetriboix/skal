@@ -82,3 +82,21 @@ TEST(Queue, PushAndPop)
         ASSERT_EQ(nullptr, msg);
     }
 }
+
+TEST(Queue, Listen)
+{
+    skal::domain("xyz");
+
+    skal::queue_t queue(3);
+    queue.push(skal::msg_t::create("sender1", "recipient1", "action1"));
+    int notified = 0;
+    queue.listen(
+            [&notified] ()
+            {
+                ++notified;
+            });
+    ASSERT_EQ(notified, 1);
+
+    queue.push(skal::msg_t::create("sender2", "recipient1", "action1"));
+    ASSERT_EQ(notified, 2);
+}

@@ -32,7 +32,7 @@ public :
      *
      * \param threshold [in] Queue threshold; must be >0
      */
-    queue_t(size_t threshold) : threshold_(threshold)
+    queue_t(size_t threshold) : threshold_(threshold), pending_(0)
     {
     }
 
@@ -40,11 +40,7 @@ public :
      *
      * \param ntf [in] Functor to register; must not be empty
      */
-    void listen(ntf_t ntf)
-    {
-        skal_assert(ntf);
-        ntf_.push_back(ntf);
-    }
+    void listen(ntf_t ntf);
 
     /** Push a message into the queue
      *
@@ -108,7 +104,8 @@ public :
 
 private :
     size_t threshold_;
-    std::list<ntf_t> ntf_;
+    int pending_;
+    ntf_t ntf_;
     std::list<std::unique_ptr<msg_t>> internal_;
     std::list<std::unique_ptr<msg_t>> urgent_;
     std::list<std::unique_ptr<msg_t>> regular_;
