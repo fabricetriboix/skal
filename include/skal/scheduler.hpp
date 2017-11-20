@@ -30,6 +30,11 @@ enum class policy_t {
 class scheduler_t : boost::noncopyable
 {
 public :
+    /** Destructor
+     *
+     * Your derived class must remove all its workers when destructed, like if
+     * `remove()` is being called on every worker it manages.
+     */
     virtual ~scheduler_t() = default;
 
 private :
@@ -75,9 +80,13 @@ private :
         return do_select();
     }
 
+private :
     /** Add a worker
      *
-     * If a worker with the same name already exists, you must assert.
+     * If a worker with the same name already exists, you must assert (NB:
+     * the worker has already been registered to the global worker's register,
+     * so it is impossible this worker has a duplicate anywhere in this
+     * process).
      *
      * \param worker [in] Worker to add, will not be empty
      */
@@ -107,6 +116,12 @@ private :
     friend class executor_t;
 };
 
+/** Create one of the standard skal scheduler
+ *
+ * \param policy [in] Scheduling policy to use
+ *
+ * \return The requested scheduler, never empty
+ */
 std::unique_ptr<scheduler_t> create_scheduler(policy_t policy);
 
 } // namespace skal

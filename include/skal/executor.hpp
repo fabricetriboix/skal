@@ -21,11 +21,10 @@ namespace skal {
 class executor_t final : boost::noncopyable
 {
 public :
-    executor_t(std::unique_ptr<scheduler_t> scheduler);
+    executor_t(std::unique_ptr<scheduler_t> scheduler, int nthreads = 4);
     ~executor_t();
 
-    // TODO
-    void add_worker() { }
+    void add_worker(std::unique_ptr<worker_t> worker);
 
 private :
     std::atomic<bool> is_terminated_;
@@ -39,8 +38,6 @@ private :
     typedef std::unique_lock<std::mutex> lock_t;
 
     void run_dispatcher();
-
-    void msg_pushed_hook();
 };
 
 } // namespace skal

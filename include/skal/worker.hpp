@@ -139,6 +139,11 @@ public :
         return !xoff_.empty();
     }
 
+    void listen(queue_t::ntf_t ntf)
+    {
+        queue_.listen(std::move(ntf));
+    }
+
 private :
     typedef std::chrono::steady_clock::time_point time_point_t;
 

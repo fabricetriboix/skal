@@ -55,7 +55,7 @@ void process(record_t record)
         << " {" << std::hex << std::setfill('0') << std::setw(16)
         << record.thread_id
         << "} " << to_string(record.level)
-        << "[" << file.filename() << ":" << std::dec << record.line
+        << "[" << file.filename().string() << ":" << std::dec << record.line
         << "] " << record.msg
         << std::endl;
 }

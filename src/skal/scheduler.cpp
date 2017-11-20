@@ -29,7 +29,7 @@ class fair_scheduler_t final : public scheduler_t
     void do_add(std::unique_ptr<worker_t> worker) override
     {
         skal_assert(worker);
-        workers_t::iterator it = lookup(worker->name());
+        auto it = lookup(worker->name());
         skal_assert(it == workers_.end()) << "Duplicate worker name '"
             << worker->name() << "'";
         workers_.push_back(std::move(worker));
@@ -37,7 +37,7 @@ class fair_scheduler_t final : public scheduler_t
 
     void do_remove(const std::string& worker_name) override
     {
-        workers_t::iterator it = lookup(worker_name);
+        auto it = lookup(worker_name);
         if (it != workers_.end()) {
             workers_.erase(it);
         }
@@ -57,8 +57,10 @@ class fair_scheduler_t final : public scheduler_t
                     // Empty blocked workers' internal messages first
                     return worker;
                 }
-            } else if (!selected && (worker->msg_count() > 0)) {
-                selected = worker;
+            } else if (!selected) {
+                if (worker->msg_count() > 0) {
+                    selected = worker;
+                }
             } else if (worker->msg_count() > selected->msg_count()) {
                 selected = worker;
             }

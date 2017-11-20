@@ -58,6 +58,8 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
     lock_t lock(g_mutex);
     workers_t::iterator it = g_workers.find(msg->recipient());
     if (it == g_workers.end()) {
+        skal_log(debug) << "Can't post message to worker '" << msg->recipient()
+            << "': no such worker in this process";
         return false;
     }
     skal_assert(it->second);
@@ -79,6 +81,9 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
         }
         if (tell_xoff) {
             sender = msg->sender();
+            skal_log(debug) << "Sender '" << sender
+                << "' is sending messages too fast to '" << msg->recipient()
+                << "'; sending it a 'skal-xoff' message";
         }
     }
 
@@ -103,13 +108,20 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
 
 void worker_t::drop(std::unique_ptr<msg_t> msg)
 {
-    std::unique_ptr<msg_t> drop_msg = msg_t::create_internal(
-            worker_name("skal-internal"), msg->sender(), "skal-error-drop");
-    msg->add_field("reason", "no recipient");
-    std::ostringstream oss;
-    oss << "Worker '" << msg->recipient() << "' does not exist";
-    msg->add_field("extra", oss.str());
-    send(std::move(drop_msg));
+    skal_log(debug) << "Dropping message: from='" << msg->sender() << "', to='"
+        << msg->recipient() << "', action='" << msg->action() << "'";
+    if (msg->flags() | msg_t::flag_t::ntf_drop) {
+        skal_log(debug) << "Sender '" << msg->sender()
+            << "' wants to be notified of this message begin dropped, "
+            << "sending it a 'skal-error-drop' message";
+        std::unique_ptr<msg_t> drop_msg = msg_t::create_internal(
+                worker_name("skal-internal"), msg->sender(), "skal-error-drop");
+        msg->add_field("reason", "no recipient");
+        std::ostringstream oss;
+        oss << "Worker '" << msg->recipient() << "' does not exist";
+        msg->add_field("extra", oss.str());
+        send(std::move(drop_msg));
+    }
 }
 
 bool worker_t::process_one()
@@ -128,6 +140,9 @@ bool worker_t::process_one()
     bool stop = false;
     bool is_internal = msg->iflags() & msg_t::iflag_t::internal;
     if (is_internal) {
+        skal_log(debug) << "Worker '" << name_
+            << "': processing internal message '" << msg->action()
+            << "' from '" << msg->sender() << "'";
         stop = process_internal_msg(std::move(msg));
     }
     if (!ntf_xon_.empty() && !queue_.is_half_full()) {
@@ -137,6 +152,8 @@ bool worker_t::process_one()
 
     if (!is_internal) {
         // Message not processed yet
+        skal_log(debug) << "Worker '" << name_ << "': processing message '"
+            << msg->action() << "' from '" << msg->sender() << "'";
         try {
             if (!process_(std::move(msg))) {
                 skal_log(info) << "Worker '" << name_
@@ -198,6 +215,8 @@ bool worker_t::process_internal_msg(std::unique_ptr<msg_t> msg)
 void worker_t::send_xon()
 {
     for (auto& worker_name : ntf_xon_) {
+        skal_log(debug) << "Worker '" << name_ << "': peer worker '"
+            << worker_name << "' is blocked by me; sending it 'skal-xon'";
         send(msg_t::create_internal(name_, worker_name, "skal-xon"));
     }
     ntf_xon_.clear();
@@ -210,6 +229,9 @@ void worker_t::send_ntf_xon(std::chrono::steady_clock::time_point now)
         if (elapsed > xoff_timeout_) {
             // We waited for quite a while for an "skal-xon" message
             //  => Poke the worker that is blocking me
+            skal_log(debug) << "Worker '" << name_ << "' has been blocked by '"
+                << xoff.first
+                << "' for a while now, sending it 'skal-ntf-xon'";
             send(msg_t::create_internal(name_, xoff.first, "skal-ntf-xon"));
             xoff.second = now;
         }

@@ -66,7 +66,8 @@ set(SKAL_TEST_SRC
     unit-test/test-msg.cpp
     unit-test/test-queue.cpp
     unit-test/test-worker.cpp
-    )
+    unit-test/test-executor.cpp
+)
 add_executable(skal-unit-tests ${SKAL_TEST_SRC})
 target_link_libraries(skal-unit-tests skal gtest gmock_main)
 add_test(NAME skal-unit-tests COMMAND skal-unit-tests)
