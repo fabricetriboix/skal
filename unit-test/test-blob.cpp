@@ -35,15 +35,15 @@ TEST(Blob, MallocBlobConcurrency)
                     }
 
                     // Let the main thread do its stuff
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    std::this_thread::sleep_for(10ms);
 
-                    // The main thread will keep the blob mapped for 10ms
+                    // The main thread will keep the blob mapped for 100ms
                     auto start = std::chrono::high_resolution_clock::now();
                     skal::blob_proxy_t::scoped_map_t m(proxy2);
                     auto end = std::chrono::high_resolution_clock::now();
                     auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-                    if (diff < std::chrono::milliseconds(7)) {
-                        std::cerr << "THR: blocked for less than 10ms: "
+                    if (diff < 70ms) {
+                        std::cerr << "THR: blocked for less than 100ms: "
                             << diff.count() << std::endl;
                         throw 3;
                     }
@@ -63,13 +63,13 @@ TEST(Blob, MallocBlobConcurrency)
         char* ptr = static_cast<char*>(m.mem());
         std::strcpy(ptr, "Hello, World!");
 
-        // Keep the blob mapped for 10ms
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // Keep the blob mapped for 100ms
+        std::this_thread::sleep_for(100ms);
         ASSERT_TRUE(thread_ok);
     }
 
     // Let the thread do its stuff
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    std::this_thread::sleep_for(10ms);
     ASSERT_TRUE(thread_ok);
 
     {
@@ -93,15 +93,15 @@ TEST(Blob, CopyProxy)
                     skal::blob_proxy_t proxy2 = proxy;
 
                     // Let the main thread do its stuff
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    std::this_thread::sleep_for(10ms);
 
-                    // The main thread will keep the blob mapped for 10ms
+                    // The main thread will keep the blob mapped for 100ms
                     auto start = std::chrono::high_resolution_clock::now();
                     skal::blob_proxy_t::scoped_map_t m(proxy2);
                     auto end = std::chrono::high_resolution_clock::now();
                     auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-                    if (diff < std::chrono::milliseconds(7)) {
-                        std::cerr << "THR: blocked for less than 10ms: "
+                    if (diff < 70ms) {
+                        std::cerr << "THR: blocked for less than 100ms: "
                             << diff.count() << std::endl;
                         throw 3;
                     }
@@ -117,20 +117,20 @@ TEST(Blob, CopyProxy)
             });
 
     // Let the thread make a copy of the proxy
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(10ms);
 
     {
         skal::blob_proxy_t::scoped_map_t m(proxy);
         char* ptr = static_cast<char*>(m.mem());
         std::strcpy(ptr, "Hello, World!");
 
-        // Keep the blob mapped for 10ms
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        ASSERT_TRUE(thread_ok); // FIXME: there is sometimes a failure here
+        // Keep the blob mapped for 100ms
+        std::this_thread::sleep_for(100ms);
+        ASSERT_TRUE(thread_ok);
     }
 
     // Let the thread do its stuff
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    std::this_thread::sleep_for(50ms);
     ASSERT_TRUE(thread_ok);
 
     {
@@ -152,7 +152,7 @@ TEST(Blob, ShmBlobConcurrency)
     ASSERT_NE(-1, pid);
     if (pid == 0) { // I'm the child
         // Let the main process do its stuff
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(10ms);
         try {
             skal::blob_proxy_t proxy2 = skal::open_blob("shm", id);
             if (proxy2.id() != id) {
@@ -172,8 +172,8 @@ TEST(Blob, ShmBlobConcurrency)
                 skal::blob_proxy_t::scoped_map_t m(proxy2);
                 auto end = std::chrono::high_resolution_clock::now();
                 auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-                if (diff < std::chrono::milliseconds(7)) {
-                    std::cerr << "CHILD: blocked for less than 10ms: "
+                if (diff < 70ms) {
+                    std::cerr << "CHILD: blocked for less than 100ms: "
                         << diff.count() << std::endl;
                     throw 3;
                 }
@@ -195,12 +195,12 @@ TEST(Blob, ShmBlobConcurrency)
         char* ptr = static_cast<char*>(m.mem());
         std::strcpy(ptr, "Hello, World!");
 
-        // Keep the blob mapped for 10ms
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // Keep the blob mapped for 100ms
+        std::this_thread::sleep_for(100ms);
     }
 
     // Let the child process do its stuff
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    std::this_thread::sleep_for(50ms);
 
     {
         skal::blob_proxy_t::scoped_map_t m(proxy);
