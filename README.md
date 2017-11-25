@@ -84,9 +84,9 @@ TODO
 ----
 
 Still to be implemented:
- - make install
- - networking
  - multicasting
+ - stress tests
+ - networking
  - numa
  - alarm reporting
  - performance reporting

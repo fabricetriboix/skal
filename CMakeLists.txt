@@ -1,27 +1,21 @@
 cmake_minimum_required(VERSION 3.1)
-project(skal)
+project(skal VERSION 0.1.1 LANGUAGES CXX)
+include(GNUInstallDirs)
 enable_testing()
 
-# The following are no good, they add "-std=gnu++14" on the command line
-# instead of "-std=c++14"
-#set(CMAKE_CXX_STANDARD 14)
-#set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-add_compile_options(-Wall -Wextra -Werror -std=c++14
-    -Wno-unused-parameter -Wno-nonnull-compare)
+find_package(Boost 1.62 REQUIRED COMPONENTS date_time filesystem system)
+find_package(Protobuf REQUIRED)
 
 add_subdirectory(googletest)
 config_compiler_and_linker()
 
-find_package(Boost 1.62 REQUIRED COMPONENTS date_time filesystem system)
+protobuf_generate_cpp(SKAL_MSG_PROTO_SRC SKAL_MSG_PROTO_HDR src/skal/msg.proto)
 
-find_package(Protobuf REQUIRED)
-include_directories(${Protobuf_INCLUDE_DIRS})
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
-protobuf_generate_cpp(SKAL_MSG_PROTO_SRC SKAL_MSG_PROTO_HDR
-    src/skal/msg.proto)
+option(BUILD_SHARED_LIBS
+    "Whether to build skal as a shared library (otherwise static)"
+    OFF)
 
-set(SKAL_SRC
+add_library(skal
     include/skal/alarm.hpp
     include/skal/blob.hpp
     include/skal/cfg.hpp
@@ -52,22 +46,61 @@ set(SKAL_SRC
     src/skal/worker.cpp
 
     ${SKAL_MSG_PROTO_SRC}
-    ${SKAL_MSG_PROTO_HDR}
-)
+    ${SKAL_MSG_PROTO_HDR})
 
-add_library(skal STATIC ${SKAL_SRC})
-target_include_directories(skal PUBLIC include)
-target_link_libraries(skal Boost::date_time Boost::filesystem Boost::system
+set_property(TARGET skal PROPERTY CXX_STANDARD 14)
+set_property(TARGET skal PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET skal PROPERTY CXX_EXTENSIONS OFF)
+
+# Turn on maximum warnings
+if (CMAKE_COMPILER_IS_GNUCXX)
+target_compile_options(skal PUBLIC -Wall -Wextra -Werror
+    -Wno-unused-parameter -Wno-nonnull-compare)
+endif()
+
+target_include_directories(skal PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>)
+
+target_include_directories(skal
+    PRIVATE ${Protobuf_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
+
+target_link_libraries(skal
+    Boost::date_time Boost::filesystem Boost::system
     ${Protobuf_LIBRARIES} rt)
 
-set(SKAL_TEST_SRC
+install(TARGETS skal EXPORT skal-targets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+# Make skal usable for `find_package()`
+install(EXPORT skal-targets DESTINATION share/skal/cmake NAMESPACE skal::)
+
+# Make skal importable from the build directory
+export(TARGETS skal FILE skal-targets.cmake)
+
+add_executable(skal-unit-tests
     unit-test/test-util.cpp
     unit-test/test-blob.cpp
     unit-test/test-msg.cpp
     unit-test/test-queue.cpp
     unit-test/test-worker.cpp
-    unit-test/test-executor.cpp
-)
-add_executable(skal-unit-tests ${SKAL_TEST_SRC})
+    unit-test/test-executor.cpp)
+
+set_property(TARGET skal-unit-tests PROPERTY CXX_STANDARD 14)
+set_property(TARGET skal-unit-tests PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET skal-unit-tests PROPERTY CXX_EXTENSIONS OFF)
+
+# Turn on maximum warnings
+if (CMAKE_COMPILER_IS_GNUCXX)
+target_compile_options(skal-unit-tests PUBLIC -Wall -Wextra -Werror
+    -Wno-unused-parameter -Wno-nonnull-compare)
+endif()
+
+target_include_directories(skal-unit-tests PRIVATE include)
+
 target_link_libraries(skal-unit-tests skal gtest gmock_main)
+
 add_test(NAME skal-unit-tests COMMAND skal-unit-tests)
