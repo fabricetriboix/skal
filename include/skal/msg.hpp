@@ -41,47 +41,6 @@ public :
 
     struct flag_t final
     {
-        /** Message flag: it's OK to receive this message out of order
-         *
-         * Skal will try to send this message using a transport link that does
-         * not guarantee packet ordering, in exchange of a faster transfer.
-         *
-         * The default is to send messages over a reliable transport link that
-         * delivers data in the same order is has been sent (typically: TCP).
-         *
-         * This flag implies that it's OK to receive duplicate messages.
-         */
-        constexpr static uint32_t out_of_order_ok = 0x01;
-
-        /** Message flag: it's OK to drop this message
-         *
-         * Skal will try to send this message using a transport link that does
-         * not guarantee reliable delivery, in exchange of a faster transfer.
-         *
-         * This default is to send messages over a reliable transport link that
-         * detects and retransmits lost data (typically: TCP).
-         */
-        constexpr static uint32_t drop_ok = 0x02;
-
-        /** Message flag: send this message over a UDP-link transport link
-         *
-         * Packets may be dropped, re-ordered or duplicated.
-         */
-        constexpr static uint32_t udp = out_of_order_ok | drop_ok;
-
-        /** Message flag: inform the sender of a message if it is dropped
-         *
-         * A "skal-msg-drop" message will be sent to the sender of this message
-         * if the message is dropped before reaching its destination. This flag
-         * has no effect unless the `drop_ok` flag is also set.
-         *
-         * Please note that using this flag comes with a performance penality
-         * as the transport link must be able to detect dropped messages, which
-         * generally means that messages with that flag set can't be send over
-         * UDP-like transport links.
-         */
-        constexpr static uint32_t ntf_drop = 0x04;
-
         /** Message flag: this message is urgent
          *
          * This message will jump in front of regular messages when enqueued at
@@ -92,15 +51,7 @@ public :
          * only, there are no guarantee that this message will actually arrive
          * before any regular message sent previously.
          */
-        constexpr static uint32_t urgent = 0x08;
-
-        /** Message flag: this is a multicast message
-         *
-         * This message is to be duplicated for many recipients.
-         *
-         * This flag implies `udp` and `!ntf_drop`.
-         */
-        constexpr static uint32_t multicast = 0x10;
+        constexpr static uint32_t urgent = 0x01;
     };
 
     /** Constructor
@@ -199,7 +150,10 @@ public :
         return flags_;
     }
 
-    void flags(uint32_t value);
+    void flags(uint32_t value)
+    {
+        flags_ = value;
+    }
 
     int8_t ttl() const
     {
@@ -399,9 +353,6 @@ private :
     {
         /** Internal message flag: this is an internal message */
         constexpr static uint32_t internal = 0x10000;
-
-        /** External message flag: this message originates from outside skal */
-        constexpr static uint32_t external = 0x20000;
     };
 
     uint32_t iflags() const

@@ -9,12 +9,7 @@
 
 namespace skal {
 
-const uint32_t msg_t::flag_t::out_of_order_ok;
-const uint32_t msg_t::flag_t::drop_ok;
-const uint32_t msg_t::flag_t::udp;
-const uint32_t msg_t::flag_t::ntf_drop;
 const uint32_t msg_t::flag_t::urgent;
-const uint32_t msg_t::flag_t::multicast;
 
 const uint32_t msg_t::iflag_t::internal;
 
@@ -27,9 +22,6 @@ msg_t::msg_t(std::string sender, std::string recipient, std::string action,
     , iflags_(ifl)
     , ttl_(ttl)
 {
-    if (sender_.empty()) {
-        iflags_ |= iflag_t::external;
-    }
     flags(fl);
 }
 
@@ -140,17 +132,6 @@ msg_t::msg_t(std::string data)
     for (int i = 0; i < tmp.blob_fields_size(); ++i) {
         const BlobField& field = tmp.blob_fields(i);
         blobs_[field.name()] = open_blob(field.allocator(), field.id());
-    }
-}
-
-void msg_t::flags(uint32_t value)
-{
-    flags_ = value;
-    if (    (flags_ & flag_t::multicast)
-         || (iflags_ & iflag_t::internal)
-         || (iflags_ & iflag_t::external)) {
-        flags_ |= flag_t::udp;
-        flags_ &= ~flag_t::ntf_drop;
     }
 }
 

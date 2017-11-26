@@ -68,15 +68,10 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
     std::string sender;
     if (it->second->queue_.is_full()) {
         // The recipient queue is full
-        if (msg->flags() & msg_t::flag_t::drop_ok) {
-            // Message can be dropped, so drop it now
-            drop(std::move(msg));
-            return true;
-        }
         if (    !(msg->iflags() & msg_t::iflag_t::internal)
-             && !(msg->iflags() & msg_t::iflag_t::external)) {
+             && !msg->sender().empty()) {
             // NB: Internal and external messages are excluded from the
-            // throttling mechanism
+            //     throttling mechanism
             tell_xoff = true;
         }
         if (tell_xoff) {
@@ -110,18 +105,6 @@ void worker_t::drop(std::unique_ptr<msg_t> msg)
 {
     skal_log(debug) << "Dropping message: from='" << msg->sender() << "', to='"
         << msg->recipient() << "', action='" << msg->action() << "'";
-    if (msg->flags() | msg_t::flag_t::ntf_drop) {
-        skal_log(debug) << "Sender '" << msg->sender()
-            << "' wants to be notified of this message begin dropped, "
-            << "sending it a 'skal-error-drop' message";
-        std::unique_ptr<msg_t> drop_msg = msg_t::create_internal(
-                worker_name("skal-internal"), msg->sender(), "skal-error-drop");
-        msg->add_field("reason", "no recipient");
-        std::ostringstream oss;
-        oss << "Worker '" << msg->recipient() << "' does not exist";
-        msg->add_field("extra", oss.str());
-        send(std::move(drop_msg));
-    }
 }
 
 bool worker_t::process_one()

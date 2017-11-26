@@ -12,7 +12,7 @@ TEST(Msg, EncodeDecodeMsg)
 
     boost::posix_time::ptime time_point
         = boost::posix_time::microsec_clock::universal_time();
-    uint32_t flags = skal::msg_t::flag_t::udp | skal::msg_t::flag_t::multicast;
+    uint32_t flags = skal::msg_t::flag_t::urgent;
     skal::msg_t msg("alice", "bob", "test-msg", flags, 15);
 
     boost::posix_time::time_duration delta = msg.timestamp() - time_point;
