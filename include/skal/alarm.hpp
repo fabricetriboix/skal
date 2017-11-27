@@ -6,7 +6,6 @@
 #include <skal/domain.hpp>
 #include <string>
 #include <utility>
-#include <boost/date_time/posix_time/posix_time_types.hpp>
 
 namespace skal {
 
@@ -94,7 +93,7 @@ public :
      *
      * \return The alarm timestamp
      */
-    boost::posix_time::ptime timestamp() const
+    timepoint_t timestamp() const
     {
         return timestamp_;
     }
@@ -106,11 +105,11 @@ private :
     bool        is_on_;
     bool        auto_off_;
     std::string note_;
-    boost::posix_time::ptime timestamp_;
+    timepoint_t timestamp_;
 
     alarm_t(std::string name, std::string origin, severity_t severity,
             bool is_on, bool auto_off, std::string note,
-            boost::posix_time::ptime timestamp)
+            timepoint_t timestamp)
         : name_(std::move(name))
         , origin_(worker_name(origin))
         , severity_(severity)

@@ -10,7 +10,6 @@
 #include <vector>
 #include <map>
 #include <memory>
-#include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/optional.hpp>
 #include <boost/noncopyable.hpp>
 
@@ -125,7 +124,7 @@ public :
      *
      * \return Message timestamp
      */
-    boost::posix_time::ptime timestamp() const
+    timepoint_t timestamp() const
     {
         return timestamp_;
     }
@@ -390,14 +389,14 @@ private :
             std::string recipient, std::string action,
             uint32_t flags = 0, int8_t ttl = default_ttl);
 
-    boost::posix_time::ptime timestamp_;
-    std::string              sender_;
-    std::string              recipient_;
-    std::string              action_;
-    uint32_t                 flags_;
-    uint32_t                 iflags_;
-    int8_t                   ttl_;
-    std::vector<alarm_t>     alarms_;
+    timepoint_t          timestamp_;
+    std::string          sender_;
+    std::string          recipient_;
+    std::string          action_;
+    uint32_t             flags_;
+    uint32_t             iflags_;
+    int8_t               ttl_;
+    std::vector<alarm_t> alarms_;
     std::map<std::string, int64_t>      ints_;
     std::map<std::string, double>       doubles_;
     std::map<std::string, std::string>  strings_;

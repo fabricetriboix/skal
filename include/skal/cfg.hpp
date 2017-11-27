@@ -10,6 +10,9 @@ using namespace std::literals::chrono_literals;
 
 namespace skal {
 
+/** Defines a moment in time */
+typedef std::chrono::system_clock::time_point timepoint_t;
+
 /** SKAL compile-time configuration
  *
  * @defgroup skalcfg SKAL Configuration

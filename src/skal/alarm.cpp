@@ -12,7 +12,7 @@ alarm_t::alarm_t(std::string name, std::string origin, severity_t severity,
     , is_on_(is_on)
     , auto_off_(auto_off)
     , note_(std::move(note))
-    , timestamp_(boost::posix_time::microsec_clock::universal_time())
+    , timestamp_(std::chrono::system_clock::now())
 {
 }
 

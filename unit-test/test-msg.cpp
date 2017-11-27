@@ -2,23 +2,19 @@
 
 #include <skal/msg.hpp>
 #include <skal/domain.hpp>
+#include <skal/util.hpp>
 #include <cstring>
-#include <boost/date_time/posix_time/posix_time.hpp>
 #include <gtest/gtest.h>
 
 TEST(Msg, EncodeDecodeMsg)
 {
     skal::domain("abc");
 
-    boost::posix_time::ptime time_point
-        = boost::posix_time::microsec_clock::universal_time();
+    auto time_point = std::chrono::system_clock::now();
     uint32_t flags = skal::msg_t::flag_t::urgent;
     skal::msg_t msg("alice", "bob", "test-msg", flags, 15);
 
-    boost::posix_time::time_duration delta = msg.timestamp() - time_point;
-    auto max = boost::posix_time::microseconds(500);
-    EXPECT_LE(delta, max);
-
+    EXPECT_LE(msg.timestamp() - time_point, 1ms);
     EXPECT_EQ("test-msg", msg.action());
     EXPECT_EQ("alice@abc", msg.sender());
     EXPECT_EQ("bob@abc", msg.recipient());
@@ -34,8 +30,7 @@ TEST(Msg, EncodeDecodeMsg)
     EXPECT_FALSE(alarm.auto_off());
     EXPECT_EQ("This is a test alarm", alarm.note());
     EXPECT_EQ("alice@abc", alarm.origin());
-    delta = alarm.timestamp() - time_point;
-    EXPECT_LE(delta, max);
+    EXPECT_LE(alarm.timestamp() - time_point, 1ms);
     msg.attach_alarm(std::move(alarm));
 
     msg.add_field("test-int", 7);

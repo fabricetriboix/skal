@@ -15,7 +15,7 @@ const uint32_t msg_t::iflag_t::internal;
 
 msg_t::msg_t(std::string sender, std::string recipient, std::string action,
         uint32_t fl, uint32_t ifl, int8_t ttl)
-    : timestamp_(boost::posix_time::microsec_clock::universal_time())
+    : timestamp_(std::chrono::system_clock::now())
     , sender_(worker_name(std::move(sender)))
     , recipient_(worker_name(std::move(recipient)))
     , action_(std::move(action))
@@ -74,7 +74,7 @@ msg_t::msg_t(std::string data)
         throw bad_msg_format();
     }
 
-    timestamp_ = us_to_ptime(tmp.timestamp());
+    timestamp_ = timepoint_t(std::chrono::nanoseconds(tmp.timestamp()));
     sender_ = worker_name(tmp.sender());
     recipient_ = worker_name(tmp.recipient());
     action_ = tmp.action();
@@ -105,7 +105,7 @@ msg_t::msg_t(std::string data)
 
         alarm_t alarm(tmp_alarm.name(), tmp_alarm.origin(), severity,
                 tmp_alarm.is_on(), tmp_alarm.auto_off(), tmp_alarm.note(),
-                us_to_ptime(tmp_alarm.timestamp()));
+                timepoint_t(std::chrono::nanoseconds(tmp_alarm.timestamp())));
         alarms_.push_back(alarm);
     } // for each alarm
 
@@ -149,7 +149,8 @@ std::string msg_t::serialize() const
 {
     Msg tmp;
     tmp.set_version(msg_version);
-    tmp.set_timestamp(ptime_to_us(timestamp_));
+    std::chrono::nanoseconds duration = timestamp_.time_since_epoch();
+    tmp.set_timestamp(duration.count());
     tmp.set_sender(sender_);
     tmp.set_recipient(recipient_);
     tmp.set_action(action_);
@@ -179,7 +180,8 @@ std::string msg_t::serialize() const
         tmp_alarm->set_auto_off(alarm.auto_off());
         tmp_alarm->set_note(alarm.note());
         tmp_alarm->set_origin(alarm.origin());
-        tmp_alarm->set_timestamp(ptime_to_us(alarm.timestamp()));
+        duration = alarm.timestamp().time_since_epoch();
+        tmp_alarm->set_timestamp(duration.count());
     } // for each alarm
 
     for (auto& it : ints_) {

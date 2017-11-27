@@ -8,7 +8,6 @@
 #include <sstream>
 #include <utility>
 #include <stdexcept>
-#include <boost/date_time/posix_time/posix_time.hpp>
 
 namespace skal {
 namespace log {
@@ -78,12 +77,12 @@ void minimum_level(level_t level);
 /** Log record */
 struct record_t
 {
-    level_t                  level;
-    std::string              file;
-    int                      line;
-    boost::posix_time::ptime timestamp;
-    std::thread::id          thread_id;
-    std::string              msg;
+    level_t         level;
+    std::string     file;
+    int             line;
+    timepoint_t     timestamp;
+    std::thread::id thread_id;
+    std::string     msg;
 };
 
 /** Process a log record */

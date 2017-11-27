@@ -1,6 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/log.hpp>
+#include "date.h"
 #include <iostream>
 #include <iomanip>
 #include <mutex>
@@ -51,7 +52,8 @@ void process(record_t record)
 {
     std::unique_lock<std::mutex> lock(g_mutex);
     boost::filesystem::path file(record.file);
-    std::cerr << boost::posix_time::to_iso_extended_string(record.timestamp)
+    std::cerr << date::format("%FT%TZ",
+            date::floor<std::chrono::microseconds>(record.timestamp))
         << " {" << std::hex << std::setfill('0') << std::setw(16)
         << record.thread_id
         << "} " << to_string(record.level)
@@ -62,7 +64,7 @@ void process(record_t record)
 
 log_t::log_t(level_t level, const char* file, int line) : oss()
 {
-    record.timestamp = boost::posix_time::microsec_clock::local_time();
+    record.timestamp = std::chrono::system_clock::now();
     record.level = level;
     if (file != nullptr) {
         record.file = file;
