@@ -11,11 +11,7 @@ config_compiler_and_linker()
 
 protobuf_generate_cpp(SKAL_MSG_PROTO_SRC SKAL_MSG_PROTO_HDR src/skal/msg.proto)
 
-option(BUILD_SHARED_LIBS
-    "Whether to build skal as a shared library (otherwise static)"
-    OFF)
-
-add_library(skal
+add_library(skal STATIC
     include/skal/alarm.hpp
     include/skal/blob.hpp
     include/skal/cfg.hpp
