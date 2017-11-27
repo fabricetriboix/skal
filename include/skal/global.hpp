@@ -15,15 +15,21 @@ const std::string& domain();
  */
 void domain(std::string domain);
 
-/** Get the full worker name
+/** Get the fully qualified name
  *
- * This function appends the local domain if the worker name does not have a
+ * This function appends the local domain if the given name does not have a
  * domain.
  *
- * \param name [in] Worker name
+ * \param name [in] Name
  *
- * \return Full worker name
+ * \return Fully qualifed name
  */
-std::string worker_name(std::string name);
+std::string full_name(std::string name);
+
+/** Is this process running standalone?
+ *
+ * A standalone process is not connected to a skald.
+ */
+bool is_standalone();
 
 } // namespace skal

@@ -1,7 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include <skal/domain.hpp>
+#include <skal/global.hpp>
 #include <skal/log.hpp>
 #include <skal/util.hpp>
 #include "msg.pb.h"
@@ -16,8 +16,8 @@ const uint32_t msg_t::iflag_t::internal;
 msg_t::msg_t(std::string sender, std::string recipient, std::string action,
         uint32_t fl, uint32_t ifl, int8_t ttl)
     : timestamp_(std::chrono::system_clock::now())
-    , sender_(worker_name(std::move(sender)))
-    , recipient_(worker_name(std::move(recipient)))
+    , sender_(full_name(std::move(sender)))
+    , recipient_(full_name(std::move(recipient)))
     , action_(std::move(action))
     , iflags_(ifl)
     , ttl_(ttl)
@@ -75,8 +75,8 @@ msg_t::msg_t(std::string data)
     }
 
     timestamp_ = timepoint_t(std::chrono::nanoseconds(tmp.timestamp()));
-    sender_ = worker_name(tmp.sender());
-    recipient_ = worker_name(tmp.recipient());
+    sender_ = full_name(tmp.sender());
+    recipient_ = full_name(tmp.recipient());
     action_ = tmp.action();
     flags_ = tmp.flags();
     iflags_ = tmp.iflags();
@@ -218,7 +218,7 @@ std::string msg_t::serialize() const
 
 void msg_t::sender(std::string sender)
 {
-    sender_ = worker_name(std::move(sender));
+    sender_ = full_name(std::move(sender));
 }
 
 } // namespace skal

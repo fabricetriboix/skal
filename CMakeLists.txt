@@ -15,9 +15,9 @@ add_library(skal STATIC
     include/skal/alarm.hpp
     include/skal/blob.hpp
     include/skal/cfg.hpp
-    include/skal/domain.hpp
     include/skal/error.hpp
     include/skal/executor.hpp
+    include/skal/global.hpp
     include/skal/log.hpp
     include/skal/msg.hpp
     include/skal/queue.hpp
@@ -30,9 +30,9 @@ add_library(skal STATIC
 
     src/skal/alarm.cpp
     src/skal/blob.cpp
-    src/skal/domain.cpp
     src/skal/error.cpp
     src/skal/executor.cpp
+    src/skal/global.cpp
     src/skal/log.cpp
     src/skal/msg.cpp
     src/skal/queue.cpp

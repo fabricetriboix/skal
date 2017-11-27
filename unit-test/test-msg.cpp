@@ -1,7 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include <skal/domain.hpp>
+#include <skal/global.hpp>
 #include <skal/util.hpp>
 #include <cstring>
 #include <gtest/gtest.h>

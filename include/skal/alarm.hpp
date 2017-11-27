@@ -3,7 +3,7 @@
 #pragma once
 
 #include <skal/cfg.hpp>
-#include <skal/domain.hpp>
+#include <skal/global.hpp>
 #include <string>
 #include <utility>
 
@@ -111,7 +111,7 @@ private :
             bool is_on, bool auto_off, std::string note,
             timepoint_t timestamp)
         : name_(std::move(name))
-        , origin_(worker_name(origin))
+        , origin_(full_name(origin))
         , severity_(severity)
         , is_on_(is_on)
         , auto_off_(auto_off)

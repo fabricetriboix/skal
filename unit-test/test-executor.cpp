@@ -1,7 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/executor.hpp>
-#include <skal/domain.hpp>
+#include <skal/global.hpp>
 #include <skal/semaphore.hpp>
 #include <gtest/gtest.h>
 

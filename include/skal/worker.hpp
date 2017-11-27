@@ -5,7 +5,7 @@
 #include <skal/cfg.hpp>
 #include <skal/error.hpp>
 #include <skal/msg.hpp>
-#include <skal/domain.hpp>
+#include <skal/global.hpp>
 #include <skal/queue.hpp>
 #include <functional>
 #include <memory>
@@ -170,7 +170,7 @@ private :
 
     worker_t(std::string name, process_t process, int64_t queue_threshold,
             std::chrono::nanoseconds xoff_timeout)
-        : name_(worker_name(name))
+        : name_(full_name(name))
         , process_(process)
         , queue_(queue_threshold)
         , xoff_timeout_(xoff_timeout)

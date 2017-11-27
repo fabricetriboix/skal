@@ -1,6 +1,6 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include <skal/domain.hpp>
+#include <skal/global.hpp>
 
 namespace skal {
 
@@ -26,7 +26,7 @@ void domain(std::string domain)
     g_domain = std::move(domain);
 }
 
-std::string worker_name(std::string name)
+std::string full_name(std::string name)
 {
     if (name.empty()) {
         return std::string();
@@ -35,6 +35,11 @@ std::string worker_name(std::string name)
         return std::move(name);
     }
     return name + '@' + g_domain;
+}
+
+bool is_standalone()
+{
+    return g_domain == "skal-standalone";
 }
 
 } // namespace skal
