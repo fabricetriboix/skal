@@ -122,6 +122,6 @@ private :
  *
  * \return The requested scheduler, never empty
  */
-std::unique_ptr<scheduler_t> create_scheduler(policy_t policy);
+std::unique_ptr<scheduler_t> create_scheduler(policy_t policy = policy_t::fair);
 
 } // namespace skal

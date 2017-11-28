@@ -101,6 +101,26 @@ void worker_t::drop(std::unique_ptr<msg_t> msg)
 
 bool worker_t::process_one()
 {
+    bool stop = false;
+    struct on_return_t {
+        std::function<void()> callback;
+        on_return_t(std::function<void()> cb) : callback(cb) { }
+        ~on_return_t() { callback(); }
+    } on_return(
+            [this, &stop] ()
+            {
+                if (!this->xoff_.empty()) {
+                    // I am blocked
+                    //  => Send reminders to workers who are blocking me
+                    this->send_ntf_xon();
+                }
+                if (stop) {
+                    // This worker is now terminated
+                    //  => Rrelease any worker blocked on me
+                    this->send_xon();
+                }
+            });
+
     bool internal_only = !xoff_.empty();
     std::unique_ptr<msg_t> msg = queue_.pop(internal_only);
     if (!msg) {
@@ -112,7 +132,6 @@ bool worker_t::process_one()
     }
 
     time_point_t start = std::chrono::steady_clock::now();
-    bool stop = false;
     bool is_internal = msg->iflags() & msg_t::iflag_t::internal;
     if (is_internal) {
         skal_log(debug) << "Worker '" << name_
@@ -141,27 +160,19 @@ bool worker_t::process_one()
             skal_log(notice) << oss.str();
             stop = true;
             // TODO: raise an alarm
+            throw;
         } catch (...) {
             std::ostringstream oss;
             oss << "Worker '" << name_ << "' threw an exception";
             skal_log(notice) << oss.str();
             stop = true;
             // TODO: raise an alarm
+            throw;
         }
     }
     time_point_t end = std::chrono::steady_clock::now();
     auto duration = end - start;
     (void)duration; // TODO: do something with that
-
-    if (!xoff_.empty()) {
-        // I am blocked => Send reminders to workers who are blocking me
-        send_ntf_xon(end);
-    }
-
-    if (stop) {
-        // This worker is now terminated; release any worker blocked on me
-        send_xon();
-    }
     return stop;
 }
 
@@ -197,8 +208,9 @@ void worker_t::send_xon()
     ntf_xon_.clear();
 }
 
-void worker_t::send_ntf_xon(std::chrono::steady_clock::time_point now)
+void worker_t::send_ntf_xon()
 {
+    auto now = std::chrono::steady_clock::now();
     for (auto& xoff : xoff_) {
         auto elapsed = now - xoff.second;
         if (elapsed > xoff_timeout_) {

@@ -190,11 +190,8 @@ private :
     /** Send "skal-xon" messages to workers which are waiting for me */
     void send_xon();
 
-    /** Send "skal-ntf-xon" messages to workers which are blocking me
-     *
-     * \param now [in] Current time
-     */
-    void send_ntf_xon(time_point_t now);
+    /** Send "skal-ntf-xon" messages to workers which are blocking me */
+    void send_ntf_xon();
 
     friend class scheduler_t;
     friend class executor_t;

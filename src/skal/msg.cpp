@@ -135,6 +135,23 @@ msg_t::msg_t(std::string data)
     }
 }
 
+msg_t::msg_t(const msg_t& right)
+    : timestamp_(right.timestamp_)
+    , sender_(right.sender_)
+    , recipient_(right.recipient_)
+    , action_(right.action_)
+    , flags_(right.flags_)
+    , iflags_(right.iflags_)
+    , ttl_(right.ttl_)
+    , alarms_(right.alarms_)
+    , ints_(right.ints_)
+    , doubles_(right.doubles_)
+    , strings_(right.strings_)
+    , miniblobs_(right.miniblobs_)
+    , blobs_(right.blobs_)
+{
+}
+
 boost::optional<alarm_t> msg_t::detach_alarm()
 {
     if (alarms_.empty()) {
@@ -219,6 +236,11 @@ std::string msg_t::serialize() const
 void msg_t::sender(std::string sender)
 {
     sender_ = full_name(std::move(sender));
+}
+
+void msg_t::recipient(std::string recipient)
+{
+    recipient_ = full_name(std::move(recipient));
 }
 
 } // namespace skal

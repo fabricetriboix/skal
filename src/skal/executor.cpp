@@ -34,6 +34,7 @@ executor_t::executor_t(std::unique_ptr<scheduler_t> scheduler, int nthreads)
 
     // Add this executor to the executor register
     lock_t lock(g_mutex);
+    skal_log(debug) << "Adding executor " << this << " to the register";
     g_executors.push_back(this);
 }
 
@@ -45,6 +46,8 @@ executor_t::~executor_t()
         for (std::deque<executor_t*>::iterator it = g_executors.begin();
                 it != g_executors.end(); ++it) {
             if (*it == this) {
+                skal_log(debug) << "Removing executor " << this
+                    << " from the register";
                 g_executors.erase(it);
                 break;
             }
@@ -73,7 +76,12 @@ executor_t* executor_t::get_arbitrary_executor()
     if (g_next_executor >= g_executors.size()) {
         g_next_executor = 0;
     }
-    return g_executors[++g_next_executor];
+    size_t n = g_next_executor;
+    ++g_next_executor;
+    executor_t* executor = g_executors[n];
+    skal_log(debug) << "get_arbitrary_executor() returned executor "
+        << executor << " (index " << n << ")";
+    return executor;
 }
 
 void executor_t::add_worker(std::unique_ptr<worker_t> worker)

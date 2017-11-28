@@ -11,7 +11,6 @@
 #include <map>
 #include <memory>
 #include <boost/optional.hpp>
-#include <boost/noncopyable.hpp>
 
 namespace skal {
 
@@ -32,7 +31,7 @@ typedef std::vector<uint8_t> miniblob_t;
 class queue_t;
 
 /** Class that represents a message */
-class msg_t final : boost::noncopyable
+class msg_t final
 {
 public :
     msg_t() = delete;
@@ -107,6 +106,19 @@ public :
      * \throw `bad_blob` if an attached blob can't be opened
      */
     explicit msg_t(std::string data);
+
+    /** Copy constructor
+     *
+     * You must not call this constructor if `right` has any of its blob mapped
+     * by the calling thread.
+     *
+     * \param right [in] Message to copy
+     */
+    msg_t(const msg_t& right);
+
+    msg_t(const std::unique_ptr<msg_t>& right) : msg_t(*right.get())
+    {
+    }
 
     /** Utility function to create a msg */
     static std::unique_ptr<msg_t> create(std::string sender,
@@ -375,6 +387,7 @@ private :
     }
 
     void sender(std::string sender);
+    void recipient(std::string recipient);
 
     /** Constructor with internal flags */
     msg_t(std::string sender, std::string recipient, std::string action,
@@ -405,6 +418,7 @@ private :
 
     friend class queue_t;
     friend class worker_t;
+    friend class group_t;
 };
 
 /** Version number for the message format */
