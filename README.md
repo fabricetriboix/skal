@@ -27,11 +27,18 @@ messages to each other. A worker is essentially a message queue
 associated with a message processing function.
 
 Workers are identified with a name that looks like "worker@domain",
-with "domain" being the name of group of workers (but all workers
-within a process have the same domain name). When sending a message to
-a worker, you only need its name; skal will figure out where that
-worker is (whether in the same process, same computer or another
-computer) and will transparently deliver the message.
+with "domain" being the name of a group of workers (however, all
+workers within a process must have the same domain name). When sending
+a message to a worker, you only need its name; skal will figure out
+where that worker is (whether in the same process, same computer or
+another computer) and will transparently deliver the message.
+
+If a worker is receiving messages too fast from another worker (maybe
+because it is doing some time-consuming processing), skal will
+automatically pause the sending worker until the receiving worker can
+process messages again. This throttling mechanism is completely
+transparent to you (except that the sending worker will be paused and
+will not process any messages until the receiving worker is ready).
 
 Large chunks of data (could be gigabytes) can be attached to messages
 in the form of "blobs". Duplication of blob data is avoided as much as
