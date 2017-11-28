@@ -1,8 +1,8 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/worker.hpp>
+#include <skal/net.hpp>
 #include <skal/log.hpp>
-#include <skal/cfg.hpp>
 #include <mutex>
 #include <unordered_map>
 #include <algorithm>
@@ -43,14 +43,6 @@ worker_t::~worker_t()
     skal_log(debug) << "Removing worker '" << name_ << "' from the register";
     lock_t lock(g_mutex);
     g_workers.erase(name_);
-}
-
-void worker_t::send(std::unique_ptr<msg_t> msg)
-{
-    // Try sending the message internally first, otherwise send to skald
-    if (!post(msg)) {
-        send_to_skald(std::move(msg));
-    }
 }
 
 bool worker_t::post(std::unique_ptr<msg_t>& msg)
@@ -221,11 +213,12 @@ void worker_t::send_ntf_xon(std::chrono::steady_clock::time_point now)
     }
 }
 
-void worker_t::send_to_skald(std::unique_ptr<msg_t> msg)
+void send(std::unique_ptr<msg_t> msg)
 {
-    // TODO
-    (void)msg;
-    skal_assert(false) << "Sending to skald not yet implemented";
+    // Try sending the message internally first, otherwise send to skald
+    if (!worker_t::post(msg)) {
+        send_to_skald(std::move(msg));
+    }
 }
 
 } // namespace skal

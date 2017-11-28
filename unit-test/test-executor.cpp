@@ -22,7 +22,7 @@ TEST(Executor, SendAndReceiveOneMessage)
             {
                 sem_boss.post();
                 if (msg->action() == "work!") {
-                    skal::worker_t::send(skal::msg_t::create("boss",
+                    skal::send(skal::msg_t::create("boss",
                                 "mug", "you work!"));
                 }
                 return true;
@@ -43,7 +43,7 @@ TEST(Executor, SendAndReceiveOneMessage)
     taken = sem_mug.take(100ms);
     ASSERT_TRUE(taken); // skal-init
 
-    skal::worker_t::send(skal::msg_t::create("boss@factory", "work!"));
+    skal::send(skal::msg_t::create("boss@factory", "work!"));
     taken = sem_boss.take(100ms);
     ASSERT_TRUE(taken); // work!
 

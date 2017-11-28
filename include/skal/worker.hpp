@@ -17,6 +17,18 @@
 
 namespace skal {
 
+class msg_t;
+
+/** Send the `msg` to its recipient
+ *
+ * The recipient could be in this process or not. If the recipient is not in
+ * this process, the message will be forwarded to skald; if this process is
+ * standalone, the message is dropped.
+ *
+ * \param msg [in] Message to send
+ */
+void send(std::unique_ptr<msg_t> msg);
+
 /** Worker class
  *
  * This class manages a worker, which is essentially a message queue paired
@@ -80,16 +92,6 @@ public :
     static std::unique_ptr<worker_t> create(std::string name, process_t process,
             int64_t queue_threshold = default_queue_threshold,
             std::chrono::nanoseconds xoff_timeout = default_xoff_timeout);
-
-    /** Send the `msg` to its recipient
-     *
-     * The recipient could be in this process or not. If the recipient is not
-     * in this process, the message will be forwarded to skald; if this process
-     * is standalone, the message is dropped.
-     *
-     * \param msg [in] Message to send
-     */
-    static void send(std::unique_ptr<msg_t> msg);
 
     /** Post a message to the given worker in this process
      *
@@ -193,8 +195,6 @@ private :
      * \param now [in] Current time
      */
     void send_ntf_xon(time_point_t now);
-
-    static void send_to_skald(std::unique_ptr<msg_t> msg);
 
     friend class scheduler_t;
     friend class executor_t;
