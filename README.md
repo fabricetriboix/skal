@@ -6,7 +6,7 @@ Introduction
 
 Skal is dual-licensed under the GPLv3 and a commercial license. If you
 require the commercial license, please contact me:
-"Fabrice Triboix" <ftriboix-at-incise-dot-com>.
+"Fabrice Triboix" ftriboix-at-incise-dot-co.
 
 Skal is an multi-threaded, data-driven and scalable application
 framework written in C++ that has the following objectives:
