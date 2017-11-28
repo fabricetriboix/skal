@@ -24,6 +24,8 @@ public :
     executor_t(std::unique_ptr<scheduler_t> scheduler, int nthreads = 4);
     ~executor_t();
 
+    static executor_t* get_arbitrary_executor();
+
     void add_worker(std::unique_ptr<worker_t> worker);
 
 private :
@@ -38,6 +40,7 @@ private :
     typedef std::unique_lock<std::mutex> lock_t;
 
     void run_dispatcher();
+    void run_one(std::shared_ptr<worker_t> worker);
 };
 
 } // namespace skal
