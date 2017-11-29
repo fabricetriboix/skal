@@ -9,11 +9,15 @@ namespace skal {
 /** Get the domain this process belongs to */
 const std::string& domain();
 
-/** Set the domain this process belongs to
- *
- * \param domain [in] Domain this process belongs to
- */
-void domain(std::string domain);
+struct domain_t
+{
+private:
+    /** Set the domain this process belongs to
+     *
+     * \param domain [in] Domain this process belongs to
+     */
+    static void set(std::string domain);
+};
 
 /** Get the fully qualified name
  *

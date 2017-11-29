@@ -5,8 +5,9 @@
 #include <skal/cfg.hpp>
 #include <skal/error.hpp>
 #include <skal/msg.hpp>
+#include <mutex>
+#include <condition_variable>
 #include <utility>
-#include <functional>
 #include <list>
 #include <boost/noncopyable.hpp>
 
@@ -18,39 +19,63 @@ namespace skal {
  * messages, urgent messages and internal messages. Internal messages are for
  * the skal framework internal communications and are not directly available to
  * the client software.
+ *
+ * This queue is MT-safe.
  */
 class queue_t final : boost::noncopyable
 {
+    typedef std::unique_lock<std::mutex> lock_t;
+    mutable std::mutex mutex_;
+    std::condition_variable cv_;
+    size_t threshold_;
+    std::list<std::unique_ptr<msg_t>> internal_;
+    std::list<std::unique_ptr<msg_t>> urgent_;
+    std::list<std::unique_ptr<msg_t>> regular_;
+
+    size_t size_() const
+    {
+        return internal_.size() + urgent_.size() + regular_.size();
+    }
+
 public :
     queue_t() = delete;
-    ~queue_t() = default;
 
-    /** Prototype of a push notification functor */
-    typedef std::function<void()> ntf_t;
+    /** Destructor
+     *
+     * NB: Destructing a locked `std::mutex` results in undefined behaviour, so
+     *     we want to avoid that. The queue will be destructed when its worker
+     *     is destructed. Before the worker is destructed, it is removed from
+     *     the worker register, so no messages can be sent to it anymore; so
+     *     the queue's `push()` function will never be called after that point.
+     *     All the other queue functions (especially `pop()`) are called from
+     *     the worker's thread, which would have been terminated at this stage.
+     *     In other words, the `mutex_` is unlocked when the queue destructor
+     *     is called, so we don't have to worry about it being locked while
+     *     being destructed.
+     */
+    ~queue_t() = default;
 
     /** Constructor
      *
      * \param threshold [in] Queue threshold; must be >0
      */
-    queue_t(size_t threshold) : threshold_(threshold), pending_(0)
+    explicit queue_t(size_t threshold) : threshold_(threshold)
     {
+        skal_assert(threshold_ > 0);
     }
-
-    /** Register a functor to be notified when a message is pushed
-     *
-     * \param ntf [in] Functor to register; must not be empty
-     */
-    void listen(ntf_t ntf);
 
     /** Push a message into the queue
      *
-     * This function always succeeds. Listeners will be notified.
+     * This function always succeeds.
      *
      * \param msg [in] Message to push; must not be an empty pointer
      */
     void push(std::unique_ptr<msg_t> msg);
 
     /** Pop a message from the queue
+     *
+     * \note This function is blocking. This is the only true blocking function
+     *       in the whole skal framework.
      *
      * If the `internal_only` argument is set, urgent and regular messages are
      * ignored, and only internal messages are popped. If there are no internal
@@ -68,47 +93,23 @@ public :
      */
     std::unique_ptr<msg_t> pop(bool internal_only = false);
 
-    /** Get the number of pending messages
-     *
-     * \return The number of pending messages
-     */
     size_t size() const
     {
-        return internal_.size() + urgent_.size() + regular_.size();
+        lock_t lock(mutex_);
+        return size_();
     }
 
-    size_t internal_size() const
-    {
-        return internal_.size();
-    }
-
-    bool is_empty() const
-    {
-        return size() == 0;
-    }
-
-    /** Check if the queue is full
-     *
-     * The queue is full if there are more than `threshold` messages.
-     */
     bool is_full() const
     {
-        return size() >= threshold_;
+        lock_t lock(mutex_);
+        return size_() >= threshold_;
     }
 
-    /** Check if the queue is half-full */
     bool is_half_full() const
     {
-        return size() > (threshold_ / 2);
+        lock_t lock(mutex_);
+        return size_() > (threshold_ / 2);
     }
-
-private :
-    size_t threshold_;
-    int pending_;
-    ntf_t ntf_;
-    std::list<std::unique_ptr<msg_t>> internal_;
-    std::list<std::unique_ptr<msg_t>> urgent_;
-    std::list<std::unique_ptr<msg_t>> regular_;
 };
 
 } // namespace skal

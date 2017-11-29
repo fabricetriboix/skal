@@ -5,18 +5,10 @@
 
 namespace skal {
 
-void queue_t::listen(ntf_t ntf)
-{
-    skal_assert(ntf);
-    ntf_ = std::move(ntf);
-    for (; pending_ > 0; --pending_) {
-        ntf_();
-    }
-}
-
 void queue_t::push(std::unique_ptr<msg_t> msg)
 {
     skal_assert(msg);
+    lock_t lock(mutex_);
     if (msg->iflags() & msg_t::iflag_t::internal) {
         internal_.push_back(std::move(msg));
     } else if (msg->flags() & msg_t::flag_t::urgent) {
@@ -24,15 +16,21 @@ void queue_t::push(std::unique_ptr<msg_t> msg)
     } else {
         regular_.push_back(std::move(msg));
     }
-    if (ntf_) {
-        ntf_();
-    } else {
-        ++pending_;
-    }
+    cv_.notify_one();
 }
 
 std::unique_ptr<msg_t> queue_t::pop(bool internal_only)
 {
+    lock_t lock(mutex_);
+    if (internal_only) {
+        while (internal_.empty()) {
+            cv_.wait(lock);
+        }
+    } else {
+        while (internal_.empty() && urgent_.empty() && regular_.empty()) {
+            cv_.wait(lock);
+        }
+    }
     std::unique_ptr<msg_t> msg;
     if (!internal_.empty()) {
         msg = std::move(internal_.front());
@@ -46,6 +44,7 @@ std::unique_ptr<msg_t> queue_t::pop(bool internal_only)
             regular_.pop_front();
         }
     }
+    skal_assert(msg);
     return std::move(msg);
 }
 

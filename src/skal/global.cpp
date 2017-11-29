@@ -21,7 +21,7 @@ const std::string& domain()
     return g_domain;
 }
 
-void domain(std::string domain)
+void domain_t::set(std::string domain)
 {
     g_domain = std::move(domain);
 }

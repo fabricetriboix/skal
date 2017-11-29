@@ -1,23 +1,20 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/msg.hpp>
-#include <skal/global.hpp>
 #include <skal/util.hpp>
 #include <cstring>
 #include <gtest/gtest.h>
 
 TEST(Msg, EncodeDecodeMsg)
 {
-    skal::domain("abc");
-
     auto time_point = std::chrono::system_clock::now();
     uint32_t flags = skal::msg_t::flag_t::urgent;
     skal::msg_t msg("alice", "bob", "test-msg", flags, 15);
 
     EXPECT_LE(msg.timestamp() - time_point, 1ms);
     EXPECT_EQ("test-msg", msg.action());
-    EXPECT_EQ("alice@abc", msg.sender());
-    EXPECT_EQ("bob@abc", msg.recipient());
+    EXPECT_EQ("alice@skal-standalone", msg.sender());
+    EXPECT_EQ("bob@skal-standalone", msg.recipient());
     EXPECT_EQ(flags, msg.flags());
     EXPECT_EQ(15, msg.ttl());
 
@@ -29,7 +26,7 @@ TEST(Msg, EncodeDecodeMsg)
     EXPECT_TRUE(alarm.is_on());
     EXPECT_FALSE(alarm.auto_off());
     EXPECT_EQ("This is a test alarm", alarm.note());
-    EXPECT_EQ("alice@abc", alarm.origin());
+    EXPECT_EQ("alice@skal-standalone", alarm.origin());
     EXPECT_LE(alarm.timestamp() - time_point, 1ms);
     msg.attach_alarm(std::move(alarm));
 
@@ -58,8 +55,8 @@ TEST(Msg, EncodeDecodeMsg)
     skal::msg_t msg2(data);
     EXPECT_EQ(msg.timestamp(), msg2.timestamp());
     EXPECT_EQ("test-msg", msg2.action());
-    EXPECT_EQ("alice@abc", msg2.sender());
-    EXPECT_EQ("bob@abc", msg2.recipient());
+    EXPECT_EQ("alice@skal-standalone", msg2.sender());
+    EXPECT_EQ("bob@skal-standalone", msg2.recipient());
     EXPECT_EQ(flags, msg2.flags());
     EXPECT_EQ(15, msg2.ttl());
 
@@ -70,7 +67,7 @@ TEST(Msg, EncodeDecodeMsg)
     EXPECT_TRUE(alarm2->is_on());
     EXPECT_FALSE(alarm2->auto_off());
     EXPECT_EQ("This is a test alarm", alarm2->note());
-    EXPECT_EQ("alice@abc", alarm2->origin());
+    EXPECT_EQ("alice@skal-standalone", alarm2->origin());
     EXPECT_EQ(alarm.timestamp(), alarm2->timestamp());
 
     boost::optional<skal::alarm_t> alarm3(msg2.detach_alarm());

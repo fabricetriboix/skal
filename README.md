@@ -98,3 +98,35 @@ Still to be implemented:
  - alarm reporting
  - performance reporting
 
+Internals
+=========
+
+Throttling
+----------
+
+If a worker A is sending messages to worker B faster than what worker
+B can handle, worker A will be throttled. This means that worker A
+will be paused until worker B can handle messages again, or after a
+certain timeout.
+
+The details are the following:
+
+When worker's B queue goes over its threshold, a "skal-xoff" message
+will be sent to worker A (please note that the message is passed to
+worker B in any case). When worker A receives the "skal-xoff" message,
+it will pause itself (meaning that it will process only internal
+messages). When worker B's queue is low enough (currently defined as
+half its threshold), it will send a "skal-xon" message to worker A.
+When worker A receives this message, it will come out of its paused
+state and will resume processing its messages.
+
+It is possible that worker A in the above case is overwhelming more
+than one receiving worker. In such a case, worker A may receive many
+"skal-xoff" messages from many workers. If that happens, worker A will
+be paused until all these workers sent it "skal-xon" messages.
+
+It is possible that worker A never receives a "skal-xon" message
+because worker B exits the application (this can happen because it
+crashed, or because of a network outage, etc.). To remedy such a
+problem, worker A will come out of its paused state unconditionally
+after a certain timeout.
