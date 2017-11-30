@@ -83,7 +83,7 @@ msg_t::msg_t(std::string data)
         throw bad_msg_format();
     }
 
-    timestamp_ = timepoint_t(std::chrono::nanoseconds(tmp.timestamp()));
+    timestamp_ = timestamp_t(std::chrono::nanoseconds(tmp.timestamp()));
     sender_ = full_name(tmp.sender());
     recipient_ = full_name(tmp.recipient());
     action_ = tmp.action();
@@ -121,7 +121,7 @@ msg_t::msg_t(std::string data)
 
         alarm_t alarm(tmp_alarm.name(), tmp_alarm.origin(), severity,
                 tmp_alarm.is_on(), tmp_alarm.auto_off(), tmp_alarm.note(),
-                timepoint_t(std::chrono::nanoseconds(tmp_alarm.timestamp())));
+                timestamp_t(std::chrono::nanoseconds(tmp_alarm.timestamp())));
         alarms_.push_back(alarm);
     } // for each alarm
 

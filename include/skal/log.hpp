@@ -80,7 +80,7 @@ struct record_t
     level_t         level;
     std::string     file;
     int             line;
-    timepoint_t     timestamp;
+    timestamp_t     timestamp;
     std::thread::id thread_id;
     std::string     msg;
 };

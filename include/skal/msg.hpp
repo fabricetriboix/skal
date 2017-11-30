@@ -142,7 +142,7 @@ public :
      *
      * \return Message timestamp
      */
-    timepoint_t timestamp() const
+    timestamp_t timestamp() const
     {
         return timestamp_;
     }
@@ -415,7 +415,7 @@ private :
     static std::unique_ptr<msg_t> create_internal(std::string recipient,
             std::string action, uint32_t flags = 0, int8_t ttl = default_ttl);
 
-    timepoint_t          timestamp_;
+    timestamp_t          timestamp_;
     std::string          sender_;
     std::string          recipient_;
     std::string          action_;

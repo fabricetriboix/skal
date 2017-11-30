@@ -10,8 +10,17 @@ using namespace std::literals::chrono_literals;
 
 namespace skal {
 
-/** Defines a moment in time */
-typedef std::chrono::system_clock::time_point timepoint_t;
+/** Point in time according to system clock
+ *
+ * This is used for timestamping against a reference wall clock in UTC.
+ */
+typedef std::chrono::system_clock::time_point timestamp_t;
+
+/** Point in time according to steady clock
+ *
+ * This is used to measure elapsed time between 2 moments in time.
+ */
+typedef std::chrono::steady_clock::time_point timepoint_t;
 
 /** SKAL compile-time configuration
  *
