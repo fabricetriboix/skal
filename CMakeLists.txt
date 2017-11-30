@@ -28,7 +28,7 @@ add_library(skal STATIC
     include/skal/semaphore.hpp
     #include/skal/skal.hpp
     include/skal/util.hpp
-    #include/skal/worker.hpp
+    include/skal/worker.hpp
 
     src/skal/alarm.cpp
     src/skal/blob.cpp
@@ -43,7 +43,7 @@ add_library(skal STATIC
     #src/skal/scheduler.cpp
     #src/skal/skal.cpp
     src/skal/util.cpp
-    #src/skal/worker.cpp
+    src/skal/worker.cpp
 
     ${SKAL_MSG_PROTO_SRC}
     ${SKAL_MSG_PROTO_HDR})
@@ -85,8 +85,8 @@ add_executable(skal-unit-tests
     unit-test/test-util.cpp
     unit-test/test-blob.cpp
     unit-test/test-msg.cpp
-    unit-test/test-queue.cpp)
-    #unit-test/test-worker.cpp
+    unit-test/test-queue.cpp
+    unit-test/test-worker.cpp)
     #unit-test/test-executor.cpp
     #unit-test/test-group)
 

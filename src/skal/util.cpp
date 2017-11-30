@@ -8,7 +8,7 @@ namespace skal {
 
 bool start_with(const std::string& haystack, const std::string& needle)
 {
-    return std::strncmp(haystack.c_str(), needle.c_str(), needle.size());
+    return std::strncmp(haystack.c_str(), needle.c_str(), needle.size()) == 0;
 }
 
 url_t::url_t(std::string s)

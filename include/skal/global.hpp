@@ -26,6 +26,8 @@ private:
      * \param me [in] Name of current thread
      */
     static void set_me(std::string me);
+
+    friend class worker_t;
 };
 
 /** Get the fully qualified name
