@@ -1,6 +1,7 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/global.hpp>
+#include <thread>
 
 namespace skal {
 
@@ -14,6 +15,9 @@ namespace {
  */
 std::string g_domain = "skal-standalone";
 
+/** Name of the worker's thread */
+thread_local std::string g_me = "";
+
 } // unnamed namespace
 
 const std::string& domain()
@@ -21,9 +25,19 @@ const std::string& domain()
     return g_domain;
 }
 
-void domain_t::set(std::string domain)
+const std::string& me()
+{
+    return g_me;
+}
+
+void global_t::set_domain(std::string domain)
 {
     g_domain = std::move(domain);
+}
+
+void global_t::set_me(std::string me)
+{
+    g_me = full_name(std::move(me));
 }
 
 std::string full_name(std::string name)

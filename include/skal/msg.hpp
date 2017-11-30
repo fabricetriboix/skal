@@ -4,6 +4,7 @@
 
 #include <skal/cfg.hpp>
 #include <skal/error.hpp>
+#include <skal/global.hpp>
 #include <skal/alarm.hpp>
 #include <skal/blob.hpp>
 #include <utility>
@@ -26,9 +27,8 @@ struct bad_msg_version : public error
     bad_msg_version() : error("skal::bad_msg_version") { }
 };
 
+/** Miniblob class: just a bunch of bytes */
 typedef std::vector<uint8_t> miniblob_t;
-
-class queue_t;
 
 /** Class that represents a message */
 class msg_t final
@@ -36,6 +36,7 @@ class msg_t final
 public :
     msg_t() = delete;
     ~msg_t() = default;
+    msg_t& operator=(const msg_t&) = delete;
 
     struct flag_t final
     {
@@ -57,13 +58,12 @@ public :
      * \param sender    [in] Name of worker which created this message; empty
      *                       string if message created outside a skal worker
      * \param recipient [in] Whom to send this message to; this is the name of
-     *                       a worker or a multicast group (in which case the
-     *                       `flag_t::multicast` flag must also be set)
+     *                       a worker or a multicast group
      * \param action    [in] Message action; must not be an empty string;
      *                       please note that message actions starting with
      *                       "skal" are reserved for skal's own use
      * \param flags     [in] Message flag; please refer to `flag_t`
-     * \param ttl       [in] Time-to-live counter initial value; <= for default
+     * \param ttl       [in] Time-to-live counter initial value
      */
     msg_t(std::string sender, std::string recipient, std::string action,
             uint32_t flags = 0, int8_t ttl = default_ttl)
@@ -72,9 +72,10 @@ public :
     {
     }
 
-    /** Constuctor where the sender is not from the skal framework
+    /** Constuctor where the sender is set automatically
      *
-     * Such a message will have the `udp` and `!ntf_drop` set implicitely.
+     * The sender will be set to the name of the calling worker, or the empty
+     * string if this function is called from outside the skal framework.
      *
      * \param recipient [in] Whom to send this message to; this is the name of
      *                       a worker or a multicast group (in which case the
@@ -87,7 +88,7 @@ public :
      */
     msg_t(std::string recipient, std::string action,
             uint32_t flags = 0, int8_t ttl = default_ttl)
-        : msg_t("", std::move(recipient), std::move(action), flags, ttl)
+        : msg_t(me(), std::move(recipient), std::move(action), flags, 0, ttl)
     {
     }
 
@@ -116,20 +117,25 @@ public :
      */
     msg_t(const msg_t& right);
 
+    /** Constructor from a pointer to a message */
     msg_t(const std::unique_ptr<msg_t>& right) : msg_t(*right.get())
     {
     }
 
-    /** Utility function to create a msg */
+    /** Factory function to create a msg */
     static std::unique_ptr<msg_t> create(std::string sender,
             std::string recipient, std::string action,
             uint32_t flags = 0, int8_t ttl = default_ttl);
 
-    /** Utility function to create a msg from an external source */
+    /** Factory function to create a msg with automatic sender
+     *
+     * The sender will be set to the calling worker, or the empty string if
+     * called from outside the skal framework.
+     */
     static std::unique_ptr<msg_t> create(std::string recipient,
             std::string action, uint32_t flags = 0, int8_t ttl = default_ttl);
 
-    /** Utility function to create a msg from a serialized form */
+    /** Factory function to create a msg from a serialized form */
     static std::unique_ptr<msg_t> create(std::string data);
 
     /** Get the timestamp of when this message had been created
@@ -355,6 +361,10 @@ public :
 
     /** Serialize the message
      *
+     * The returned value is an `std::string`, but it does not represent a
+     * human-readable string. It's just used as a container of bytes (that's
+     * how google protobuf does it...)
+     *
      * \return The message in serialized form
      */
     std::string serialize() const;
@@ -386,21 +396,24 @@ private :
         iflags_ &= ~flags;
     }
 
+    /** Set the sender */
     void sender(std::string sender);
+
+    /** Set the recipient */
     void recipient(std::string recipient);
 
-    /** Constructor with internal flags */
+    /** Full constructor (with internal flags) */
     msg_t(std::string sender, std::string recipient, std::string action,
             uint32_t flags, uint32_t iflags, int8_t ttl);
 
-    /** Utility function to create an internal msg
-     *
-     * An internal message implicitely has `flag_t::udp` and
-     * `!flag_t::ntf_drop`.
-     */
+    /** Factory function to create an internal msg */
     static std::unique_ptr<msg_t> create_internal(std::string sender,
             std::string recipient, std::string action,
             uint32_t flags = 0, int8_t ttl = default_ttl);
+
+    /** Factory function to create an internal msg with automatic sender */
+    static std::unique_ptr<msg_t> create_internal(std::string recipient,
+            std::string action, uint32_t flags = 0, int8_t ttl = default_ttl);
 
     timepoint_t          timestamp_;
     std::string          sender_;

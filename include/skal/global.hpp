@@ -9,14 +9,23 @@ namespace skal {
 /** Get the domain this process belongs to */
 const std::string& domain();
 
-struct domain_t
+/** Get the name of the current worker */
+const std::string& me();
+
+struct global_t
 {
 private:
     /** Set the domain this process belongs to
      *
      * \param domain [in] Domain this process belongs to
      */
-    static void set(std::string domain);
+    static void set_domain(std::string domain);
+
+    /** Set the name of the current thread
+     *
+     * \param me [in] Name of current thread
+     */
+    static void set_me(std::string me);
 };
 
 /** Get the fully qualified name

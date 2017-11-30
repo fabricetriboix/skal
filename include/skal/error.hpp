@@ -37,4 +37,6 @@ struct assert_t
 #define skal_assert(cond) if (!(cond)) \
     skal::assert_t(__FILE__, __LINE__, #cond).oss
 
+#define skal_panic() skal::assert_t(__FILE__, __LINE__, "panic").oss
+
 } // namespace skal

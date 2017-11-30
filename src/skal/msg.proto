@@ -8,44 +8,43 @@ message Alarm {
         WARNING = 1;
         ERROR = 2;
     }
-
-    required string name = 1;
-    required Severity severity = 2;
-    required bool is_on = 3;
-    required bool auto_off = 4;
-    required string note = 5;
-    required string origin = 6;
-    required int64 timestamp = 7;
+    optional string name = 1;
+    optional Severity severity = 2;
+    optional bool is_on = 3;
+    optional bool auto_off = 4;
+    optional string note = 5;
+    optional string origin = 6;
+    optional int64 timestamp = 7;
 }
 
 message IntField {
-    required string name = 1;
-    required sint64 value = 2;
+    optional string name = 1;
+    optional sint64 value = 2;
 }
 
 message DoubleField {
-    required string name = 1;
-    required double value = 2;
+    optional string name = 1;
+    optional double value = 2;
 }
 
 message StringField {
-    required string name = 1;
-    required string value = 2;
+    optional string name = 1;
+    optional string value = 2;
 }
 
 message MiniblobField {
-    required string name = 1;
-    required bytes value = 2;
+    optional string name = 1;
+    optional bytes value = 2;
 }
 
 message BlobField {
-    required string name = 1;
-    required string allocator = 2;
-    required string id = 3;
+    optional string name = 1;
+    optional string allocator = 2;
+    optional string id = 3;
 }
 
 message Msg {
-    required uint32 version = 1;
+    optional uint32 version = 1;
     optional int64 timestamp = 2;
     optional string sender = 3;
     optional string recipient = 4;

@@ -14,15 +14,15 @@ const uint32_t msg_t::flag_t::urgent;
 const uint32_t msg_t::iflag_t::internal;
 
 msg_t::msg_t(std::string sender, std::string recipient, std::string action,
-        uint32_t fl, uint32_t ifl, int8_t ttl)
+        uint32_t flags, uint32_t iflags, int8_t ttl)
     : timestamp_(std::chrono::system_clock::now())
     , sender_(full_name(std::move(sender)))
     , recipient_(full_name(std::move(recipient)))
     , action_(std::move(action))
-    , iflags_(ifl)
+    , flags_(flags)
+    , iflags_(iflags)
     , ttl_(ttl)
 {
-    flags(fl);
 }
 
 std::unique_ptr<msg_t> msg_t::create(std::string sender, std::string recipient,
@@ -47,10 +47,16 @@ std::unique_ptr<msg_t> msg_t::create(std::string data)
 std::unique_ptr<msg_t> msg_t::create_internal(std::string sender,
         std::string recipient, std::string action, uint32_t flags, int8_t ttl)
 {
-    std::unique_ptr<msg_t> msg = create(sender, recipient, action, flags, ttl);
-    msg->iflags_ = iflag_t::internal;
-    msg->flags(flags); // Set some flags for internal messages
-    return std::move(msg);
+    return std::unique_ptr<msg_t>(new msg_t(std::move(sender),
+                std::move(recipient), std::move(action),
+                flags, iflag_t::internal, ttl));
+}
+
+std::unique_ptr<msg_t> msg_t::create_internal(std::string recipient,
+        std::string action, uint32_t flags, int8_t ttl)
+{
+    return std::unique_ptr<msg_t>(new msg_t(me(), std::move(recipient),
+                std::move(action), flags, iflag_t::internal, ttl));
 }
 
 msg_t::msg_t(std::string data)
@@ -61,14 +67,17 @@ msg_t::msg_t(std::string data)
         throw bad_msg_format();
     }
 
+    if (!tmp.has_version()) {
+        skal_log(warning) << "Received a message without version number";
+        throw bad_msg_format();
+    }
     if (tmp.version() != msg_version) {
         skal_log(warning) << "Received a message with version " <<
             tmp.version() << "; I only support " << msg_version;
         throw bad_msg_version();
     }
     if (!tmp.has_timestamp() || !tmp.has_sender() || !tmp.has_recipient()
-            || !tmp.has_action() || !tmp.has_ttl())
-    {
+            || !tmp.has_action() || !tmp.has_ttl()) {
         skal_log(warning)
             << "Received a message that is missing required fields";
         throw bad_msg_format();
@@ -84,6 +93,13 @@ msg_t::msg_t(std::string data)
 
     for (int i = 0; i < tmp.alarms_size(); ++i) {
         const Alarm& tmp_alarm = tmp.alarms(i);
+        if (!tmp_alarm.has_name() || !tmp_alarm.has_severity()
+                || !tmp_alarm.has_is_on() || !tmp_alarm.has_auto_off()
+                || !tmp_alarm.has_origin() || !tmp_alarm.has_timestamp()) {
+            skal_log(warning)
+                << "Received a message with an alarm that is missing required fields";
+            throw bad_msg_format();
+        }
 
         alarm_t::severity_t severity;
         switch (tmp_alarm.severity()) {
@@ -189,7 +205,7 @@ std::string msg_t::serialize() const
             tmp_alarm->set_severity(Alarm::ERROR);
             break;
         default :
-            skal_assert(false) << "Bad alarm severity: "
+            skal_panic() << "Bad alarm severity: "
                 << static_cast<int>(alarm.severity());
         }
         tmp_alarm->set_name(alarm.name());
@@ -229,7 +245,8 @@ std::string msg_t::serialize() const
     }
 
     std::string output;
-    skal_assert(tmp.SerializeToString(&output));
+    bool serialized = tmp.SerializeToString(&output);
+    skal_assert(serialized);
     return output;
 }
 
