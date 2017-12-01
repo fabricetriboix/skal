@@ -93,6 +93,9 @@ public :
 
     /** Factory function to create a worker
      *
+     * Please note that worker names starting with "skal" are reserved for the
+     * skal framework internal usage.
+     *
      * \param name            [in] Worker's name; must not be empty; must be
      *                             unique for this process; if `name` does not
      *                             contain a '@' character, the domain name of
@@ -139,6 +142,7 @@ private :
             int64_t queue_threshold, std::chrono::nanoseconds xoff_timeout);
 
     /** Thread entry point */
+    void run_safe();
     void run();
 
     /** Process an internal message

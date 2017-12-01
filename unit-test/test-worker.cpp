@@ -26,8 +26,7 @@ TEST(Worker, SendAndReceiveMessage)
     bool taken = sem.take(1s);
     ASSERT_TRUE(taken); // skal-init
 
-    std::unique_ptr<skal::msg_t> msg
-        = skal::msg_t::create("boss", "employee", "sweat!");
+    auto msg = skal::msg_t::create("boss", "employee", "sweat!");
     bool posted = skal::worker_t::post(msg);
     ASSERT_TRUE(posted);
 
@@ -77,7 +76,7 @@ TEST(Worker, TestThrottling)
     bool taken = sem.take(1s);
     ASSERT_TRUE(taken); // skal-init
 
-    std::unique_ptr<skal::msg_t> msg = skal::msg_t::create("", "boss", "stop");
+    auto msg = skal::msg_t::create("", "boss", "stop");
     bool posted = skal::worker_t::post(msg);
     ASSERT_TRUE(posted);
     msg = skal::msg_t::create("", "employee", "stop");

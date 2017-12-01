@@ -269,6 +269,17 @@ public :
         blobs_[std::move(name)] = std::move(proxy);
     }
 
+    /** Check if the given integer field exists
+     *
+     * \param name [in] Name of the field to check
+     *
+     * \return `true` if the field exists, `false` if not
+     */
+    bool has_int(const std::string& name) const
+    {
+        return ints_.find(name) != ints_.end();
+    }
+
     /** Get an integer field
      *
      * \param name [in] Name of field to lookup
@@ -280,6 +291,17 @@ public :
     int64_t get_int(const std::string& name) const
     {
         return ints_.at(name);
+    }
+
+    /** Check if the given double field exists
+     *
+     * \param name [in] Name of the field to check
+     *
+     * \return `true` if the field exists, `false` if not
+     */
+    bool has_double(const std::string& name) const
+    {
+        return doubles_.find(name) != doubles_.end();
     }
 
     /** Get a floating-point field
@@ -296,6 +318,17 @@ public :
         return doubles_.at(name);
     }
 
+    /** Check if the given string field exists
+     *
+     * \param name [in] Name of the field to check
+     *
+     * \return `true` if the field exists, `false` if not
+     */
+    bool has_string(const std::string& name) const
+    {
+        return strings_.find(name) != strings_.end();
+    }
+
     /** Get a string field
      *
      * \param name [in] String field to lookup
@@ -307,6 +340,17 @@ public :
     const std::string& get_string(const std::string& name) const
     {
         return strings_.at(name);
+    }
+
+    /** Check if the given miniblob field exists
+     *
+     * \param name [in] Name of the field to check
+     *
+     * \return `true` if the field exists, `false` if not
+     */
+    bool has_miniblob(const std::string& name) const
+    {
+        return miniblobs_.find(name) != miniblobs_.end();
     }
 
     /** Get a miniblob field
@@ -321,6 +365,17 @@ public :
     const miniblob_t& get_miniblob(const std::string& name) const
     {
         return miniblobs_.at(name);
+    }
+
+    /** Check if the given blob field exists
+     *
+     * \param name [in] Name of the field to check
+     *
+     * \return `true` if the field exists, `false` if not
+     */
+    bool has_blob(const std::string& name) const
+    {
+        return blobs_.find(name) != blobs_.end();
     }
 
     /** Get a blob field
