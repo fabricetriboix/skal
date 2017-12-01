@@ -23,7 +23,7 @@ add_library(skal STATIC
     include/skal/queue.hpp
     include/skal/safe-mutex.hpp
     include/skal/semaphore.hpp
-    #include/skal/skal.hpp
+    include/skal/skal.hpp
     include/skal/util.hpp
     include/skal/worker.hpp
 
@@ -35,7 +35,7 @@ add_library(skal STATIC
     src/skal/msg.cpp
     src/skal/net.cpp
     src/skal/queue.cpp
-    #src/skal/skal.cpp
+    src/skal/skal.cpp
     src/skal/util.cpp
     src/skal/worker.cpp
 
@@ -80,8 +80,7 @@ add_executable(skal-unit-tests
     unit-test/test-blob.cpp
     unit-test/test-msg.cpp
     unit-test/test-queue.cpp
-    unit-test/test-worker.cpp
-    unit-test/test-group)
+    unit-test/test-worker.cpp)
 
 set_property(TARGET skal-unit-tests PROPERTY CXX_STANDARD 14)
 set_property(TARGET skal-unit-tests PROPERTY CXX_STANDARD_REQUIRED ON)

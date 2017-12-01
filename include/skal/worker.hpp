@@ -87,6 +87,12 @@ private :
      */
     std::set<std::string> ntf_xon_;
 
+    /** Groups I subscribed to
+     *
+     * The key is the group name, the value is the filter strings.
+     */
+    std::map<std::string, std::set<std::string>> subscriptions_;
+
 public :
     worker_t() = delete;
     ~worker_t();
@@ -155,6 +161,18 @@ private :
 
     /** Send "skal-xon" messages to workers which are waiting for me */
     void send_xon();
+
+    /** Wait for workers to finish
+     *
+     * This function returns when there are no more workers.
+     */
+    static void wait();
+
+    /** Terminate all workers gracefully */
+    static void terminate();
+
+    friend void wait();
+    friend void terminate();
 };
 
 } // namespace skal

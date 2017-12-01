@@ -1,38 +1,26 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
 #include <skal/skal.hpp>
+#include <skal/net.hpp>
 #include <skal/util.hpp>
-#include <boost/asio.hpp>
 
 namespace skal {
 
-namespace {
-
-boost::asio::io_service g_io_service;
-std::vector<executor_t> g_executors;
-
-} // unnamed namespace
-
-void run_skal(const params_t& params, std::vector<executor_cfg_t> executor_cfgs,
-        std::vector<worker_t> workers)
+void init(const parameters_t& parameters)
 {
-    skal_assert(!workers.empty());
-
-    if (executor_cfgs.empty()) {
-        executor_cfgs.push_back(executor_cfg_t { policy_t::biggest });
+    if (!parameters.standalone) {
+        net_init(parameters.skald_url);
     }
-    for (const auto& cfg : executor_cfgs) {
-        g_executors.emplace_back(cfg.policy);
-    }
-
-    
-
-    boost::asio::io_service::work work(g_io_service);
 }
 
-void terminate_skal()
+void wait()
 {
-    g_io_service.stop();
+    worker_t::wait();
+}
+
+void terminate()
+{
+    worker_t::terminate();
 }
 
 } // namespace skal

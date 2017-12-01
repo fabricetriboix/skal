@@ -7,6 +7,8 @@
 
 namespace skal {
 
+void net_init(const std::string& skald_url);
+
 void send_to_skald(std::unique_ptr<msg_t> msg);
 
 } // namespace skal

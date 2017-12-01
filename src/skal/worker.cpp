@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <utility>
 #include <regex>
+#include <condition_variable>
 
 namespace skal {
 
@@ -18,6 +19,7 @@ typedef std::unique_lock<std::mutex> lock_t;
 typedef std::unordered_map<std::string, std::unique_ptr<worker_t>> workers_t;
 workers_t g_workers;
 std::mutex g_mutex;
+std::condition_variable g_cv;
 
 } // unnamed namespace
 
@@ -52,10 +54,11 @@ class group_t
 public :
     group_t(std::string group_name) : name_(full_name(std::move(group_name)))
     {
-        skal_log(info) << "XXX group_t " << name_ << " constructor";
+        skal_log(debug) << "Constructing group '" << name_ << "'";
     }
+
     ~group_t() {
-        skal_log(info) << "XXX group_t " << name_ << "destructor";
+        skal_log(info) << "Destructing group '" << name_ << "'";
     }
 
     bool process(std::unique_ptr<msg_t> msg);
@@ -268,6 +271,18 @@ void worker_t::run()
         }
     } // infinite loop
 
+    // Unsubscribe from all groups this worker subscribed to. Careful: sending
+    // a "skal-unsubscribe" message will actually modify the `subscriptions_`.
+    std::vector<std::unique_ptr<msg_t>> messages;
+    for (auto& subscription : subscriptions_) {
+        for (auto& filter : subscription.second) {
+            messages.push_back(msg_t::create(subscription.first, filter));
+        }
+    }
+    for (auto& msg : messages) {
+        send(std::move(msg));
+    }
+
     if (process_msg_) {
         process_msg_(msg_t::create("", name_, "skal-exit"));
     }
@@ -346,6 +361,22 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
     }
     skal_assert(it->second);
 
+    if (    (msg->action() == "skal-subscribe")
+         || (msg->action() == "skal-unsubscribe")) {
+        auto it2 = g_workers.find(msg->sender());
+        if (it2 != g_workers.end()) {
+            std::string filter;
+            if (msg->has_string("filter")) {
+                filter = msg->get_string("filter");
+            }
+            if (msg->action() == "skal-subscribe") {
+                it2->second->subscriptions_[msg->sender()].insert(filter);
+            } else {
+                it2->second->subscriptions_[msg->sender()].erase(filter);
+            }
+        }
+    }
+
     bool tell_xoff = false;
     std::string sender;
     if (it->second->queue_.is_full()) {
@@ -379,6 +410,24 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
         }
     }
     return true;
+}
+
+void worker_t::wait()
+{
+    lock_t lock(g_mutex);
+    while (!g_workers.empty()) {
+        g_cv.wait(lock);
+    }
+}
+
+void worker_t::terminate()
+{
+    lock_t lock(g_mutex);
+    for (workers_t::iterator it = g_workers.begin();
+            it != g_workers.end(); ++it) {
+        it->second->queue_.push(msg_t::create_internal(it->first,
+                    "skal-terminate"));
+    }
 }
 
 } // namespace skal
