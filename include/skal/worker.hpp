@@ -30,6 +30,12 @@ void send(std::unique_ptr<msg_t> msg);
  */
 void drop(std::unique_ptr<msg_t> msg);
 
+/** Excep. thrown when attempting to create a worker when skal is terminating */
+struct terminating : public error
+{
+    terminating() : error("skal::terminating") { }
+};
+
 /** Worker class
  *
  * This class manages a worker, which is essentially a thread with a message
@@ -122,6 +128,8 @@ public :
      *
      * \throw `duplicate_error` if a worker already exists in this process with
      *        the same name
+     *
+     * \throw `terminating` if `worker_t::terminate()` had been called
      */
     static void create(std::string name,
             process_msg_t process_msg,
@@ -148,7 +156,7 @@ private :
             int64_t queue_threshold, std::chrono::nanoseconds xoff_timeout);
 
     /** Thread entry point */
-    void run_safe();
+    void thread_entry_point();
     void run();
 
     /** Process an internal message

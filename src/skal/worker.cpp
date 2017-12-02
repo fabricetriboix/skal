@@ -5,11 +5,12 @@
 #include <skal/log.hpp>
 #include <skal/global.hpp>
 #include <skal/util.hpp>
+#include <skal/semaphore.hpp>
 #include <unordered_map>
+#include <list>
 #include <algorithm>
 #include <utility>
 #include <regex>
-#include <condition_variable>
 
 namespace skal {
 
@@ -18,8 +19,10 @@ namespace {
 typedef std::unique_lock<std::mutex> lock_t;
 typedef std::unordered_map<std::string, std::unique_ptr<worker_t>> workers_t;
 workers_t g_workers;
+std::list<std::string> g_terminated_workers;
 std::mutex g_mutex;
-std::condition_variable g_cv;
+ft::semaphore_t g_semaphore;
+bool g_terminated = false;
 
 } // unnamed namespace
 
@@ -182,7 +185,7 @@ worker_t::worker_t(std::string name, process_msg_t process_msg, int numa_node,
     , process_msg_(process_msg)
     , queue_(queue_threshold)
     , xoff_timeout_(xoff_timeout)
-    , thread_( [this] () { this->run_safe(); } )
+    , thread_( [this] () { this->thread_entry_point(); } )
 {
     // TODO: NUMA
     skal_log(debug) << "Creating worker '" << name_ << "'";
@@ -194,19 +197,22 @@ worker_t::~worker_t()
     thread_.join();
 }
 
-void worker_t::run_safe()
+void worker_t::thread_entry_point()
 {
     try {
         run();
     } catch (std::exception& e) {
-        skal_log(error) << "Thread entry point for worker '" << name_
+        skal_log(error) << "Thread of worker '" << name_
             << "' threw exception: " << e.what();
         // TODO: raise alarm
     } catch (...) {
-        skal_log(error) << "Thread entry point for worker '" << name_
+        skal_log(error) << "Thread of worker '" << name_
             << "' threw a non-standard exception";
         // TODO: raise alarm
     }
+    lock_t lock(g_mutex);
+    g_terminated_workers.push_back(name_);
+    g_semaphore.post();
 }
 
 void worker_t::run()
@@ -322,6 +328,9 @@ void worker_t::create(std::string name, process_msg_t process_msg,
         std::chrono::nanoseconds xoff_timeout)
 {
     lock_t lock(g_mutex);
+    if (g_terminated) {
+        throw terminating();
+    }
     name = full_name(std::move(name));
     if (g_workers.find(name) != g_workers.end()) {
         throw duplicate_error();
@@ -414,15 +423,23 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
 
 void worker_t::wait()
 {
-    lock_t lock(g_mutex);
-    while (!g_workers.empty()) {
-        g_cv.wait(lock);
+    for (;;) {
+        g_semaphore.take();
+        lock_t lock(g_mutex);
+        for (auto& worker_name : g_terminated_workers) {
+            g_workers.erase(worker_name);
+        }
+        if (g_workers.empty()) {
+            break;
+        }
     }
+    g_terminated = false;
 }
 
 void worker_t::terminate()
 {
     lock_t lock(g_mutex);
+    g_terminated = true;
     for (workers_t::iterator it = g_workers.begin();
             it != g_workers.end(); ++it) {
         it->second->queue_.push(msg_t::create_internal(it->first,

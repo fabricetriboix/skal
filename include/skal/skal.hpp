@@ -16,13 +16,13 @@ namespace skal {
 struct parameters_t
 {
     /** Whether to connect to a skald or not */
-    bool standalone;
+    bool standalone = true;
 
     /** URL to connect to skald; use empty string for default
      *
      * Ignored if `standalone` is `true`.
      */
-    std::string skald_url;
+    std::string skald_url = std::string();
 };
 
 /** Initialise the skal framework
@@ -33,7 +33,11 @@ struct parameters_t
  */
 void init(const parameters_t& parameters);
 
-/** Wait until all workers are finished */
+/** Run skal until all workers are finished
+ *
+ * You must call this function once you created your initial workers. If you
+ * have not created any worker, this function returns immediately.
+ */
 void wait();
 
 /** Terminate the skal framework

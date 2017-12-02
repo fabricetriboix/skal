@@ -1,16 +1,24 @@
 /* Copyright Fabrice Triboix - Please read the LICENSE file */
 
-#include <skal/worker.hpp>
+#include <skal/skal.hpp>
 #include <skal/semaphore.hpp>
+#include <thread>
 #include <gtest/gtest.h>
 
-TEST(Worker, CreateAndDestroyWorker)
+struct Worker : public testing::Test
 {
-    skal::worker_t::create("my worker",
-            [] (std::unique_ptr<skal::msg_t> msg) { return false; });
-}
+    Worker()
+    {
+        skal::parameters_t parameters;
+        skal::init(parameters);
+    }
 
-TEST(Worker, SendAndReceiveMessage)
+    ~Worker()
+    {
+    }
+};
+
+TEST_F(Worker, SendAndReceiveMessage)
 {
     ft::semaphore_t sem;
     skal::worker_t::create("employee",
@@ -26,19 +34,16 @@ TEST(Worker, SendAndReceiveMessage)
     bool taken = sem.take(1s);
     ASSERT_TRUE(taken); // skal-init
 
-    auto msg = skal::msg_t::create("boss", "employee", "sweat!");
-    bool posted = skal::worker_t::post(msg);
-    ASSERT_TRUE(posted);
+    skal::send(skal::msg_t::create("employee", "sweat!"));
 
     taken = sem.take(1s);
     ASSERT_TRUE(taken); // sweat!
 
-    msg = skal::msg_t::create("", "employee", "stop");
-    posted = skal::worker_t::post(msg);
-    ASSERT_TRUE(posted);
-    std::this_thread::sleep_for(100ms); // XXX get rid of that ugly stuff
+    skal::send(skal::msg_t::create("employee", "stop"));
+    skal::wait();
 }
 
+#if 0
 TEST(Worker, TestThrottling)
 {
     skal::worker_t::create("boss",
@@ -84,3 +89,4 @@ TEST(Worker, TestThrottling)
     ASSERT_TRUE(posted);
     std::this_thread::sleep_for(100ms); // XXX get rid of that ugly stuff
 }
+#endif
