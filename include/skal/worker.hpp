@@ -6,6 +6,7 @@
 #include <skal/error.hpp>
 #include <skal/msg.hpp>
 #include <skal/queue.hpp>
+#include <skal/semaphore.hpp>
 #include <functional>
 #include <memory>
 #include <set>
@@ -31,9 +32,9 @@ void send(std::unique_ptr<msg_t> msg);
 void drop(std::unique_ptr<msg_t> msg);
 
 /** Excep. thrown when attempting to create a worker when skal is terminating */
-struct terminating : public error
+struct terminating_error : public error
 {
-    terminating() : error("skal::terminating") { }
+    terminating_error() : error("skal::terminating_error") { }
 };
 
 /** Worker class
@@ -70,11 +71,46 @@ public :
      */
     typedef std::function<bool(std::unique_ptr<msg_t> msg)> process_msg_t;
 
+    /** Parameters used to create a worker */
+    struct params_t {
+        /** Worker's name
+         *
+         * Must not be empty. Must be unique for this process. Must not contain
+         * the '@' character.
+         */
+        std::string name;
+
+        /** Message processing functor for this worker */
+        process_msg_t process_msg;
+
+        /** NUMA node on which to run this worker
+         *
+         * Set to -1 to not configure a NUMA node.
+         */
+        int numa_node = -1;
+
+        /** Worker queue threshold
+         *
+         * If the number of messages in this worker's message queue reaches
+         * this threshold, throttling will occur. Please refer to the top-level
+         * "README.md" file for more information. This is a fine-tuning
+         * parameter, do not touch unless you know what you are doing.
+         */
+        int64_t queue_threshold = default_queue_threshold;
+
+        /** How long to wait before coming out of pause
+         *
+         * this is a fine-tuning parameter, do not touch unless you know what
+         * you are doing.
+         */
+        std::chrono::nanoseconds xoff_timeout = default_xoff_timeout;
+    };
+
 private :
     std::string name_;
-    process_msg_t process_msg_;
+    params_t params_;
     queue_t queue_;
-    std::chrono::nanoseconds xoff_timeout_;
+    ft::semaphore_t semaphore_;
     std::thread thread_;
 
     /** Workers that sent me an xoff msg
@@ -108,34 +144,20 @@ public :
      * Please note that worker names starting with "skal" are reserved for the
      * skal framework internal usage.
      *
-     * \param name            [in] Worker's name; must not be empty; must be
-     *                             unique for this process; if `name` does not
-     *                             contain a '@' character, the domain name of
-     *                             this process will be appended
-     * \param process_msg     [in] Message processing functor for this worker
-     * \param numa_node       [in] NUMA node on which to run this worker;
-     *                             -1 to not configure a NUMA node
-     * \param queue_threshold [in] If the number of messages in this worker's
-     *                             message queue reaches this threshold,
-     *                             throttling will occur; please refer to the
-     *                             to-level "README.md" file for more
-     *                             information; this is a fine-tuning
-     *                             parameter, do not touch unless you know what
-     *                             you are doing.
-     * \param xoff_timeout    [in] How long to wait before coming out of pause;
-     *                             this is a fine-tuning parameter, do not touch
-     *                             unless you know what you are doing.
+     * \param params [in] Worker parameters
      *
      * \throw `duplicate_error` if a worker already exists in this process with
      *        the same name
      *
      * \throw `terminating` if `worker_t::terminate()` had been called
      */
-    static void create(std::string name,
-            process_msg_t process_msg,
-            int numa_node = -1,
-            int64_t queue_threshold = default_queue_threshold,
-            std::chrono::nanoseconds xoff_timeout = default_xoff_timeout);
+    static void create(params_t params);
+
+    static void create(std::string worker_name, process_msg_t process_msg)
+    {
+        params_t params { worker_name, process_msg };
+        create(params);
+    }
 
     /** Post a message to the given worker in this process
      *
@@ -152,8 +174,7 @@ public :
     static bool post(std::unique_ptr<msg_t>& msg);
 
 private :
-    worker_t(std::string name, process_msg_t process_msg, int numa_node,
-            int64_t queue_threshold, std::chrono::nanoseconds xoff_timeout);
+    explicit worker_t(params_t params);
 
     /** Thread entry point */
     void thread_entry_point();

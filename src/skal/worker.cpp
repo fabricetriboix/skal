@@ -17,12 +17,40 @@ namespace skal {
 namespace {
 
 typedef std::unique_lock<std::mutex> lock_t;
-typedef std::unordered_map<std::string, std::unique_ptr<worker_t>> workers_t;
-workers_t g_workers;
-std::list<std::string> g_terminated_workers;
+
+/** Global workers mutex
+ *
+ * Protects all global variables in this module.
+ */
 std::mutex g_mutex;
+
+/** Type of the worker register
+ *
+ * This is a hash table indexed by worker names.
+ */
+typedef std::unordered_map<std::string, std::unique_ptr<worker_t>> workers_t;
+
+/** The worker register */
+workers_t g_workers;
+
+/** Names of terminated workers
+ *
+ * This is used to remove the terminated workers from the worker register.
+ */
+std::list<std::string> g_terminated_workers;
+
+/** Semaphore to signal `worker_t::wait()` for terminated workers */
 ft::semaphore_t g_semaphore;
-bool g_terminated = false;
+
+/** Module possible states */
+enum state_t {
+    initialising,
+    running,
+    terminating
+};
+
+/** Module current state */
+state_t g_state = state_t::initialising;
 
 } // unnamed namespace
 
@@ -179,35 +207,40 @@ void drop(std::unique_ptr<msg_t> msg)
         << msg->recipient() << "', action='" << msg->action() << "'";
 }
 
-worker_t::worker_t(std::string name, process_msg_t process_msg, int numa_node,
-        int64_t queue_threshold, std::chrono::nanoseconds xoff_timeout)
-    : name_(full_name(name))
-    , process_msg_(process_msg)
-    , queue_(queue_threshold)
-    , xoff_timeout_(xoff_timeout)
+worker_t::worker_t(params_t params)
+    : name_(params.name)
+    , params_(params)
+    , queue_(params_.queue_threshold)
     , thread_( [this] () { this->thread_entry_point(); } )
 {
-    // TODO: NUMA
-    skal_log(debug) << "Creating worker '" << name_ << "'";
 }
 
 worker_t::~worker_t()
 {
-    skal_log(debug) << "Destroying worker '" << name_ << "'";
     thread_.join();
 }
 
 void worker_t::thread_entry_point()
 {
+    // TODO: NUMA
+    global_t::set_me(name_);
+    {
+        lock_t lock(g_mutex);
+        if (g_state == state_t::initialising) {
+            // Skal is still initialising => Wait for the green light
+            lock.unlock();
+            semaphore_.take();
+        }
+    }
     try {
         run();
     } catch (std::exception& e) {
         skal_log(error) << "Thread of worker '" << name_
-            << "' threw exception: " << e.what();
+            << "' unexpectedly threw exception: " << e.what();
         // TODO: raise alarm
     } catch (...) {
         skal_log(error) << "Thread of worker '" << name_
-            << "' threw a non-standard exception";
+            << "' unexpectedly threw a non-standard exception";
         // TODO: raise alarm
     }
     lock_t lock(g_mutex);
@@ -217,20 +250,20 @@ void worker_t::thread_entry_point()
 
 void worker_t::run()
 {
-    // NB: This is the thread entry point for the worker. The worker object
-    //     will not be accessed in any way outside this thread, except for when
-    //     messages are pushed into its queue, which is an MT-safe operation.
-    //     In other words, the code here does not need to worry about thread
-    //     safety.
+    // NB: The worker object will not be accessed in any way outside this
+    //     thread, except for when messages are pushed into its queue, which is
+    //     an MT-safe operation. In other words, the code here does not need to
+    //     worry about thread safety.
 
-    global_t::set_me(name_);
     send(msg_t::create_internal("skald", "skal-born"));
+    queue_.push(msg_t::create("", name_, "skal-init"));
 
     bool stop = false;
     while (!stop) {
         bool internal_only = false; // Flag: process internal only or all msg?
         if (!xoff_.empty()) { // Other workers blocked me
-            if (last_xoff_ > std::chrono::steady_clock::now()) {
+            auto now = std::chrono::steady_clock::now();
+            if ((last_xoff_ + params_.xoff_timeout) > now) {
                 skal_log(debug) << "Worker '" << name_
                     << "' resumes after xoff_timeout";
                 xoff_.clear();
@@ -245,11 +278,11 @@ void worker_t::run()
             if (!process_internal_msg(std::move(msg))) {
                 stop = true;
             }
-        } else if (process_msg_) {
+        } else if (params_.process_msg) {
             skal_log(debug) << "Worker '" << name_ << "': processing message '"
                 << msg->action() << "' from '" << msg->sender() << "'";
             try {
-                if (!process_msg_(std::move(msg))) {
+                if (!params_.process_msg(std::move(msg))) {
                     skal_log(info) << "Worker '" << name_
                         << "' terminated naturally";
                     stop = true;
@@ -289,8 +322,8 @@ void worker_t::run()
         send(std::move(msg));
     }
 
-    if (process_msg_) {
-        process_msg_(msg_t::create("", name_, "skal-exit"));
+    if (params_.process_msg) {
+        params_.process_msg(msg_t::create("", name_, "skal-exit"));
     }
     send(msg_t::create_internal("skald", "skal-died"));
 }
@@ -323,24 +356,20 @@ void worker_t::send_xon()
     ntf_xon_.clear();
 }
 
-void worker_t::create(std::string name, process_msg_t process_msg,
-        int numa_node, int64_t queue_threshold,
-        std::chrono::nanoseconds xoff_timeout)
+void worker_t::create(params_t params)
 {
     lock_t lock(g_mutex);
-    if (g_terminated) {
-        throw terminating();
+    params.name = full_name(params.name);
+    if (g_state == state_t::terminating) {
+        throw terminating_error();
     }
-    name = full_name(std::move(name));
-    if (g_workers.find(name) != g_workers.end()) {
+    if (g_workers.find(params.name) != g_workers.end()) {
         throw duplicate_error();
     }
-
     // NB: Can't use `make_unique` here because constructor is private
-    g_workers.emplace(name, std::unique_ptr<worker_t>(new worker_t(name,
-                    process_msg, numa_node, queue_threshold, xoff_timeout)));
-    skal_log(debug) << "Added worker '" << name << "' to register";
-    g_workers[name]->queue_.push(msg_t::create("", name, "skal-init"));
+    g_workers.emplace(params.name,
+            std::unique_ptr<worker_t>(new worker_t(params)));
+    skal_log(debug) << "Added worker '" << params.name << "' to the register";
 }
 
 bool worker_t::post(std::unique_ptr<msg_t>& msg)
@@ -423,23 +452,34 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
 
 void worker_t::wait()
 {
+    global_t::set_me("main");
+    {
+        lock_t lock(g_mutex);
+        g_state = state_t::running;
+    }
+    for (auto& worker : g_workers) {
+        worker.second->semaphore_.post();
+    }
     for (;;) {
         g_semaphore.take();
         lock_t lock(g_mutex);
-        for (auto& worker_name : g_terminated_workers) {
-            g_workers.erase(worker_name);
+        while (!g_terminated_workers.empty()) {
+            g_workers.erase(g_terminated_workers.front());
+            g_terminated_workers.pop_front();
         }
         if (g_workers.empty()) {
+            skal_log(debug) << "No more workers";
             break;
         }
     }
-    g_terminated = false;
+    // Reset the state, if the client software calls `wait()` again
+    g_state = state_t::initialising;
 }
 
 void worker_t::terminate()
 {
     lock_t lock(g_mutex);
-    g_terminated = true;
+    g_state = state_t::terminating;
     for (workers_t::iterator it = g_workers.begin();
             it != g_workers.end(); ++it) {
         it->second->queue_.push(msg_t::create_internal(it->first,

@@ -3,7 +3,7 @@
 #pragma once
 
 #include <skal/cfg.hpp>
-#include <thread>
+#include <skal/global.hpp>
 #include <string>
 #include <sstream>
 #include <utility>
@@ -77,12 +77,12 @@ void minimum_level(level_t level);
 /** Log record */
 struct record_t
 {
-    level_t         level;
-    std::string     file;
-    int             line;
-    timestamp_t     timestamp;
-    std::thread::id thread_id;
-    std::string     msg;
+    level_t     level;
+    std::string file;
+    int         line;
+    timestamp_t timestamp;
+    std::string thread;
+    std::string msg;
 };
 
 /** Process a log record */

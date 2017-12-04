@@ -3,7 +3,8 @@ project(skal VERSION 0.1.1 LANGUAGES CXX)
 include(GNUInstallDirs)
 enable_testing()
 
-find_package(Boost 1.62 REQUIRED COMPONENTS date_time filesystem system)
+find_package(Boost 1.62 REQUIRED
+    COMPONENTS date_time filesystem system thread regex)
 find_package(Protobuf REQUIRED)
 
 add_subdirectory(googletest)
@@ -41,6 +42,8 @@ add_library(skal STATIC
 
     ${SKAL_MSG_PROTO_SRC}
     ${SKAL_MSG_PROTO_HDR})
+
+target_link_libraries(skal Boost::boost)
 
 set_property(TARGET skal PROPERTY CXX_STANDARD 14)
 set_property(TARGET skal PROPERTY CXX_STANDARD_REQUIRED ON)

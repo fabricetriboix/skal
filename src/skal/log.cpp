@@ -54,10 +54,9 @@ void process(record_t record)
     boost::filesystem::path file(record.file);
     std::cerr << date::format("%FT%TZ",
             date::floor<std::chrono::microseconds>(record.timestamp))
-        << " {" << std::hex << std::setfill('0') << std::setw(16)
-        << record.thread_id
+        << " {" << record.thread
         << "} " << to_string(record.level)
-        << "[" << file.filename().string() << ":" << std::dec << record.line
+        << " [" << file.filename().string() << ":" << std::dec << record.line
         << "] " << record.msg
         << std::endl;
 }
@@ -70,7 +69,7 @@ log_t::log_t(level_t level, const char* file, int line) : oss()
         record.file = file;
     }
     record.line = line;
-    record.thread_id = std::this_thread::get_id();
+    record.thread = me();
 }
 
 } // namespace log

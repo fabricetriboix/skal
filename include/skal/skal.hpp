@@ -36,7 +36,8 @@ void init(const parameters_t& parameters);
 /** Run skal until all workers are finished
  *
  * You must call this function once you created your initial workers. If you
- * have not created any worker, this function returns immediately.
+ * have not created any worker, this function returns immediately. Please note
+ * that no worker will run until this function is called.
  */
 void wait();
 

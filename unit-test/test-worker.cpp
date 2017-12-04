@@ -3,6 +3,8 @@
 #include <skal/skal.hpp>
 #include <skal/semaphore.hpp>
 #include <thread>
+#include <boost/asio.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <gtest/gtest.h>
 
 struct Worker : public testing::Test
@@ -16,31 +18,44 @@ struct Worker : public testing::Test
     ~Worker()
     {
     }
+
+    void run(std::chrono::nanoseconds timeout = 1s)
+    {
+        boost::asio::io_service ios;
+        boost::asio::steady_timer timer(ios);
+        timer.expires_from_now(timeout);
+        timer.async_wait(
+                [] (const boost::system::error_code& ec)
+                {
+                    skal_panic() << "skal::wait() timeout!";
+                });
+        std::thread thread([&ios] () { ios.run(); });
+        skal::wait();
+        ios.stop();
+        thread.join();
+    }
 };
 
 TEST_F(Worker, SendAndReceiveMessage)
 {
-    ft::semaphore_t sem;
+    int n = 0;
     skal::worker_t::create("employee",
-            [&sem] (std::unique_ptr<skal::msg_t> msg)
+            [&n] (std::unique_ptr<skal::msg_t> msg)
             {
-                if (msg->action() == "stop" ) {
+                if (msg->action() == "sweat!") {
+                    ++n;
                     return false;
                 }
-                sem.post();
                 return true;
             });
-
-    bool taken = sem.take(1s);
-    ASSERT_TRUE(taken); // skal-init
-
-    skal::send(skal::msg_t::create("employee", "sweat!"));
-
-    taken = sem.take(1s);
-    ASSERT_TRUE(taken); // sweat!
-
-    skal::send(skal::msg_t::create("employee", "stop"));
-    skal::wait();
+    skal::worker_t::create("boss",
+            [] (std::unique_ptr<skal::msg_t> msg)
+            {
+                skal::send(skal::msg_t::create("employee", "sweat!"));
+                return false;
+            });
+    run();
+    ASSERT_EQ(n, 1);
 }
 
 #if 0

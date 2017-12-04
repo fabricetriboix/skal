@@ -2,6 +2,8 @@
 
 #include <skal/global.hpp>
 #include <thread>
+#include <sstream>
+#include <iomanip>
 
 namespace skal {
 
@@ -27,6 +29,12 @@ const std::string& domain()
 
 const std::string& me()
 {
+    if (g_me.empty()) {
+        std::ostringstream oss;
+        oss << std::hex << std::setw(16) << std::setfill('0')
+            << std::this_thread::get_id();
+        g_me = oss.str();
+    }
     return g_me;
 }
 
@@ -37,7 +45,7 @@ void global_t::set_domain(std::string domain)
 
 void global_t::set_me(std::string me)
 {
-    g_me = full_name(std::move(me));
+    g_me = me;
 }
 
 std::string full_name(std::string name)
