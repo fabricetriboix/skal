@@ -32,7 +32,7 @@ typedef std::chrono::steady_clock::time_point timepoint_t;
  */
 
 /** Default log level: one of the `skal::log:level_t` */
-#define SKAL_DEFAULT_LOG_LEVEL debug
+#define SKAL_DEFAULT_LOG_LEVEL notice
 
 /** Default TTL */
 constexpr int8_t default_ttl = 4;

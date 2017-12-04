@@ -31,7 +31,11 @@ void send(std::unique_ptr<msg_t> msg);
  */
 void drop(std::unique_ptr<msg_t> msg);
 
-/** Excep. thrown when attempting to create a worker when skal is terminating */
+/** Skal is being terminated
+ *
+ * This exception is thrown when attempting to create a worker when skal is
+ * terminating.
+ */
 struct terminating_error : public error
 {
     terminating_error() : error("skal::terminating_error") { }
@@ -156,7 +160,7 @@ public :
     static void create(std::string worker_name, process_msg_t process_msg)
     {
         params_t params { worker_name, process_msg };
-        create(params);
+        create(std::move(params));
     }
 
     /** Post a message to the given worker in this process
@@ -186,7 +190,7 @@ private :
      *
      * \return `true` if OK, `false` to stop this worker immediately
      */
-    bool process_internal_msg(std::unique_ptr<msg_t> msg);
+    bool process_internal_msg(const std::unique_ptr<msg_t>& msg);
 
     /** Send "skal-xon" messages to workers which are waiting for me */
     void send_xon();

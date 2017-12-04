@@ -58,50 +58,69 @@ TEST_F(Worker, SendAndReceiveMessage)
     ASSERT_EQ(n, 1);
 }
 
-#if 0
-TEST(Worker, TestThrottling)
+TEST_F(Worker, CreateAfterInit)
 {
+    int n = 0;
+    auto employee_job = [&n] (std::unique_ptr<skal::msg_t> msg)
+    {
+        if (msg->action() == "sweat!") {
+            ++n;
+            return false;
+        }
+        return true;
+    };
+
     skal::worker_t::create("boss",
-            [] (std::unique_ptr<skal::msg_t> msg)
+            [employee_job] (std::unique_ptr<skal::msg_t> msg)
             {
                 if (msg->action() == "skal-init") {
-                    msg = skal::msg_t::create("employee", "work!");
-                    bool posted = skal::worker_t::post(msg);
-                    skal_assert(posted);
-                    msg = skal::msg_t::create("employee", "work more!");
-                    posted = skal::worker_t::post(msg);
-                    skal_assert(posted);
-                } else if (msg->action() == "stop") {
-                    return false;
+                    skal::worker_t::create("employee", employee_job);
+                    skal::send(skal::msg_t::create("employee", "sweat!"));
                 }
-                return true;
+                return false;
             });
-
-    ft::semaphore_t sem;
-    skal::worker_t::create("employee",
-            [&sem] (std::unique_ptr<skal::msg_t> msg)
-            {
-                if (msg->action() == "skal-init") {
-                    std::this_thread::sleep_for(10ms);
-                } else if (msg->action() == "work more!") {
-                    sem.post();
-                } else if (msg->action() == "stop") {
-                    return false;
-                }
-                return true;
-            },
-            -1, // numa_node
-            1); // Very small message queue
-
-    bool taken = sem.take(1s);
-    ASSERT_TRUE(taken); // skal-init
-
-    auto msg = skal::msg_t::create("", "boss", "stop");
-    bool posted = skal::worker_t::post(msg);
-    ASSERT_TRUE(posted);
-    msg = skal::msg_t::create("", "employee", "stop");
-    posted = skal::worker_t::post(msg);
-    ASSERT_TRUE(posted);
-    std::this_thread::sleep_for(100ms); // XXX get rid of that ugly stuff
+    run();
+    ASSERT_EQ(n, 1);
 }
-#endif
+
+TEST_F(Worker, TestThrottling)
+{
+    int n = 0;
+    auto boss_job = [&n] (std::unique_ptr<skal::msg_t> msg)
+    {
+        if (msg->action() == "skal-init") {
+            msg = skal::msg_t::create("employee", "work!");
+            bool posted = skal::worker_t::post(msg);
+            skal_assert(posted);
+            msg = skal::msg_t::create("employee", "work more!");
+            posted = skal::worker_t::post(msg);
+            skal_assert(posted);
+        } else if (msg->action() == "skal-throttle-on") {
+            ++n;
+        } else if (msg->action() == "skal-throttle-off") {
+            ++n;
+            return false;
+        }
+        return true;
+    };
+
+    skal::worker_t::params_t params;
+    params.name = "employee";
+    params.process_msg = [boss_job] (std::unique_ptr<skal::msg_t> msg)
+    {
+        if (msg->action() == "skal-init") {
+            skal::worker_t::params_t params { "boss", boss_job };
+            params.xoff_timeout = 1s;
+            skal::worker_t::create(std::move(params));
+            std::this_thread::sleep_for(10ms);
+        } else if (msg->action() == "work more!") {
+            return false;
+        }
+        return true;
+    };
+    params.queue_threshold = 1; // Very small message queue
+    skal::worker_t::create(std::move(params));
+
+    run();
+    ASSERT_EQ(n, 2);
+}

@@ -85,11 +85,6 @@ class group_t
 public :
     group_t(std::string group_name) : name_(full_name(std::move(group_name)))
     {
-        skal_log(debug) << "Constructing group '" << name_ << "'";
-    }
-
-    ~group_t() {
-        skal_log(info) << "Destructing group '" << name_ << "'";
     }
 
     bool process(std::unique_ptr<msg_t> msg);
@@ -116,7 +111,7 @@ void group_t::subscribe(const std::string& subscriber_name,
     if (subscriber.find(filter) != subscriber.end()) {
         return; // subscriber already has a subscription for this filter
     }
-    skal_log(debug) << "Group '" << name_
+    skal_log(info) << "Group '" << name_
         << "': adding subscription subscriber='" << subscriber_name
         << "', filter='" << filter << "'";
     subscriber[filter] = std::move(re);
@@ -129,7 +124,7 @@ void group_t::unsubscribe(const std::string& subscriber_name,
     if (it == subscribers_.end()) {
         return;
     }
-    skal_log(debug) << "Group '" << name_
+    skal_log(info) << "Group '" << name_
         << "': removing subscription subscriber='" << subscriber_name
         << "', filter='" << filter << "'";
     if (filter.empty()) {
@@ -151,7 +146,7 @@ bool group_t::process(std::unique_ptr<msg_t> msg)
 
         } else if (msg->action() == "skal-exit") {
             if (!subscribers_.empty()) {
-                skal_log(debug) << "Terminating group '" << name_
+                skal_log(info) << "Terminating group '" << name_
                     << "', unsubscribing all current subscribers";
                 subscribers_.clear();
             }
@@ -255,36 +250,49 @@ void worker_t::run()
     //     an MT-safe operation. In other words, the code here does not need to
     //     worry about thread safety.
 
+    skal_log(info) << "Starting worker '" << name_ << "'";
     send(msg_t::create_internal("skald", "skal-born"));
     queue_.push(msg_t::create("", name_, "skal-init"));
 
     bool stop = false;
+    bool throttled = false;
     while (!stop) {
         bool internal_only = false; // Flag: process internal only or all msg?
         if (!xoff_.empty()) { // Other workers blocked me
+            if (!throttled) {
+                queue_.push(msg_t::create_internal("",
+                            name_, "skal-throttle-on"));
+                throttled = true;
+            }
             auto now = std::chrono::steady_clock::now();
-            if ((last_xoff_ + params_.xoff_timeout) > now) {
+            if ((last_xoff_ + params_.xoff_timeout) < now) {
                 skal_log(debug) << "Worker '" << name_
                     << "' resumes after xoff_timeout";
                 xoff_.clear();
             } else {
                 internal_only = true;
             }
+        } else {
+            if (throttled) {
+                queue_.push(msg_t::create_internal("",
+                            name_, "skal-throttle-off"));
+                throttled = false;
+            }
         }
         std::unique_ptr<msg_t> msg = queue_.pop(internal_only);
         skal_assert(msg);
         timepoint_t start = std::chrono::steady_clock::now();
         if (msg->iflags() & msg_t::iflag_t::internal) {
-            if (!process_internal_msg(std::move(msg))) {
+            if (!process_internal_msg(msg)) {
                 stop = true;
             }
-        } else if (params_.process_msg) {
+        }
+        if (params_.process_msg) {
             skal_log(debug) << "Worker '" << name_ << "': processing message '"
                 << msg->action() << "' from '" << msg->sender() << "'";
             try {
                 if (!params_.process_msg(std::move(msg))) {
-                    skal_log(info) << "Worker '" << name_
-                        << "' terminated naturally";
+                    skal_log(info) << "Worker '" << name_ << "' stopped";
                     stop = true;
                 }
             } catch (std::exception& e) {
@@ -326,15 +334,18 @@ void worker_t::run()
         params_.process_msg(msg_t::create("", name_, "skal-exit"));
     }
     send(msg_t::create_internal("skald", "skal-died"));
+    skal_log(info) << "Worker '" << name_ << "' terminated";
 }
 
-bool worker_t::process_internal_msg(std::unique_ptr<msg_t> msg)
+bool worker_t::process_internal_msg(const std::unique_ptr<msg_t>& msg)
 {
+    skal_log(debug) << "Worker '" << name_ << "': processing internal message '"
+        << msg->action() << "' from '" << msg->sender() << "'";
     bool ok = true;
     if (msg->action() == "skal-xoff") {
         // A worker is telling me to stop sending to it
-        xoff_.insert(msg->sender());
         last_xoff_ = std::chrono::steady_clock::now();
+        xoff_.insert(msg->sender());
 
     } else if (msg->action() == "skal-xon") {
         // A worker is telling me I can resume sending
@@ -375,32 +386,39 @@ void worker_t::create(params_t params)
 bool worker_t::post(std::unique_ptr<msg_t>& msg)
 {
     if (start_with(msg->recipient(), "skald")) {
-        return false; // skald is definitely not in this process
+        return false; // "skald.*" is definitely not in this process
     }
     lock_t lock(g_mutex);
     workers_t::iterator it = g_workers.find(msg->recipient());
     if (it == g_workers.end()) {
-        if (msg->action() != "skal-subscribe") {
+        if (msg->action() == "skal-subscribe") {
+            // The sender wants to subscribe to a group that doesn't exist yet
+            auto group = std::make_shared<group_t>(msg->recipient());
+            // TODO: NUMA
+            // Create a worker with the same name as the group
+            // NB: The closure object will own the `group_t` object, which
+            //     will be destructed when the worker object will be destructed.
+            worker_t::create(msg->recipient(),
+                    [group] (std::unique_ptr<msg_t> msg) mutable
+                    {
+                        return group->process(std::move(msg));
+                    });
+            it = g_workers.find(msg->recipient());
+            skal_assert(it != g_workers.end());
+        } else {
             skal_log(debug) << "Can't post message to worker '"
                 << msg->recipient() << "': no such worker in this process";
             return false;
         }
-
-        // The sender wants to subscribe to a group that doesn't exist yet
-        auto group = std::make_shared<group_t>(msg->recipient());
-        // TODO: NUMA
-        worker_t::create(msg->recipient(),
-                [group] (std::unique_ptr<msg_t> msg) mutable
-                {
-                    return group->process(std::move(msg));
-                });
-        it = g_workers.find(msg->recipient());
-        skal_assert(it != g_workers.end());
     }
     skal_assert(it->second);
 
     if (    (msg->action() == "skal-subscribe")
          || (msg->action() == "skal-unsubscribe")) {
+        // Update the destination worker's internal structures
+        // NB: They are used to keep track of this worker's subscriptions, and
+        //     to unsubscribe the worker from all its current subscriptions
+        //     when it is terminated.
         auto it2 = g_workers.find(msg->sender());
         if (it2 != g_workers.end()) {
             std::string filter;
@@ -432,13 +450,18 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
                 << "'; sending it a 'skal-xoff' message";
         }
     }
+
+    // Deliver the message to its recipient, even when its queue is full
     it->second->queue_.push(std::move(msg));
+
     if (tell_xoff) {
         // Send a "skal-xoff" message to `sender`
-        // NB: We moved `msg`, so don't access it any more
+        // NB: We moved the `msg` variable, so don't access it any more
         msg = msg_t::create_internal(it->second->name_, sender, "skal-xoff");
         it->second->ntf_xon_.insert(sender);
 
+        // NB: Better be on the safe side and avoid recursing into
+        //     `worker_t::post()`
         auto it2 = g_workers.find(sender);
         if (it2 != g_workers.end()) {
             skal_assert(it2->second);
@@ -452,7 +475,8 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
 
 void worker_t::wait()
 {
-    global_t::set_me("main");
+    global_t::set_me("main"); // Set thread name for nice logging
+    skal_log(info) << "Running skal application";
     {
         lock_t lock(g_mutex);
         g_state = state_t::running;
@@ -468,7 +492,7 @@ void worker_t::wait()
             g_terminated_workers.pop_front();
         }
         if (g_workers.empty()) {
-            skal_log(debug) << "No more workers";
+            skal_log(debug) << "No more workers, skal application terminated";
             break;
         }
     }
