@@ -2,6 +2,8 @@
 
 #include <skal/skal.hpp>
 #include <skal/semaphore.hpp>
+#include <vector>
+#include <sstream>
 #include <thread>
 #include <boost/asio.hpp>
 #include <boost/asio/steady_timer.hpp>
@@ -176,4 +178,71 @@ TEST_F(Worker, Group)
     run();
     ASSERT_EQ(n1, 3);
     ASSERT_EQ(n2, 3);
+}
+
+TEST_F(Worker, Stress)
+{
+    constexpr const int nworkers = 100; // Number of workers
+    constexpr const int nmsg = 10'000;  // Number of messages
+    std::vector<int> counts;
+    counts.resize(nworkers, 0);
+
+    struct job_t {
+        int n;
+        std::string next;
+        int& count;
+
+        job_t(int _n, int& _count) : n(_n), count(_count) {
+            std::ostringstream oss;
+            oss << "worker" << (n+1);
+            next = oss.str();
+        }
+
+        bool operator()(std::unique_ptr<skal::msg_t> msg) {
+            if (msg->action() == "stress") {
+                ++count;
+                if (msg->has_int("last")) {
+                    std::unique_ptr<skal::msg_t> msg2
+                        = skal::msg_t::create(next, "stress");
+                    msg2->add_field("last", 1);
+                    skal::send(std::move(msg2));
+                    return false;
+                }
+                skal::send(skal::msg_t::create(next, "stress"));
+            }
+            return true;
+        }
+    };
+
+    for (int i = 0; i < nworkers; ++i) {
+        std::ostringstream oss;
+        oss << "worker" << i;
+        skal::worker_t::create(oss.str(), job_t(i, counts[i]));
+    }
+
+    int source_count = 0;
+    skal::worker_t::create("source",
+            [nmsg, &source_count] (std::unique_ptr<skal::msg_t> msg)
+            {
+                if (msg->action() == "kick") {
+                    std::unique_ptr<skal::msg_t> msg
+                        = skal::msg_t::create("worker0", "stress");
+                    ++source_count;
+                    if (source_count >= nmsg) {
+                        msg->add_field("last", 1);
+                    }
+                    skal::send(std::move(msg));
+                    if (source_count >= nmsg) {
+                        return false;
+                    }
+                }
+                skal::send(skal::msg_t::create("source", "kick"));
+                return true;
+            });
+
+    run(1h);
+
+    for (int i = 0; i < nworkers; ++i) {
+        ASSERT_EQ(counts[i], nmsg);
+    }
 }
