@@ -124,3 +124,56 @@ TEST_F(Worker, TestThrottling)
     run();
     ASSERT_EQ(n, 2);
 }
+
+TEST_F(Worker, Group)
+{
+    int n1 = 0;
+    auto receiver1_job =
+        [&n1] (std::unique_ptr<skal::msg_t> msg)
+        {
+            if (msg->action() == "skal-init") {
+                skal::send(skal::msg_t::create("team", "skal-subscribe"));
+            } else if (msg->action() == "beep") {
+                ++n1;
+            } else if (msg->action() == "beeep") {
+                ++n1;
+                return false;
+            }
+            return true;
+        };
+
+    int n2 = 0;
+    auto receiver2_job =
+        [&n2] (std::unique_ptr<skal::msg_t> msg)
+        {
+            if (msg->action() == "skal-init") {
+                skal::send(skal::msg_t::create("team", "skal-subscribe"));
+            } else if (msg->action() == "beep") {
+                ++n2;
+            } else if (msg->action() == "beeep") {
+                ++n2;
+                return false;
+            }
+            return true;
+        };
+
+    skal::worker_t::create("sender",
+            [receiver1_job, receiver2_job] (std::unique_ptr<skal::msg_t> msg)
+            {
+                if (msg->action() == "skal-init") {
+                    // Will be dropped because group does not exist yet
+                    skal::send(skal::msg_t::create("team", "beep"));
+                    skal::worker_t::create("recv1", receiver1_job);
+                    skal::worker_t::create("recv2", receiver2_job);
+                    // Wait for group to be created
+                    std::this_thread::sleep_for(500ms);
+                    skal::send(skal::msg_t::create("team", "beep"));
+                    skal::send(skal::msg_t::create("team", "beep"));
+                    skal::send(skal::msg_t::create("team", "beeep"));
+                }
+                return false;
+            });
+    run();
+    ASSERT_EQ(n1, 3);
+    ASSERT_EQ(n2, 3);
+}

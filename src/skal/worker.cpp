@@ -134,6 +134,9 @@ void group_t::unsubscribe(const std::string& subscriber_name,
         if (it2 != it->second.end()) {
             it->second.erase(it2);
         }
+        if (it->second.empty()) {
+            subscribers_.erase(it);
+        }
     }
 }
 
@@ -175,11 +178,12 @@ bool group_t::process(std::unique_ptr<msg_t> msg)
                 if (    subscription.first.empty()
                      || std::regex_match(msg->action(), subscription.second)) {
                     auto copy = std::make_unique<msg_t>(msg);
+                    copy->sender(name_);
                     copy->recipient(subscriber.first);
                     skal_log(debug) << "Group '" << name_
-                        << "': forwarding message from '" << copy->sender()
-                        << "' to '" << copy->recipient() << "', action='"
-                        << copy->action() << "'";
+                        << "': forwarding message '" << copy->action()
+                        << "' from '" << copy->sender() << "' to '"
+                        << copy->recipient() << "'";
                     send(std::move(copy));
                 }
             } // for each subscription
@@ -292,7 +296,7 @@ void worker_t::run()
                 << msg->action() << "' from '" << msg->sender() << "'";
             try {
                 if (!params_.process_msg(std::move(msg))) {
-                    skal_log(info) << "Worker '" << name_ << "' stopped";
+                    skal_log(info) << "Worker '" << name_ << "' finished";
                     stop = true;
                 }
             } catch (std::exception& e) {
@@ -318,13 +322,15 @@ void worker_t::run()
         }
     } // infinite loop
 
-    // Unsubscribe from all groups this worker subscribed to. Careful: sending
-    // a "skal-unsubscribe" message will actually modify the `subscriptions_`.
+    // Unsubscribe from all groups this worker subscribed to.
+    // ---
+    // CAUTION: Sending a "skal-unsubscribe" message will actually modify
+    // `subscriptions_`.
+    // ---
     std::vector<std::unique_ptr<msg_t>> messages;
     for (auto& subscription : subscriptions_) {
-        for (auto& filter : subscription.second) {
-            messages.push_back(msg_t::create(subscription.first, filter));
-        }
+        messages.push_back(msg_t::create(subscription.first,
+                    "skal-unsubscribe"));
     }
     for (auto& msg : messages) {
         send(std::move(msg));
@@ -370,6 +376,11 @@ void worker_t::send_xon()
 void worker_t::create(params_t params)
 {
     lock_t lock(g_mutex);
+    do_create(std::move(params));
+}
+
+void worker_t::do_create(params_t params)
+{
     params.name = full_name(params.name);
     if (g_state == state_t::terminating) {
         throw terminating_error();
@@ -393,16 +404,19 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
     if (it == g_workers.end()) {
         if (msg->action() == "skal-subscribe") {
             // The sender wants to subscribe to a group that doesn't exist yet
+            skal_log(debug) << "Creating new group '"
+                << msg->recipient() << "'";
             auto group = std::make_shared<group_t>(msg->recipient());
-            // TODO: NUMA
             // Create a worker with the same name as the group
-            // NB: The closure object will own the `group_t` object, which
-            //     will be destructed when the worker object will be destructed.
-            worker_t::create(msg->recipient(),
-                    [group] (std::unique_ptr<msg_t> msg) mutable
-                    {
-                        return group->process(std::move(msg));
-                    });
+            // NB: The closure object will own the `group_t` object, which will
+            //     be destructed when the worker object will be destructed.
+            params_t group_params { msg->recipient(),
+                [group] (std::unique_ptr<msg_t> msg) mutable
+                {
+                    return group->process(std::move(msg));
+                } };
+            // TODO: NUMA
+            worker_t::do_create(std::move(group_params));
             it = g_workers.find(msg->recipient());
             skal_assert(it != g_workers.end());
         } else {
@@ -426,9 +440,12 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
                 filter = msg->get_string("filter");
             }
             if (msg->action() == "skal-subscribe") {
-                it2->second->subscriptions_[msg->sender()].insert(filter);
+                it2->second->subscriptions_[msg->recipient()].insert(filter);
             } else {
-                it2->second->subscriptions_[msg->sender()].erase(filter);
+                it2->second->subscriptions_[msg->recipient()].erase(filter);
+                if (it2->second->subscriptions_[msg->recipient()].empty()) {
+                    it2->second->subscriptions_.erase(msg->recipient());
+                }
             }
         }
     }

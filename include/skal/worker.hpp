@@ -135,6 +135,9 @@ private :
 
     /** Groups I subscribed to
      *
+     * If the worker terminates without having removed all its subscriptions,
+     * this is used to unsubscribe from all its groups on its behalf.
+     *
      * The key is the group name, the value is the filter strings.
      */
     std::map<std::string, std::set<std::string>> subscriptions_;
@@ -179,6 +182,8 @@ public :
 
 private :
     explicit worker_t(params_t params);
+
+    static void do_create(params_t params);
 
     /** Thread entry point */
     void thread_entry_point();
