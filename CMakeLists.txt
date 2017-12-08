@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.1)
 project(skal LANGUAGES C CXX)
 enable_testing()
 
-find_package(Boost 1.62 REQUIRED
-    COMPONENTS date_time filesystem system thread regex)
+find_package(Boost 1.54 REQUIRED
+    COMPONENTS filesystem system thread regex)
 find_package(Protobuf REQUIRED)
 
 add_subdirectory(googletest)
@@ -57,7 +57,7 @@ target_include_directories(skal
     PRIVATE ${Protobuf_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(skal
-    Boost::date_time Boost::filesystem Boost::system
+    Boost::filesystem Boost::system
     ${Protobuf_LIBRARIES} rt)
 
 # Make skal importable from the build directory
