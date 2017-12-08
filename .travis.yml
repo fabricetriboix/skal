@@ -2,10 +2,15 @@ language: cpp
 
 before_install:
  - sudo apt-get update -qq
- - sudo apt-get install libprotobuf-dev
- - sudo apt-get install libboost-atomic-dev libboost-chrono-dev
- - sudo apt-get install libboost-filesystem-dev libboost-thread-dev
- - sudo apt-get install libboost-regex-dev
+ - sudo apt-get install -y libprotobuf-dev p7zip-full wget
+ - >
+   wget https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.7z
+   && 7za x boost_1_64_0.7z
+   && cd boost_1_64_0/tools/build
+   && ./bootstrap.sh
+   && ./b2 --prefix=/usr/local install
+   && cd ../..
+   && b2 --prefix=/usr/local toolset=gcc link=static install
 
 script: >
     mkdir ../build
