@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(skal LANGUAGES)
+project(skal LANGUAGES C CXX)
 enable_testing()
 
 find_package(Boost 1.62 REQUIRED
