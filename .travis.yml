@@ -4,9 +4,9 @@ before_install:
  - sudo apt-get update -qq
  - sudo apt-get install libprotobuf-dev
 
-script: git submodule update --init --recursive \
-    && mkdir ../build \
-    && cd ../build \
-    && cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ../skal \
-    && cmake --build . \
+script: >
+    mkdir ../build
+    && cd ../build
+    && cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ../skal
+    && cmake --build .
     && cmake --build . --target
