@@ -5,6 +5,7 @@ before_install:
  - sudo apt-get install libprotobuf-dev
  - sudo apt-get install libboost-atomic-dev libboost-chrono-dev
  - sudo apt-get install libboost-filesystem-dev libboost-thread-dev
+ - sudo apt-get install libboost-regex-dev
 
 script: >
     mkdir ../build
