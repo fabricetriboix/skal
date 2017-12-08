@@ -202,10 +202,9 @@ TEST_F(Worker, Stress)
             if (msg->action() == "stress") {
                 ++count;
                 if (msg->has_int("last")) {
-                    std::unique_ptr<skal::msg_t> msg2
-                        = skal::msg_t::create(next, "stress");
-                    msg2->add_field("last", 1);
-                    skal::send(std::move(msg2));
+                    msg = skal::msg_t::create(next, "stress");
+                    msg->add_field("last", 1);
+                    skal::send(std::move(msg));
                     return false;
                 }
                 skal::send(skal::msg_t::create(next, "stress"));
@@ -225,8 +224,7 @@ TEST_F(Worker, Stress)
             [nmsg, &source_count] (std::unique_ptr<skal::msg_t> msg)
             {
                 if (msg->action() == "kick") {
-                    std::unique_ptr<skal::msg_t> msg
-                        = skal::msg_t::create("worker0", "stress");
+                    msg = skal::msg_t::create("worker0", "stress");
                     ++source_count;
                     if (source_count >= nmsg) {
                         msg->add_field("last", 1);

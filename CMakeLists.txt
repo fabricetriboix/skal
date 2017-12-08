@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(skal VERSION 0.1.1 LANGUAGES CXX)
-include(GNUInstallDirs)
+project(skal LANGUAGES CXX)
 enable_testing()
 
 find_package(Boost 1.62 REQUIRED
@@ -43,8 +42,6 @@ add_library(skal STATIC
     ${SKAL_MSG_PROTO_SRC}
     ${SKAL_MSG_PROTO_HDR})
 
-target_link_libraries(skal Boost::boost)
-
 set_property(TARGET skal PROPERTY CXX_STANDARD 14)
 set_property(TARGET skal PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET skal PROPERTY CXX_EXTENSIONS OFF)
@@ -55,25 +52,13 @@ target_compile_options(skal PUBLIC -Wall -Wextra -Werror
     -Wno-unused-parameter -Wno-nonnull-compare)
 endif()
 
-target_include_directories(skal PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>)
-
 target_include_directories(skal
+    PUBLIC include
     PRIVATE ${Protobuf_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(skal
     Boost::date_time Boost::filesystem Boost::system
     ${Protobuf_LIBRARIES} rt)
-
-install(TARGETS skal EXPORT skal-targets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-# Make skal usable for `find_package()`
-install(EXPORT skal-targets DESTINATION share/skal/cmake NAMESPACE skal::)
 
 # Make skal importable from the build directory
 export(TARGETS skal FILE skal-targets.cmake)
@@ -94,8 +79,6 @@ if (CMAKE_COMPILER_IS_GNUCXX)
 target_compile_options(skal-unit-tests PUBLIC -Wall -Wextra -Werror
     -Wno-unused-parameter -Wno-nonnull-compare)
 endif()
-
-target_include_directories(skal-unit-tests PRIVATE include)
 
 target_link_libraries(skal-unit-tests skal gtest gmock_main)
 
