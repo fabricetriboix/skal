@@ -4,10 +4,6 @@ Skal: Scalable application framework
 Introduction
 ------------
 
-Skal is dual-licensed under the GPLv3 and a commercial license. If you
-require the commercial license, please contact me:
-"Fabrice Triboix" ftriboix-at-incise-dot-co.
-
 Skal is an multi-threaded, data-driven and scalable application
 framework written in C++ that has the following objectives:
  - Make writing multi-threaded application a piece of cake and
@@ -19,19 +15,49 @@ framework written in C++ that has the following objectives:
    moved to another process or another computer transparently
  - Fast, small footprint, portable; minimise RAM, CPU and network usage
 
+Show me some code!
+------------------
+
+Here is a silly example of how you can use skal:
+
+    #include <skal/skal.hpp>
+    #include <iostream>
+
+    int main()
+    {
+        // Create a worker
+        skal::worker_t::create("my worker",
+                [] (std::unique_ptr<skal::msg_t> msg)
+                {
+                    std::cout << "Received message " << msg->action();
+                    return msg->action() != "stop";
+                });
+
+        // Send the worker a message
+        skal::send(skal::msg_t::create("my worker", "hi"));
+
+        // Send the worker another message
+        skal::send(skal::msg_t::create("my worker", "stop"));
+
+        // Wait for all workers to finish
+        skal::wait();
+        return 0;
+    }
+
 Concepts
 --------
 
 In essence, a skal application is a collection of workers sending
 messages to each other. A worker is essentially a message queue
-associated with a message processing function.
+associated with a message processing function. A worker runs on its
+own thread.
 
 Workers are identified with a name that looks like "worker@domain",
 with "domain" being the name of a group of workers (however, all
 workers within a process must have the same domain name). When sending
-a message to a worker, you only need its name; skal will figure out
+a message to a worker, all you need is its name; skal will figure out
 where that worker is (whether in the same process, same computer or
-another computer) and will transparently deliver the message.
+somewhere on the network) and will transparently deliver the message.
 
 If a worker is receiving messages too fast from another worker (maybe
 because it is doing some time-consuming processing), skal will
@@ -48,7 +74,12 @@ memory area, a framebuffer on a video card, a packet on a network
 processor, a shared object on a NAS, etc.
 
 Skal supports publishing groups. Send a message to that group, and it
-will be duplicated to all group members.
+will be duplicated to all group members. If a worker wants to
+subscribe to a group, it just has to send a "skal-subcribe" to that
+group; optionally, it can add a "filter" field to the message to
+provide a regex to filter the messages it wants to receive based on
+the message action string. To stop receiving message, just send a
+"skal-unsubscribe" to the group.
 
 Skal has an in-built error management system called alarms. An alarm
 can be raised or lowered and can have different severity levels. These
@@ -60,17 +91,22 @@ Skal is numa-aware.
 Installation
 ------------
 
-You will need to have a recent version of cmake installed.
+You can't install skal, sorry.
+
+This is actually a deliberate decision. To use skal, bring it into
+your project and link against it there.
+
+To build skal, you will need to have a recent version of cmake
+installed.
 
 Follow the steps:
 
     $ git clone --recursive https://github.com/fabricetriboix/skal.git
     $ mkdir build-skal
     $ cd build-skal
-    $ cmake ../build-skal
+    $ cmake -DCMAKE_BUILD_TYPE=Release../build-skal
     $ make
     $ make test
-    $ make install
 
 Doxygen documentation will be generated. Please read it to learn how
 to use skal.
@@ -85,14 +121,12 @@ The text of the GPLv3 is available in the [LICENSE](LICENSE) file.
 
 A commercial license can be provided if you do not wish to be bound by
 the terms of the GPLv3, or for other reasons. Please contact me for more
-details.
+details at: "Fabrice Triboix" ftriboix-at-incise-dot-co.
 
 TODO
 ----
 
 Still to be implemented:
- - multicasting
- - stress tests
  - networking
  - numa
  - alarm reporting
