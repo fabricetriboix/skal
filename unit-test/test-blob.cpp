@@ -12,6 +12,7 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/sync/interprocess_semaphore.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <gtest/gtest.h>
 
 TEST(Blob, MallocBlobConcurrency)
