@@ -2,14 +2,17 @@ language: cpp
 
 before_install:
  - sudo apt-get update -qq
- - sudo apt-get install libprotobuf-dev
- - sudo apt-get install libboost-atomic-dev libboost-chrono-dev
- - sudo apt-get install libboost-filesystem-dev libboost-thread-dev
- - sudo apt-get install libboost-regex-dev
+ - sudo apt-get upgrade
+ - sudo apt-get install libprotobuf-dev p7zip-full wget
 
-script: >
-    mkdir ../build
-    && cd ../build
-    && cmake -DCMAKE_BUILD_TYPE=Release ../skal
-    && cmake --build .
-    && cmake --build . --target
+install:
+ - wget -O boost_1_65_1.7z https://dl.bintray/com/boostorg/release/1.65.1/source/boost_1_65_1.7z
+ - 7za x -y -bd -bb0 boost_1_65_1.7z
+ - ./bootstrap.sh --prefix=/usr/local
+ - travis_wait 30 ./b2 -d0
+ - sudo ./b2 install -d0
+
+script:
+ - cmake -DCMAKE_BUILD_TYPE=Release .
+ - cmake --build .
+ - cmake --build . --target test
