@@ -3,7 +3,7 @@ language: cpp
 before_install:
  - sudo apt-get -qq update
  - sudo apt-get -qq upgrade > /dev/null 2>&1 || true
- - sudo apt-get install libprotobuf-dev wget
+ - sudo apt-get install libprotobuf-dev wget || true
 
 install:
  - wget -O boost_1_65_1.tar.gz https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz
