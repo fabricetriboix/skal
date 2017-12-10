@@ -1,9 +1,9 @@
 language: cpp
 
 before_install:
- - sudo apt-get update -qq
- - sudo apt-get install cmake
- - sudo apt-get install libprotobuf-dev p7zip-full wget
+ - sudo apt-get -qq update
+ - sudo apt-get -qq upgrade
+ - sudo apt-get install libprotobuf-dev wget
 
 install:
  - wget -O boost_1_65_1.tar.gz https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz
