@@ -15,6 +15,7 @@ install:
  - cd ..
 
 script:
+ - cmake --version
  - cmake -DCMAKE_BUILD_TYPE=Release .
  - cmake --build .
  - cmake --build . --target test

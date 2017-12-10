@@ -15,6 +15,9 @@ framework written in C++ that has the following objectives:
    moved to another process or another computer transparently
  - Fast, small footprint, portable; minimise RAM, CPU and network usage
 
+The current version is a development version which is limited to a
+single process (i.e. no networking).
+
 Show me some code!
 ------------------
 
