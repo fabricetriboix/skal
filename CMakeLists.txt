@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.1)
 project(skal LANGUAGES C CXX)
 enable_testing()
+set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 find_package(Boost 1.62 REQUIRED
     COMPONENTS filesystem system thread regex)
