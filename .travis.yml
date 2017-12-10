@@ -2,7 +2,7 @@ language: cpp
 
 before_install:
  - sudo apt-get -qq update
- - sudo apt-get -qq upgrade
+ - sudo apt-get -qq upgrade > /dev/null 2>&1
  - sudo apt-get install libprotobuf-dev wget
 
 install:
