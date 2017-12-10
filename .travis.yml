@@ -22,6 +22,9 @@ install:
 
 script:
  - cmake --version
- - cmake -DCMAKE_BUILD_TYPE=Release .
+ - cd ..
+ - mkdir build
+ - cd build
+ - cmake -DCMAKE_BUILD_TYPE=Release ../skal
  - make
  - make test
