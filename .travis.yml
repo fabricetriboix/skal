@@ -16,8 +16,8 @@ install:
  - tar xf cmake-3.10.0.tar.gz
  - cd cmake-3.10.0
  - ./bootstrap
- - make
- - make install
+ - make > /dev/null
+ - sudo make install
  - cd ..
 
 script:
