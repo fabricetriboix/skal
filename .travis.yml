@@ -5,7 +5,7 @@ before_install:
  - sudo apt-get install libprotobuf-dev p7zip-full wget
 
 install:
- - wget -O boost_1_65_1.7z https://dl.bintray/com/boostorg/release/1.65.1/source/boost_1_65_1.7z
+ - wget -O boost_1_65_1.7z https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.7z
  - 7za x -y -bd -bb0 boost_1_65_1.7z
  - ./bootstrap.sh --prefix=/usr/local
  - travis_wait 30 ./b2 -d0
