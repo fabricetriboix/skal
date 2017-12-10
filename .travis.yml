@@ -11,6 +11,7 @@ install:
  - ./bootstrap.sh --prefix=/usr/local
  - travis_wait 30 ./b2 -d0
  - sudo ./b2 install -d0
+ - cd ..
 
 script:
  - cmake -DCMAKE_BUILD_TYPE=Release .
