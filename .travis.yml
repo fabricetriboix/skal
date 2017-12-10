@@ -5,14 +5,15 @@ before_install:
  - sudo apt-get install libprotobuf-dev wget
 
 install:
- - wget -O boost_1_65_1.tar.gz https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz
+ - wget https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz
  - tar xf boost_1_65_1.tar.gz
  - cd boost_1_65_1
  - ./bootstrap.sh --prefix=/usr/local
  - travis_wait 30 ./b2 -d0
  - sudo ./b2 install -d0
  - cd ..
- - wget -O cmake-3.10.0.tar.gz https://cmake.org/files/v3.10/cmake-3.10.0.tar.gz
+ - wget https://cmake.org/files/v3.10/cmake-3.10.0.tar.gz
+ - tar xf cmake-3.10.0.tar.gz
  - cd cmake-3.10.0
  - ./bootstrap
  - make
