@@ -2,9 +2,7 @@ language: cpp
 
 before_install:
  - sudo apt-get -qq update
- - sudo apt-get install libprotobuf-dev wget
-
-install:
+ - sudo apt-get install wget curl unzip
  - wget https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz
  - tar xf boost_1_65_1.tar.gz
  - cd boost_1_65_1
@@ -18,6 +16,14 @@ install:
  - ./bootstrap
  - make > /dev/null
  - sudo make install
+ - cd ..
+ - git clone --recursive https://github.com/google/protobuf.git
+ - cd protobuf
+ - ./autogen.sh
+ - ./configure
+ - make
+ - sudo make install
+ - sudo ldconfig
  - cd ..
 
 script:
