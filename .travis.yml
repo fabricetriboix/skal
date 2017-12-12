@@ -1,8 +1,16 @@
 language: cpp
 
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - g++-7
+      - wget
+      - curl
+      - unzip
+
 before_install:
- - sudo apt-get -qq update
- - sudo apt-get install wget curl unzip
  - wget https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz
  - tar xf boost_1_65_1.tar.gz
  - cd boost_1_65_1
@@ -27,6 +35,7 @@ before_install:
  - cd ..
 
 script:
+ - g++ --version
  - cmake --version
  - cd ..
  - mkdir build
