@@ -29,15 +29,15 @@ before_install:
  - wget https://cmake.org/files/v3.10/cmake-3.10.0.tar.gz
  - tar xf cmake-3.10.0.tar.gz
  - cd cmake-3.10.0
- - ./bootstrap
+ - ./bootstrap > /dev/null
  - make > /dev/null
  - sudo make install
  - cd ..
  - git clone --recursive https://github.com/google/protobuf.git
  - cd protobuf
  - ./autogen.sh
- - ./configure
- - make
+ - ./configure > /dev/null
+ - make > /dev/null
  - sudo make install
  - sudo ldconfig
  - cd ..
