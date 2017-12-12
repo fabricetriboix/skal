@@ -11,8 +11,7 @@ addons:
       - unzip
 
 env:
- - CC=gcc-7
- - CXX=g++-7
+ - CC=gcc-7 && CXX=g++-7
 
 #before_install:
 # - wget https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz
