@@ -159,7 +159,7 @@ public :
     ~blob_proxy_t() = default;
 
     blob_proxy_t(std::unique_ptr<proxy_base_t> base_proxy)
-        : base_proxy_(std::move(base_proxy)), is_mapped_(false)
+        : base_proxy_(std::move(base_proxy))
     {
         skal_assert(base_proxy_);
     }
@@ -171,7 +171,7 @@ public :
     blob_proxy_t(const blob_proxy_t& right);
 
     /** Move constructor */
-    blob_proxy_t(blob_proxy_t&& right) : is_mapped_(false)
+    blob_proxy_t(blob_proxy_t&& right)
     {
         base_proxy_ = std::move(right.base_proxy_);
     }
@@ -275,7 +275,7 @@ public :
 
 private :
     std::unique_ptr<proxy_base_t> base_proxy_;
-    bool is_mapped_;
+    bool is_mapped_ = false;
 };
 
 /** Class representing a blob allocator

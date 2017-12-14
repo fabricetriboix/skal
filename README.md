@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/fabricetriboix/skal.svg?branch=master)](https://travis-ci.org/fabricetriboix/skal)
+[![Coverity Status](https://scan.coverity.com/projects/14554/badge.svg)](https://scan.coverity.com/projects/fabricetriboix-skal)
 
 Skal: Scalable application framework
 ====================================
@@ -39,6 +40,7 @@ Here is a silly example of how you can use skal:
                 });
 
         // Send the worker a message
+        // NB: The worker is paused until `skal::wait()` is called
         skal::send(skal::msg_t::create("my worker", "hi"));
 
         // Send the worker another message
