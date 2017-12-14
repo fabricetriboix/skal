@@ -183,7 +183,7 @@ TEST_F(Worker, Group)
 TEST_F(Worker, Stress)
 {
     constexpr const int nworkers = 50; // Number of workers
-    constexpr const int nmsg = 10'00;  // Number of messages
+    constexpr const int nmsg = 50'00;  // Number of messages
     std::vector<int> counts;
     counts.resize(nworkers, 0);
 

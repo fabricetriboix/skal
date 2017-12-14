@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/fabricetriboix/skal.svg?branch=master)](https://travis-ci.org/fabricetriboix/skal)
+
 Skal: Scalable application framework
 ====================================
 
