@@ -4,8 +4,8 @@ services:
  - docker
 
 before_install:
- - docker pull seeker7/docker-boost
- - docker run -itd --name builder seeker7/docker-boost
+ - docker pull seeker7/cxx-dev
+ - docker run -itd --name builder seeker7/cxx-dev
  - docker exec builder git clone --recursive https://github.com/fabricetriboix/skal.git
 
 script:
