@@ -182,8 +182,8 @@ TEST_F(Worker, Group)
 
 TEST_F(Worker, Stress)
 {
-    constexpr const int nworkers = 100; // Number of workers
-    constexpr const int nmsg = 10'000;  // Number of messages
+    constexpr const int nworkers = 50; // Number of workers
+    constexpr const int nmsg = 10'00;  // Number of messages
     std::vector<int> counts;
     counts.resize(nworkers, 0);
 
@@ -238,7 +238,7 @@ TEST_F(Worker, Stress)
                 return true;
             });
 
-    run(1h);
+    run(5min);
 
     for (int i = 0; i < nworkers; ++i) {
         ASSERT_EQ(counts[i], nmsg);
