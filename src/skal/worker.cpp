@@ -493,28 +493,30 @@ bool worker_t::post(std::unique_ptr<msg_t>& msg)
 void worker_t::wait()
 {
     global_t::set_me("main"); // Set thread name for nice logging
-    skal_log(info) << "Running skal application";
+    skal_log(info) << "Running skal process";
     {
         lock_t lock(g_mutex);
         g_state = state_t::running;
     }
+    // Release already created workers
     for (auto& worker : g_workers) {
         worker.second->semaphore_.post();
     }
     for (;;) {
         g_semaphore.take();
         lock_t lock(g_mutex);
+        // Clean up terminated workers
         while (!g_terminated_workers.empty()) {
             g_workers.erase(g_terminated_workers.front());
             g_terminated_workers.pop_front();
         }
         if (g_workers.empty()) {
-            skal_log(debug) << "No more workers, skal application terminated";
+            skal_log(debug) << "No more workers, skal process terminated";
+            // Reset the state, in case the client software calls `wait()` again
+            g_state = state_t::initialising;
             break;
         }
     }
-    // Reset the state, if the client software calls `wait()` again
-    g_state = state_t::initialising;
 }
 
 void worker_t::terminate()

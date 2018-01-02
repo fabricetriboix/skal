@@ -7,7 +7,7 @@ Skal: Scalable application framework
 Introduction
 ------------
 
-Skal is an multi-threaded, data-driven and scalable application
+Skal is a multi-threaded, data-driven and scalable application
 framework written in C++ that has the following objectives:
  - Make writing multi-threaded application a piece of cake and
    fool-proof; this is done by relying entirely on messages and getting
