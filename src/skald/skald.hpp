@@ -5,6 +5,7 @@
 #include <skal/skal.hpp>
 #include <skal/log.hpp>
 #include <skal/util.hpp>
+#include <vector>
 
 namespace skald {
 
@@ -14,13 +15,23 @@ struct parameters_t {
      * This may be the empty string, in which case the default domain will be
      * used.
      */
-    std::string domain;
+    std::string domain = "default-domain";
 
-    /** Local address to bind and listen to
+    /** Addresses to bind and listen to
      *
-     * This is where skal processes can connect to.
+     * This is where skal processes and other skalds can connect to.
      */
-    std::string local_url;
+    std::vector<std::string> urls = { "tcp://0.0.0.0:47770" };
+
+    /** Number of threads to assign for the routing of messages */
+    int nthreads = 4;
+
+    /** Blob chunk size
+     *
+     * Blobs are transmitted in chunks. This is the maximum size of such a
+     * chunk.
+     */
+    int chunk_size_B = 1400;
 };
 
 /** Initialise skald

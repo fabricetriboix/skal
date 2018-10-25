@@ -81,9 +81,6 @@ bool parse_args(int& argc, char**& argv, parameters_t& params)
     } else if (verbose.size() > 0) {
         skal::log::minimum_level(skal::log::level_t::info);
     }
-    if (params.domain.empty()) {
-        params.domain = "default-domain";
-    }
     return true;
 }
 
