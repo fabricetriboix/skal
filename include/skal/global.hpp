@@ -28,6 +28,7 @@ private:
     static void set_me(std::string me);
 
     friend class worker_t;
+    friend struct skald_global_t;
 };
 
 /** Get the fully qualified name

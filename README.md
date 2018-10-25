@@ -7,8 +7,8 @@ Skal: Scalable application framework
 Introduction
 ------------
 
-Skal is an multi-threaded, data-driven and scalable application
-framework written in C++ that has the following objectives:
+Skal is a multi-threaded, data-driven and scalable application
+framework written in C++14 that has the following objectives:
  - Make writing multi-threaded application a piece of cake and
    fool-proof; this is done by relying entirely on messages and getting
    rid of mutexes, semaphores and (most of) shared memory
@@ -16,7 +16,15 @@ framework written in C++ that has the following objectives:
    high throughput applications
  - Make writing distributed applications transparent; a worker can be
    moved to another process or another computer transparently
- - Fast, small footprint, portable; minimise RAM, CPU and network usage
+ - Fast & portable; minimise RAM, CPU and network usage
+
+Skal is well-suited for any type of application requiring a high level
+of determinism (eg: real-time video encoder, most embedded
+applications, real-time trading, network bridge, etc.)
+
+It is not suited for computing application which require maximisation
+of CPU and RAM load; in such cases, solutions based on `std::future`
+or HPX are better suited.
 
 The current version is a development version which is limited to a
 single process (i.e. no networking).
@@ -35,7 +43,9 @@ Here is a silly example of how you can use skal:
         skal::worker_t::create("my worker",
                 [] (std::unique_ptr<skal::msg_t> msg)
                 {
+                    // Message processing function
                     std::cout << "Received message " << msg->action();
+                    // Return `false` to stop the worker
                     return msg->action() != "stop";
                 });
 
@@ -46,7 +56,7 @@ Here is a silly example of how you can use skal:
         // Send the worker another message
         skal::send(skal::msg_t::create("my worker", "stop"));
 
-        // Wait for all workers to finish
+        // Run skal and wait for all workers to finish
         skal::wait();
         return 0;
     }
@@ -60,7 +70,7 @@ associated with a message processing function. A worker runs on its
 own thread.
 
 Workers are identified with a name that looks like "worker@domain",
-with "domain" being the name of a group of workers (however, all
+with "domain" being the name of a group of workers (please note all
 workers within a process must have the same domain name). When sending
 a message to a worker, all you need is its name; skal will figure out
 where that worker is (whether in the same process, same computer or

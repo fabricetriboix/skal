@@ -4,7 +4,7 @@ enable_testing()
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 find_package(Boost 1.62 REQUIRED
-    COMPONENTS filesystem system thread regex)
+    COMPONENTS filesystem system thread regex program_options)
 find_package(Protobuf REQUIRED)
 
 add_subdirectory(googletest)
@@ -60,6 +60,23 @@ target_include_directories(skal
 target_link_libraries(skal
     Boost::filesystem Boost::system
     ${Protobuf_LIBRARIES} rt)
+
+add_executable(skald
+    src/skald/skald.hpp
+    src/skald/skald.cpp
+    src/skald/main.cpp)
+
+set_property(TARGET skald PROPERTY CXX_STANDARD 14)
+set_property(TARGET skald PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET skald PROPERTY CXX_EXTENSIONS OFF)
+
+# Turn on maximum warnings
+if (CMAKE_COMPILER_IS_GNUCXX)
+target_compile_options(skald PUBLIC -Wall -Wextra -Werror
+    -Wno-unused-parameter -Wno-nonnull-compare)
+endif()
+
+target_link_libraries(skald skal Boost::program_options)
 
 # Make skal importable from the build directory
 export(TARGETS skal FILE skal-targets.cmake)
